@@ -16,7 +16,7 @@ without Wi-Fi and invites the attendee to **teach it a job**.
 firmware/devday_terminal/   Arduino sketch (the whole firmware)
 partitions.csv              16 MB map: factory + ota_0/ota_1 (3 MB each) + LittleFS
 companion-site/             assembly & setup site (Web Serial + AP fallback)
-tools/                      build.sh, package_release.sh, sign_update.sh, generators
+tools/                      build.sh, package_release.sh, generators
 docs/                       PROTOCOL.md · FLASHING.md · LINE_TEST.md
 release/                    build + packaged artifacts (gitignored)
 ```
@@ -35,7 +35,7 @@ release/                    build + packaged artifacts (gitignored)
 
 ```sh
 tools/build.sh              # compile → release/build/
-tools/package_release.sh    # build + sign + merge + checksums → release/
+tools/package_release.sh    # build + merge + checksums → release/
 ```
 
 Setup from scratch:
@@ -51,9 +51,7 @@ arduino-cli lib install --zip-path /tmp/seeed_gfx.zip
 ```
 
 Regenerable inputs: `tools/gen_qr.py` (Yours-card QR),
-`tools/gen_ca_bundle.sh` (embedded Mozilla CA store), `tools/gen_keys.sh`
-(local update-signing keypair; the **production private key lives in
-1Password** and is never committed).
+`tools/gen_ca_bundle.sh` (embedded Mozilla CA store).
 
 ## Behavior summary
 
@@ -70,8 +68,8 @@ Regenerable inputs: `tools/gen_qr.py` (Yours-card QR),
 - Long **D2** (or `ap.start`) brings up the SoftAP portal with generated
   on-screen credentials; it stops after 5 minutes.
 - Hold **D1+D4** at boot (or `factory_reset`) to clear configuration.
-- Signed app-only updates (RSA-2048/SHA-256) via the portal; raw USB
-  flashing stays deliberately unrestricted.
+- App-only updates via the portal (image-header validated, SHA-256 reported
+  back for checksum comparison); raw USB flashing stays unrestricted.
 
 ## Interfaces
 
@@ -85,6 +83,6 @@ Regenerable inputs: `tools/gen_qr.py` (Yours-card QR),
 - Useful screen ≤8 s from cold boot without Wi-Fi.
 - Config survives 20 power cycles.
 - Correct battery/buttons/display behavior on all three samples.
-- Valid signed update succeeds; corrupted and wrong-key binaries fail.
+- Valid portal update succeeds; corrupted/truncated images fail.
 - Interrupted update boots the previous application.
 - USB bootloader recovery can always overwrite the factory image.

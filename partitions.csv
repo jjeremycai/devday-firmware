@@ -1,5 +1,5 @@
 # Dev Day Terminal - 16 MB flash layout
-# factory ships the RC; ota_0/ota_1 receive signed app-only updates.
+# factory ships the RC; ota_0/ota_1 receive portal app-only updates.
 # Name,     Type, SubType,  Offset,    Size,      Flags
 nvs,        data, nvs,      0x9000,    0x6000,
 phy_init,   data, phy,      0xf000,    0x1000,

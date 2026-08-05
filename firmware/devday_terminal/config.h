@@ -45,12 +45,3 @@ static constexpr uint16_t DEFAULT_REFRESH_MINUTES = 30;
 #define CACHE_CONTENT_PATH "/content.json"
 #define CACHE_ETAG_PATH "/content.etag"
 
-// ---------------------------------------------------------------------------
-// OTA signed update trailer
-// ---------------------------------------------------------------------------
-// Layout appended to the raw application image:
-//   [ image bytes ][ magic u32 LE ][ image_len u32 LE ][ 256-byte RSA-2048 sig ]
-// The signature is RSASSA-PKCS1-v1_5 over SHA-256(image bytes).
-static constexpr uint32_t OTA_MAGIC = 0xDEAD0A7A;
-static constexpr size_t OTA_SIG_LEN = 256;
-static constexpr size_t OTA_TRAILER_LEN = 8 + OTA_SIG_LEN;

@@ -1,4 +1,0 @@
-# Private keys never leave this machine. Production key lives in 1Password.
-*.pem
-*.der
-!.gitignore

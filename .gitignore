@@ -5,8 +5,4 @@ tools/bin/
 # Copied into the sketch by tools/build.sh
 firmware/devday_terminal/partitions.csv
 
-# Secrets: development signing keys stay local; production key lives in 1Password
-tools/keys/*.pem
-tools/keys/*.der
-
 .DS_Store

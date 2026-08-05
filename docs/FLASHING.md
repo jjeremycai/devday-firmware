@@ -22,24 +22,26 @@ on each unit (see docs/LINE_TEST.md).
 | `0x9000` | nvs | 0x6000 | `Preferences` config |
 | `0xf000` | phy_init | 0x1000 | RF calibration |
 | `0x10000` | factory | 3 MB | ships the RC |
-| `0x310000` | ota_0 | 3 MB | signed updates |
-| `0x610000` | ota_1 | 3 MB | signed updates |
+| `0x310000` | ota_0 | 3 MB | portal updates |
+| `0x610000` | ota_1 | 3 MB | portal updates |
 | `0x910000` | otadata | 0x2000 | OTA boot selection |
 | `0x912000` | nvs_keys | 0x1000 | NVS keys |
 | `0x920000` | littlefs | 6.9 MB | content cache |
 
-## Signed updates
+## Portal updates
 
-The on-demand portal (`POST /update`) accepts only application-only images
-signed with the production RSA-2048 key (RSASSA-PKCS1-v1_5 over SHA-256,
-264-byte trailer — see `tools/sign_update.sh`). Corrupted or wrong-key
-binaries are rejected; an interrupted upload never touches the running slot,
-so the previous application keeps booting.
-
-Sign with the production private key from 1Password (never committed):
+The on-demand portal (`POST /update`) accepts a plain application-only image
+(`.bin` from any Arduino build). The device validates the ESP32 image header,
+computes a SHA-256 of the received image, and reports it in the response so it
+can be compared against the published checksum in `SHA256SUMS.txt`. An
+interrupted upload never touches the running slot, so the previous application
+keeps booting. There is no update signing: the portal is already gated by the
+generated on-screen AP credentials, and raw USB flashing is open anyway.
 
 ```sh
-tools/sign_update.sh app.bin app.signed.bin /path/to/prod_update_key.pem
+# Any app-only binary, e.g. the packaged update image:
+curl -X POST --data-binary @devday-terminal-update-1.0.0.bin \
+  -H "Content-Type: application/octet-stream" http://192.168.4.1/update
 ```
 
 ## Attendee reflashing (deliberately unrestricted)

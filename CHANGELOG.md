@@ -23,13 +23,14 @@ Factory release candidate for the Seeed August 11 manufacturing start.
 - Battery monitoring on GPIO1 with GPIO6 divider gating (0.968 calibration),
   deep-sleep on battery with EXT1 button + refresh-timer wake; stays awake
   during USB setup sessions and portal operation.
-- RSA-2048/SHA-256 signed app-only updates through the portal (embedded
-  public key; production private key in 1Password). Raw USB flashing remains
-  unrestricted.
+- App-only updates through the portal, image-header validated with a
+  SHA-256 of the flashed image reported to the uploader. No signing: raw USB
+  flashing is unrestricted and the portal is gated by on-screen AP
+  credentials.
 - Custom 16 MB partition table: factory + two 3 MB OTA slots + LittleFS.
 - Companion assembly site with Web Serial setup, live status, card preview,
   AP fallback for non-Chromium browsers, and the Arduino/Codex replacement
   recipe.
-- Release tooling: pinned toolchain build script, signing, merged factory
-  image, SHA-256 sums, build metadata, dependency manifest, recovery image,
-  flash commands, and the Seeed line-test checklist.
+- Release tooling: pinned toolchain build script, merged factory image,
+  SHA-256 sums, build metadata, dependency manifest, recovery image, flash
+  commands, and the Seeed line-test checklist.

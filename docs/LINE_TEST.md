@@ -41,12 +41,12 @@ unit eFuse MAC from `factory.check.serial`.
 - [ ] Write config over USB (`config.write`), power-cycle **20×**, confirm
       `status` still returns the written values each time
 
-## 6. Signed update / recovery (one unit per batch minimum)
+## 6. Portal update / recovery (one unit per batch minimum)
 
-- [ ] Valid signed update via portal `POST /update` succeeds; unit reboots
-      into the new app (`partition` becomes `ota_0`/`ota_1`)
-- [ ] Corrupted signed binary is rejected (`bad_signature`/`bad_trailer`)
-- [ ] Wrong-key binary is rejected
+- [ ] Valid app-only update via portal `POST /update` succeeds; unit reboots
+      into the new app (`partition` becomes `ota_0`/`ota_1`) and the reported
+      SHA-256 matches the uploaded file
+- [ ] Corrupted/truncated binary is rejected (`bad_image`/`truncated`)
 - [ ] Kill power mid-update → unit boots the previous application
 - [ ] USB bootloader recovery: hold BOOT, reflash recovery image, unit boots
 

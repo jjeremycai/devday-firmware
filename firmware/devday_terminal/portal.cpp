@@ -37,9 +37,9 @@ section{border-top:1px solid #ddd;margin-top:2rem;padding-top:1rem}
 <button type="submit">Save configuration</button>
 </form>
 <section>
-<h2>Signed firmware update</h2>
+<h2>Firmware update</h2>
 <form id="upd"><input name="bin" type="file" accept=".bin" required>
-<button type="submit">Upload signed update</button></form>
+<button type="submit">Upload update</button></form>
 </section>
 <div id="msg"></div>
 <script>
@@ -65,7 +65,7 @@ document.getElementById('upd').onsubmit = async (e) => {
   const file = e.target.bin.files[0];
   msg('Uploading ' + file.size + ' bytes...');
   const r = await fetch('/update', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
-  msg(r.ok ? 'Update verified. Rebooting...' : 'Update rejected: ' + await r.text());
+  msg(r.ok ? 'Update flashed. Rebooting... ' + await r.text() : 'Update rejected: ' + await r.text());
 };
 </script></body></html>)HTML";
 
@@ -102,7 +102,7 @@ static String update_err_;
 
 static void handleUpdateDone() {
   if (update_ok_) {
-    server.send(200, "text/plain", "ok");
+    server.send(200, "text/plain", "ok sha256=" + ota_.imageSha256());
     delay(300);
     hooks_.request_reboot();
   } else {
