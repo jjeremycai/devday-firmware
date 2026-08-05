@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Compile the factory firmware with the pinned toolchain.
+#
+# Pinned dependencies (see docs/DEPENDENCIES.md):
+#   Arduino CLI 1.5.1 · Arduino-ESP32 3.3.8 · board esp32:esp32:XIAO_ESP32S3_Plus
+#   Seeed_GFX 3.1.0 · ArduinoJson 7.4.3
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ARDUINO_CLI="${ARDUINO_CLI:-$ROOT/tools/bin/arduino-cli}"
+SKETCH="$ROOT/firmware/devday_terminal"
+BUILD_DIR="$ROOT/release/build"
+
+mkdir -p "$BUILD_DIR"
+
+# Custom 16 MB partition table lives at the repo root; the core expects it
+# inside the sketch directory, so copy it in (gitignored).
+cp -f "$ROOT/partitions.csv" "$SKETCH/partitions.csv"
+
+# partitions.csv in the sketch directory is picked up automatically by the
+# core's prebuild hook; the merged factory image (.merged.bin) is emitted
+# alongside the app binary.
+"$ARDUINO_CLI" compile \
+  --fqbn esp32:esp32:XIAO_ESP32S3_Plus \
+  --build-path "$BUILD_DIR" \
+  --warnings default \
+  "$SKETCH"
+
+echo
+echo "app binary: $BUILD_DIR/devday_terminal.ino.bin"

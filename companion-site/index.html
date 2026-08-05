@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dev Day Terminal — Assembly &amp; Setup</title>
+<style>
+  :root { --ink:#111; --paper:#fff; --line:#ddd; --accent:#111; }
+  * { box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,sans-serif; color:var(--ink); background:#f7f7f5;
+         max-width:860px; margin:0 auto; padding:2rem 1.25rem 4rem; line-height:1.55; }
+  h1 { font-size:1.6rem; margin-bottom:.25rem; }
+  h2 { font-size:1.15rem; margin-top:2.5rem; border-top:1px solid var(--line); padding-top:1.25rem; }
+  .sub { color:#555; margin-top:0; }
+  .card { background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:1.25rem 1.5rem; margin-top:1rem; }
+  label { display:block; font-weight:600; font-size:.85rem; margin:.9rem 0 .2rem; }
+  input, select { width:100%; padding:.55rem .65rem; border:1px solid #bbb; border-radius:6px; font:inherit; background:#fff; }
+  button { padding:.6rem 1.1rem; border:0; border-radius:6px; background:var(--accent); color:#fff;
+           font:inherit; cursor:pointer; margin-top:.75rem; }
+  button.ghost { background:#fff; color:var(--ink); border:1px solid #999; }
+  button:disabled { opacity:.4; cursor:default; }
+  .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  pre, code { font-family:ui-monospace,SFMono-Regular,monospace; font-size:.85rem; }
+  pre { background:#111; color:#eee; padding:1rem; border-radius:8px; overflow-x:auto; white-space:pre-wrap; }
+  #log { height:180px; overflow-y:auto; background:#111; color:#9f9; padding:.75rem; border-radius:8px;
+         font-family:ui-monospace,monospace; font-size:.78rem; white-space:pre-wrap; }
+  .status-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.5rem; margin-top:.75rem; }
+  .status-grid div { background:#fafafa; border:1px solid var(--line); border-radius:6px; padding:.5rem .75rem; font-size:.85rem; }
+  .status-grid b { display:block; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#777; }
+  .pill { display:inline-block; padding:.15rem .6rem; border-radius:99px; font-size:.75rem; font-weight:600; }
+  .pill.on { background:#e3f5e3; color:#1a7a1a; } .pill.off { background:#f5e3e3; color:#a33; }
+  ol li { margin:.35rem 0; }
+</style>
+</head>
+<body>
+<h1>Dev Day Terminal</h1>
+<p class="sub">Assembly, setup, and the replacement-app recipe for your 7.5&Prime; e-ink terminal.</p>
+
+<div class="card" id="setup-card">
+  <div class="row">
+    <button id="connect">Connect over USB</button>
+    <span id="conn-pill" class="pill off">disconnected</span>
+  </div>
+  <p id="serial-note" style="font-size:.85rem;color:#555"></p>
+
+  <div id="unsupported" hidden>
+    <p><b>Web Serial is not available in this browser.</b> Use the on-demand setup portal instead:</p>
+    <ol>
+      <li>Hold <b>D2</b> on the terminal for 2 seconds (or press D2 to wake it first).</li>
+      <li>The screen shows a <b>DevDay-XXXX</b> network name and password.</li>
+      <li>Join that Wi-Fi, then open <code>http://192.168.4.1</code>.</li>
+      <li>The portal closes itself after 5 minutes.</li>
+    </ol>
+  </div>
+
+  <div class="status-grid" id="status-grid" hidden>
+    <div><b>Firmware</b><span id="s-fw">—</span></div>
+    <div><b>Name</b><span id="s-name">—</span></div>
+    <div><b>Battery</b><span id="s-batt">—</span></div>
+    <div><b>Connection</b><span id="s-conn">—</span></div>
+    <div><b>Card</b><span id="s-card">—</span></div>
+    <div><b>Boots</b><span id="s-boots">—</span></div>
+  </div>
+</div>
+
+<div class="card" id="config-card" hidden>
+  <h2 style="border:0;margin-top:0;padding-top:0">Configure</h2>
+  <label>Device name</label><input id="c-name" maxlength="32">
+  <label>Startup card</label>
+  <select id="c-card"><option value="build">Build</option><option value="brief">Brief</option><option value="yours">Yours</option></select>
+  <label>Wi-Fi SSID (2.4 GHz)</label><input id="c-ssid" maxlength="32">
+  <label>Wi-Fi password</label><input id="c-pass" type="password" maxlength="63">
+  <label>Content URL (HTTPS, optional)</label><input id="c-url" placeholder="https://example.com/card.json">
+  <label>Refresh interval (minutes)</label><input id="c-refresh" type="number" min="5" max="1440" value="30">
+  <div class="row">
+    <button id="save">Save to terminal</button>
+    <button class="ghost" id="preview-build">Preview Build</button>
+    <button class="ghost" id="preview-brief">Preview Brief</button>
+    <button class="ghost" id="preview-yours">Preview Yours</button>
+  </div>
+  <div class="row">
+    <button class="ghost" id="ap-start">Start setup AP (5 min)</button>
+    <button class="ghost" id="factory-check">factory.check</button>
+    <button class="ghost" id="reboot">Reboot</button>
+  </div>
+  <p id="ap-info" style="font-size:.9rem"></p>
+</div>
+
+<div class="card" id="log-card" hidden>
+  <b>Serial log</b>
+  <div id="log"></div>
+</div>
+
+<h2>Assemble the kit</h2>
+<div class="card">
+  <ol>
+    <li>Seat the e-paper FPC in the 24-pin connector, <b>metal side up</b>, and close the latch. The cable is fragile — never bend it sideways.</li>
+    <li>Set the display jumper to <b>24Pin–GND</b>.</li>
+    <li>Connect the battery to the JST header (red = +, black = −).</li>
+    <li>Plug the XIAO ESP32-S3 Plus into the driver board and connect USB-C.</li>
+    <li>Press <b>Connect over USB</b> above. The terminal shows <b>READY</b> on the Build card within a few seconds.</li>
+  </ol>
+</div>
+
+<h2>Teach it a job</h2>
+<div class="card">
+  <ol>
+    <li>Connect over USB above (or use the AP fallback in any browser).</li>
+    <li>Enter your 2.4 GHz Wi-Fi and, optionally, an HTTPS content URL that returns the <a href="../docs/PROTOCOL.md#content-api">schema-1 card JSON</a>.</li>
+    <li>Save. The terminal caches the last good payload and keeps working without Wi-Fi.</li>
+  </ol>
+</div>
+
+<h2>Make it yours — the replacement-app recipe</h2>
+<div class="card">
+  <p>The factory app is deliberately replaceable. Raw USB flashing is unrestricted: erase and flash your own firmware any time.</p>
+  <ol>
+    <li>Install <a href="https://github.com/arduino/arduino-cli/releases/tag/v1.5.1">Arduino CLI 1.5.1</a>.</li>
+    <li>Install the pinned core and libraries:
+<pre>arduino-cli core install esp32:esp32@3.3.8 \
+  --additional-urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+arduino-cli lib install "ArduinoJson@7.4.3"
+# Seeed_GFX V3.1.0 ships as a GitHub ZIP:
+#   https://github.com/Seeed-Studio/Seeed_GFX/archive/refs/tags/V3.1.0.zip</pre></li>
+    <li>Create a sketch with a <code>driver.h</code>:
+<pre>#define BOARD_SCREEN_COMBO 502          // 7.5" UC8179 800x480
+#define USE_XIAO_EPAPER_DISPLAY_BOARD_EE04</pre></li>
+    <li>Draw with <code>EPaper</code> (Seeed_GFX): <code>epaper.begin()</code>, draw, <code>epaper.update()</code>. Buttons are D1/D2/D4 (active-low), battery ADC on GPIO1 with the GPIO6 divider enable and 0.968 calibration.</li>
+    <li>Ask Codex to build your app: <i>"Write an Arduino sketch for the XIAO ESP32-S3 Plus with Seeed_GFX that fetches my build status every 15 minutes and renders it on the 800×480 e-paper, deep-sleeping between refreshes."</i></li>
+    <li>Compile and flash over USB:
+<pre>arduino-cli compile -b esp32:esp32:XIAO_ESP32S3_Plus MyApp
+arduino-cli upload  -b esp32:esp32:XIAO_ESP32S3_Plus -p PORT MyApp</pre></li>
+  </ol>
+  <p>Bricked it? Hold the XIAO's <b>BOOT</b> button while plugging in USB and reflash — the USB bootloader always recovers the device.</p>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $("log");
+let port, reader, lineBuf = "", nextId = 1;
+const pending = new Map();
+
+const log = (t) => { logEl.textContent += t + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+
+if (!("serial" in navigator)) {
+  $("connect").disabled = true;
+  $("unsupported").hidden = false;
+  $("serial-note").textContent = "This browser cannot talk USB serial. The AP fallback below does everything this page does.";
+} else {
+  $("serial-note").textContent = "Chrome/Edge on a laptop, USB-C data cable. Nothing is installed on your machine.";
+}
+
+function send(cmd, params) {
+  return new Promise((resolve, reject) => {
+    const id = String(nextId++);
+    pending.set(id, { resolve, reject });
+    const msg = { v: 1, cmd, id };
+    if (params) msg.params = params;
+    const writer = port.writable.getWriter();
+    writer.write(new TextEncoder().encode(JSON.stringify(msg) + "\n")).then(() => writer.releaseLock());
+    setTimeout(() => { if (pending.delete(id)) reject(new Error("timeout")); }, 8000);
+  });
+}
+
+async function readLoop() {
+  const decoder = new TextDecoder();
+  while (port.readable) {
+    reader = port.readable.getReader();
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        lineBuf += decoder.decode(value);
+        let i;
+        while ((i = lineBuf.indexOf("\n")) >= 0) {
+          const line = lineBuf.slice(0, i).trim(); lineBuf = lineBuf.slice(i + 1);
+          if (!line) continue;
+          try { handle(JSON.parse(line)); } catch { log("<< " + line); }
+        }
+      }
+    } catch (e) { log("read error: " + e.message); }
+    finally { reader.releaseLock(); }
+  }
+}
+
+function handle(msg) {
+  log("<< " + JSON.stringify(msg));
+  if (msg.id && pending.has(msg.id)) {
+    const p = pending.get(msg.id); pending.delete(msg.id);
+    msg.ok ? p.resolve(msg.data || {}) : p.reject(new Error(msg.error?.code || "failed"));
+  }
+}
+
+async function refreshStatus() {
+  try {
+    const s = await send("status");
+    $("status-grid").hidden = false;
+    $("s-fw").textContent = s.fw; $("s-name").textContent = s.name;
+    $("s-batt").textContent = s.battery_v.toFixed(2) + " V (" + s.battery_pct + "%)";
+    $("s-conn").textContent = s.connection; $("s-card").textContent = s.card;
+    $("s-boots").textContent = s.boots;
+    if (!$("c-name").value) {
+      $("c-name").value = s.name; $("c-card").value = s.startup_card;
+      $("c-ssid").value = s.wifi_ssid; $("c-url").value = s.content_url;
+      $("c-refresh").value = s.refresh_minutes;
+    }
+  } catch (e) { /* device may be asleep */ }
+}
+
+$("connect").onclick = async () => {
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    $("conn-pill").textContent = "connected"; $("conn-pill").className = "pill on";
+    $("connect").disabled = true;
+    $("config-card").hidden = false; $("log-card").hidden = false;
+    readLoop();
+    setInterval(refreshStatus, 3000); refreshStatus();
+  } catch (e) { log("connect failed: " + e.message); }
+};
+
+$("save").onclick = async () => {
+  try {
+    await send("config.write", {
+      device_name: $("c-name").value, startup_card: $("c-card").value,
+      wifi_ssid: $("c-ssid").value, wifi_password: $("c-pass").value,
+      content_url: $("c-url").value, refresh_minutes: Number($("c-refresh").value),
+    });
+    log("config saved"); refreshStatus();
+  } catch (e) { alert("Save failed: " + e.message); }
+};
+
+for (const card of ["build", "brief", "yours"]) {
+  $("preview-" + card).onclick = () => send("card.preview", { card }).catch(e => alert(e.message));
+}
+
+$("ap-start").onclick = async () => {
+  try {
+    const d = await send("ap.start");
+    $("ap-info").innerHTML = `AP <b>${d.ssid}</b> · password <b>${d.password}</b> · open <code>http://${d.ip}</code> · expires in ${d.expires_s / 60} min (also on the terminal screen).`;
+  } catch (e) { alert("AP start failed: " + e.message); }
+};
+
+$("factory-check").onclick = async () => {
+  try { log("factory.check: " + JSON.stringify(await send("factory.check"), null, 2)); }
+  catch (e) { alert(e.message); }
+};
+
+$("reboot").onclick = () => send("reboot").catch(() => {});
+</script>
+</body>
+</html>
