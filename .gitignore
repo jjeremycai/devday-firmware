@@ -6,3 +6,4 @@ tools/bin/
 firmware/devday_terminal/partitions.csv
 
 .DS_Store
+tools/preview/out/
