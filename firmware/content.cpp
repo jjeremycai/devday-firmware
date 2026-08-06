@@ -34,8 +34,6 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.dash_name = "";
   c.dash_handle = "";
   c.dash_plan = "";
-  c.dash_weather_temp = "";
-  c.dash_weather_detail = "";
   c.dash_lifetime = "";
   c.dash_peak = "";
   c.dash_longest = "";
@@ -110,8 +108,6 @@ bool contentParse(const String& payload, CardContent& c) {
     if (dash["name"].is<const char*>()) c.dash_name = dash["name"].as<String>();
     if (dash["handle"].is<const char*>()) c.dash_handle = dash["handle"].as<String>();
     if (dash["plan"].is<const char*>()) c.dash_plan = dash["plan"].as<String>();
-    if (dash["weather_temp"].is<const char*>()) c.dash_weather_temp = dash["weather_temp"].as<String>();
-    if (dash["weather_detail"].is<const char*>()) c.dash_weather_detail = dash["weather_detail"].as<String>();
     if (dash["lifetime"].is<const char*>()) c.dash_lifetime = dash["lifetime"].as<String>();
     if (dash["peak"].is<const char*>()) c.dash_peak = dash["peak"].as<String>();
     if (dash["longest"].is<const char*>()) c.dash_longest = dash["longest"].as<String>();

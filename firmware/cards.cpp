@@ -722,11 +722,10 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
   const int16_t pet_y = 52;
   drawPet(c, pet_x, pet_y);
 
-  // Identity on the left, weather on the right; keep them from meeting.
-  const int16_t weather_w = 240;
+  // Identity runs the full width. Weather lives on its own page (KEY2); a
+  // second copy here said nothing the tab strip did not already offer.
   const int16_t text_x = pet_x + (int16_t)CardContent::PET_W + 28;
-  const int16_t name_w =
-      (c.dash_weather_temp.length() > 0 ? W - MARGIN - weather_w - 20 : W - MARGIN) - text_x;
+  const int16_t name_w = W - MARGIN - text_x;
 
   epaper.setFreeFont(&FreeSansBold24pt7b);
   epaper.setTextDatum(TL_DATUM);
@@ -747,16 +746,6 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.setTextDatum(ML_DATUM);
     epaper.drawString(c.dash_plan, bx + 9, by + bh / 2, GFXFF);
     epaper.setTextDatum(TL_DATUM);
-  }
-
-  // Weather, top-right — glanceable before you leave.
-  if (c.dash_weather_temp.length() > 0) {
-    int16_t wx = W - MARGIN;
-    epaper.setFreeFont(&FreeSansBold24pt7b);
-    epaper.setTextDatum(TR_DATUM);
-    epaper.drawString(c.dash_weather_temp, wx, 66, GFXFF);
-    epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.drawString(fit(c.dash_weather_detail, weather_w), wx, 118, GFXFF);
   }
 
   // Double hairline — brutalist separation

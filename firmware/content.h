@@ -12,13 +12,11 @@ struct CardContent {
   String build_detail;
   String build_updated_at;
 
-  // Usage card (Codex profile + weather + token chart)
+  // Usage card (Codex pet + profile + token chart). Weather has its own page.
   bool dash_present;
   String dash_name;
   String dash_handle;
   String dash_plan;          // e.g. "Pro"
-  String dash_weather_temp;  // e.g. "72°"
-  String dash_weather_detail;
   String dash_lifetime;
   String dash_peak;
   String dash_longest;

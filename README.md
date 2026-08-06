@@ -19,7 +19,7 @@ so it doesn't wake the device from sleep and is ignored for ~1.2 s after each
 refresh. The board's fourth key (D4) also shows Agenda, and D1+D4 held at boot
 is the factory reset combo.
 
-- **1 → Usage** — your Codex pet, profile, weather, token chart (pushed over USB
+- **1 → Usage** — your Codex pet, profile, and token chart (pushed over USB
   by the local sync service whenever you plug in; it reuses the existing Codex
   login). Shows an empty state until a dash payload arrives.
 - **2 → Weather** — today's forecast: current conditions, morning /

@@ -69,7 +69,6 @@ int main(int argc, char** argv) {
     CardContent longs = content;
     longs.dash_name = "Bartholomew Fitzgerald-Montgomery III";
     longs.dash_handle = "@an_extremely_long_handle_that_will_not_fit";
-    longs.dash_weather_detail = "Thunderstorms with heavy rain and gusting wind · H104° L61°";
     longs.weather_location = "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch, Wales";
     longs.agenda_title[0] = "Quarterly cross-functional planning and roadmap review";
     longs.agenda_detail[0] = "with design, platform, infra, and the whole extended team";

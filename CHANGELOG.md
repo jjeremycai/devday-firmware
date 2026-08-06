@@ -21,6 +21,13 @@
 - `content.push` replies with `cached`, so a caller can tell when the screen
   updated but the payload was too large to persist.
 
+### Removed
+
+- Weather on the Usage card. It duplicated the Weather page one key away, and
+  the room it took is better spent on the name. `dash.weather_temp` and
+  `dash.weather_detail` are gone from the schema; the `weather` section that
+  drives the Weather page is untouched.
+
 ### Changed
 
 - The portrait is a 96x104 rectangle, not a 72x72 circle: pets have legs,

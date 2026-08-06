@@ -515,8 +515,6 @@ def build_payload(
     usage: Dict[str, Any],
     profile: Dict[str, Any],
     avatar_hex: str,
-    weather_temp: str,
-    weather_detail: str,
     weather: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     summary = usage.get("summary") or {}
@@ -534,8 +532,6 @@ def build_payload(
             "name": name,
             "handle": handle,
             "plan": plan,
-            "weather_temp": weather_temp,
-            "weather_detail": weather_detail,
             "lifetime": format_tokens(summary.get("lifetimeTokens")),
             "peak": format_tokens(summary.get("peakDailyTokens")),
             "longest": format_duration(summary.get("longestRunningTurnSec")),
@@ -804,7 +800,7 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             print(f"  weather skipped: {exc}", file=sys.stderr)
 
     return build_payload(
-        account, usage, profile, avatar_hex, weather_temp, weather_detail, weather
+        account, usage, profile, avatar_hex, weather
     )
 
 

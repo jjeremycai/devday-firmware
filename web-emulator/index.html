@@ -717,8 +717,6 @@ function buildPayload() {
       name: $("p-name").value.trim() || "Codex",
       handle: $("p-handle").value.trim(),
       plan: $("p-plan").value.trim(),
-      weather_temp: weather.temp,
-      weather_detail: weather.detail,
       lifetime: $("p-lifetime").value.trim(),
       peak: $("p-peak").value.trim(),
       longest: $("p-longest").value.trim(),
@@ -781,13 +779,6 @@ function paintPreview() {
     ctx.strokeRect(152 + hw + 12, 104, ctx.measureText(p.plan).width + 16, 24);
     ctx.fillText(p.plan, 160 + hw + 12, 122);
   }
-  ctx.textAlign = "right";
-  ctx.font = "700 34px Fraunces, serif";
-  ctx.fillText(p.weather_temp || "", 764, 90);
-  ctx.font = "550 16px Figtree, sans-serif";
-  ctx.fillText(p.weather_detail || "", 764, 122);
-  ctx.textAlign = "left";
-
   ctx.beginPath(); ctx.moveTo(36, 160); ctx.lineTo(764, 160); ctx.stroke();
 
   const metrics = [

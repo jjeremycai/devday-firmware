@@ -18,8 +18,6 @@ inline CardContent sampleContent() {
   c.dash_name = "Jeremy Cai";
   c.dash_handle = "@permanentunderclass";
   c.dash_plan = "Pro";
-  c.dash_weather_temp = "78°";
-  c.dash_weather_detail = "Clear · H95° L58°";
   c.dash_lifetime = "48.8B";
   c.dash_peak = "2.7B";
   c.dash_longest = "34h 45m";
