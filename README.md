@@ -26,7 +26,9 @@ The on-screen tab strip shows all four pages with the current one inverted.
 firmware/devday_terminal/   Arduino sketch (the whole firmware)
 partitions.csv              16 MB map: factory + ota_0/ota_1 (3 MB each) + LittleFS
 companion-site/             assembly & setup site (Web Serial + AP fallback)
+companion-site/emulator.html  browser emulator: real cards.cpp/buttons.cpp via WASM
 tools/                      build.sh, package_release.sh, generators
+tools/preview/              host-side card renderer (no device needed)
 docs/                       PROTOCOL.md · FLASHING.md · LINE_TEST.md
 release/                    build + packaged artifacts (gitignored)
 ```
@@ -62,6 +64,20 @@ arduino-cli lib install --zip-path /tmp/seeed_gfx.zip
 
 Regenerable inputs: `tools/gen_qr.py` (Yours-card QR),
 `tools/gen_ca_bundle.sh` (embedded Mozilla CA store).
+
+### Emulators (no device needed)
+
+```sh
+tools/preview/build.sh        # renders every page to tools/preview/out/*.png
+tools/preview/build_wasm.sh   # rebuilds companion-site/emu/ (needs emscripten)
+```
+
+Both compile the real `cards.cpp` (the WASM build also the real `buttons.cpp`)
+against stub headers, so what you see is what the device draws. Serve the
+browser emulator with any static server, e.g.
+`cd companion-site && python3 -m http.server` → `/emulator.html`. Buttons 1-4
+(click or keys) drive the actual debounce logic; paste a
+`dash_sync.py --json` payload to preview real content.
 
 ### Local Codex dash (no browser)
 

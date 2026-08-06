@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dev Day Terminal — Emulator</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #17181a; color: #d7d9dc;
+    font: 14px/1.5 -apple-system, "Helvetica Neue", Arial, sans-serif;
+    display: flex; flex-direction: column; align-items: center; padding: 32px 16px;
+  }
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .02em; margin: 0 0 4px; }
+  .sub { color: #8a8d92; font-size: 12.5px; margin-bottom: 20px; }
+  .frame {
+    background: #2a2b2e; border-radius: 18px; padding: 26px 26px 20px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  canvas {
+    display: block; width: 800px; height: 480px; background: #fff;
+    border-radius: 3px; box-shadow: 0 0 0 1px #000, 0 2px 14px rgba(0,0,0,.5);
+  }
+  .buttons { display: flex; justify-content: center; gap: 84px; margin-top: 16px; }
+  .btn {
+    width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+    background: radial-gradient(circle at 35% 30%, #4a4c50, #232426 70%);
+    box-shadow: 0 3px 8px rgba(0,0,0,.6), inset 0 1px 1px rgba(255,255,255,.15);
+    color: #c9cbcf; font-size: 13px; font-weight: 600;
+  }
+  .btn:active { transform: translateY(1px); box-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  .btnrow-labels { display: flex; justify-content: center; gap: 84px; margin-top: 6px; }
+  .btnrow-labels span { width: 44px; text-align: center; font-size: 10.5px; color: #77797e; letter-spacing: .06em; }
+  .panel { width: 852px; margin-top: 22px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
+  textarea {
+    width: 100%; height: 96px; resize: vertical; background: #1e1f22; color: #cfd1d5;
+    border: 1px solid #33353a; border-radius: 8px; padding: 10px 12px;
+    font: 12px/1.45 ui-monospace, SF Mono, Menlo, monospace;
+  }
+  textarea:focus { outline: 1px solid #55585e; }
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .actions button {
+    background: #2e6ff2; color: #fff; border: 0; border-radius: 8px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .actions button.ghost { background: #2a2c30; color: #c9cbcf; }
+  .status { color: #8a8d92; font-size: 12px; margin-top: 10px; min-height: 16px; }
+  kbd { background: #2a2c30; border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>Dev Day Terminal — emulator</h1>
+  <div class="sub">Real firmware <code>cards.cpp</code> + <code>buttons.cpp</code> compiled to WebAssembly. Press <kbd>1</kbd>–<kbd>4</kbd> or click the buttons.</div>
+
+  <div class="frame">
+    <canvas id="screen" width="800" height="480"></canvas>
+    <div class="buttons">
+      <button class="btn" data-pin="2" data-n="1">1</button>
+      <button class="btn" data-pin="3" data-n="2">2</button>
+      <button class="btn" data-pin="4" data-n="3">3</button>
+      <button class="btn" data-pin="5" data-n="4">4</button>
+    </div>
+    <div class="btnrow-labels"><span>DASH</span><span>BRIEF</span><span>BUILD</span><span>YOURS</span></div>
+  </div>
+
+  <div class="panel">
+    <textarea id="json" spellcheck="false" placeholder='Paste "tools/dash_sync.py --json" output here to preview your real dash payload…'></textarea>
+    <div class="actions">
+      <button id="apply">Apply JSON</button>
+      <button id="sample" class="ghost">Reset to sample</button>
+      <button id="ap" class="ghost">Preview AP hint</button>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <script>
+    var Module = {
+      locateFile: function (p) { return "emu/" + p; },
+      onRuntimeInitialized: function () { initEmu(); }
+    };
+  </script>
+  <script src="emu/emu.js"></script>
+  <script src="emulator.js"></script>
+</body>
+</html>
