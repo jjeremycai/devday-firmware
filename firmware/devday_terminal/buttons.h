@@ -3,13 +3,13 @@
 #include <Arduino.h>
 
 // Four page buttons, release-triggered. No long/short distinction:
-// 1 (D1) Dash · 2 (D2) Brief · 3 (D3) Build · 4 (D4) Yours.
+// 1 (D1) Dash · 2 (D2) Weather · 3 (D3) Agenda · 4 (D4) Quote.
 enum class ButtonEvent : uint8_t {
   NONE,
-  B1,  // Dash page
-  B2,  // Brief page
-  B3,  // Build page
-  B4,  // Yours page
+  B1,  // Dash page (Agenda until dash pushed)
+  B2,  // Weather page
+  B3,  // Agenda page
+  B4,  // Quote page
 };
 
 void buttonsBegin();

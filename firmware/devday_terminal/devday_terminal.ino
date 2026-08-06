@@ -257,9 +257,9 @@ static void goToSleep() {
 static String wakeCard() {
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return "";
   uint64_t status = esp_sleep_get_ext1_wakeup_status();
-  if (status & (1ULL << PIN_BUTTON_D1)) return contentHasDash(content) ? "dash" : "brief";
+  if (status & (1ULL << PIN_BUTTON_D1)) return contentHasDash(content) ? "dash" : "agenda";
   if (status & (1ULL << PIN_BUTTON_D2)) return "weather";
-  if (status & (1ULL << PIN_BUTTON_D4)) return "yours";
+  if (status & (1ULL << PIN_BUTTON_D4)) return "quote";
   return "";
 }
 

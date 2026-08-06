@@ -8,7 +8,7 @@ static const ButtonEvent kEvent[NUM_BUTTONS] = {ButtonEvent::B1, ButtonEvent::B2
                                                 ButtonEvent::B4};
 // Index of the D3 button, which may share its pin with display BUSY.
 static constexpr uint8_t D3_INDEX = 2;
-static constexpr uint32_t D3_SUPPRESS_MS = 2500; // covers a full e-ink refresh
+static constexpr uint32_t D3_SUPPRESS_MS = 1200; // shorten: UC8179 full refresh ~900ms, keep margin
 
 static uint32_t pressedAt[NUM_BUTTONS] = {0, 0, 0, 0};
 static bool wasDown[NUM_BUTTONS] = {false, false, false, false};
