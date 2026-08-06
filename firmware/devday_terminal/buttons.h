@@ -2,20 +2,21 @@
 
 #include <Arduino.h>
 
-// Three physical buttons, six gestures. The four pages live on short presses
-// (D1 Dash, D2 Brief, D4 Yours) plus D1 long (Build diagnostics).
+// Four page buttons, release-triggered. No long/short distinction:
+// 1 (D1) Dash · 2 (D2) Brief · 3 (D3) Build · 4 (D4) Yours.
 enum class ButtonEvent : uint8_t {
   NONE,
-  D1_SHORT,  // Dash page
-  D2_SHORT,  // Brief page
-  D4_SHORT,  // Yours page
-  D1_LONG,   // Build page (diagnostics)
-  D2_LONG,   // start setup AP portal
-  D4_LONG,   // refresh content now (Wi-Fi fetch cycle)
+  B1,  // Dash page
+  B2,  // Brief page
+  B3,  // Build page
+  B4,  // Yours page
 };
 
 void buttonsBegin();
-// Non-blocking; returns the next debounced event or NONE.
+// Non-blocking; returns the next debounced release event or NONE.
 ButtonEvent buttonsPoll();
 // True while D1+D4 are both held (checked at boot for factory reset).
 bool buttonsResetComboHeld();
+// D3 shares GPIO4 with the display BUSY line on some board revisions; call
+// after each display update so BUSY noise is never mistaken for a press.
+void buttonsNoteDisplayUpdate();

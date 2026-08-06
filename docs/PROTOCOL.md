@@ -178,6 +178,6 @@ Response schema:
 ```
 
 All fields optional except `schema`. `refresh_after_s` is clamped to ≥300.
-Unknown `build.state` values are ignored (keep last known). Button map:
-**D1** short Dash (Brief until a dash payload arrives) / long Build,
-**D2** short Brief / long setup AP, **D4** short Yours / long refresh now.
+Unknown `build.state` values are ignored (keep last known). Page buttons
+(release-triggered): **1** Dash (Brief until a dash payload arrives),
+**2** Brief, **3** Build, **4** Yours.

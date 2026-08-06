@@ -231,6 +231,8 @@ static void goToSleep() {
   portalStop();
 
   // Hold button pins high through deep sleep so EXT1 ANY_LOW can fire.
+  // D3 stays out of the wake mask: it shares GPIO4 with display BUSY, which
+  // can idle low and would wake the device instantly.
   const int wake_pins[] = {PIN_BUTTON_D1, PIN_BUTTON_D2, PIN_BUTTON_D4};
   for (int pin : wake_pins) {
     rtc_gpio_pullup_en((gpio_num_t)pin);
@@ -324,26 +326,17 @@ void loop() {
   ButtonEvent ev = buttonsPoll();
   if (ev != ButtonEvent::NONE) {
     last_activity_ms = millis();
-    if (ev == ButtonEvent::D2_LONG) {
-      if (portalStart()) {
-        refreshStatus();
-        renderCard(current_card, content, st); // credentials on screen
-      }
-    } else if (ev == ButtonEvent::D4_LONG) {
-      netConnectBackground(); // refresh now; fresh content re-renders on arrival
+    if (ev == ButtonEvent::B1) {
+      current_card = contentHasDash(content) ? "dash" : "brief";
+    } else if (ev == ButtonEvent::B2) {
+      current_card = "brief";
+    } else if (ev == ButtonEvent::B3) {
+      current_card = "build";
     } else {
-      if (ev == ButtonEvent::D1_SHORT) {
-        current_card = contentHasDash(content) ? "dash" : "brief";
-      } else if (ev == ButtonEvent::D1_LONG) {
-        current_card = "build";
-      } else if (ev == ButtonEvent::D2_SHORT) {
-        current_card = "brief";
-      } else {
-        current_card = "yours";
-      }
-      refreshStatus();
-      renderCard(current_card, content, st);
+      current_card = "yours";
     }
+    refreshStatus();
+    renderCard(current_card, content, st);
   }
 
   CardContent fresh;

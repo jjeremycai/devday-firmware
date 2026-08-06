@@ -4,20 +4,21 @@ Mass-production firmware RC for the 7.5" (OG) DIY Kit: XIAO ESP32-S3
 Plus driving an 800×480 UC8179 e-paper, Arduino framework. Boots usefully
 without Wi-Fi and invites the attendee to **teach it a job**.
 
-**Dash · Brief · Yours · Build** — four pages on three buttons (D1 / D2 / D4;
-D3 is the display's BUSY line):
+**Dash · Brief · Build · Yours** — four pages on four buttons, numbered 1-4
+(D1 / D2 / D3 / D4) left to right. Press and release to switch; hold length
+doesn't matter. D3 shares GPIO4 with the display BUSY line, so it doesn't
+wake the device from sleep and is ignored for a moment after each refresh.
 
-- **D1 short → Dash** — Codex profile, weather, token chart (pushed over USB
-  from the companion page the moment you plug in — no native install). Falls
-  back to **Brief** until a dash payload arrives.
-- **D1 long → Build** — `READY`, firmware version/hash, battery, display,
+- **1 → Dash** — Codex profile, weather, token chart (pushed over USB from
+  the companion page the moment you plug in — no native install). Falls back
+  to **Brief** until a dash payload arrives.
+- **2 → Brief** — "teach it a job" setup guide.
+- **3 → Build** — `READY`, firmware version/hash, battery, display,
   connection diagnostics.
-- **D2 short → Brief** — "teach it a job" setup guide.
-- **D2 long → setup AP** portal; **D4 short → Yours** ("This terminal is open"
-  plus a fixed QR to this hardware recipe); **D4 long → refresh now**.
+- **4 → Yours** — "This terminal is open" plus a fixed QR to this hardware
+  recipe.
 
-The on-screen tab strip shows the three short-press pages with the current one
-inverted.
+The on-screen tab strip shows all four pages with the current one inverted.
 
 ## Layout
 
@@ -88,10 +89,10 @@ No pip deps.
 - Battery on GPIO1 with the GPIO6 divider enabled only while measuring
   (0.968 calibration to start).
 - On battery: renders, disconnects Wi-Fi, deep-sleeps; wakes on D1/D2/D4
-  (shows that card) or the refresh timer. Stays awake during an active USB
+  (shows that page) or the refresh timer. Stays awake during an active USB
   setup session and while the portal runs.
-- Long **D2** (or `ap.start`) brings up the SoftAP portal with generated
-  on-screen credentials; it stops after 5 minutes.
+- The SoftAP portal starts from USB (`ap.start`, used by the companion site)
+  with generated on-screen credentials; it stops after 5 minutes.
 - Hold **D1+D4** at boot (or `factory_reset`) to clear configuration.
 - App-only updates via the portal (image-header validated, SHA-256 reported
   back for checksum comparison); raw USB flashing stays unrestricted.

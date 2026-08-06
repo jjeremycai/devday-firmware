@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "buttons.h"
 #include "qr_recipe.h"
 
 #ifdef EPAPER_ENABLE
@@ -16,19 +17,19 @@ static constexpr int16_t W = 800;
 static constexpr int16_t H = 480;
 static constexpr int16_t MARGIN = 36;
 
-// Page-tab strip shared by every card: the three short-press pages, with the
-// current one inverted. Build (hold D1) intentionally has no tab.
+// Page-tab strip shared by every card: the four page buttons, current one
+// inverted. Buttons are numbered 1-4 (D1/D2/D3/D4) left to right.
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
-  static const char* kIds[3] = {"dash", "brief", "yours"};
-  static const char* kLabels[3] = {"D1  DASH", "D2  BRIEF", "D4  YOURS"};
-  const int16_t tw = 168, th = 32, gap = 16;
-  const int16_t total = 3 * tw + 2 * gap;
+  static const char* kIds[4] = {"dash", "brief", "build", "yours"};
+  static const char* kLabels[4] = {"1  DASH", "2  BRIEF", "3  BUILD", "4  YOURS"};
+  const int16_t tw = 156, th = 32, gap = 12;
+  const int16_t total = 4 * tw + 3 * gap;
   int16_t x = (W - total) / 2;
   const int16_t y = H - 12 - th;
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(MC_DATUM);
-  for (uint8_t i = 0; i < 3; i++) {
+  for (uint8_t i = 0; i < 4; i++) {
     bool active = current != nullptr && strcmp(current, kIds[i]) == 0;
     if (active) {
       epaper.fillRoundRect(x, y, tw, th, 6, TFT_BLACK);
@@ -100,11 +101,8 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
   epaper.drawString("display   UC8179 800x480  combo 502", MARGIN, y + 56, GFXFF);
   epaper.drawString("link      " + st.connection, MARGIN, y + 84, GFXFF);
 
-  epaper.setTextDatum(BC_DATUM);
-  epaper.drawString("diagnostics - hold D1 any time", W / 2, H - 58, GFXFF);
-
   apHint(st);
-  pageTabs(nullptr);
+  pageTabs("build");
 #endif
 }
 
@@ -389,5 +387,6 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   else if (card == "dash" && contentHasDash(content)) renderDash(content, status);
   else renderBrief(content, status);
   epaper.update();
+  buttonsNoteDisplayUpdate(); // D3 may share the BUSY line
 #endif
 }
