@@ -18,7 +18,7 @@ static void defaults(DeviceConfig& cfg) {
 }
 
 bool storageBegin() {
-  bool ok = LittleFS.begin(true);
+  bool ok = LittleFS.begin(true, "/littlefs", 10, "littlefs"); // partitions.csv label
   prefs.begin(NVS_NAMESPACE, false);
   return ok;
 }
