@@ -349,8 +349,16 @@ void loop() {
   }
 
   if (Serial.available()) last_activity_ms = millis();
-  // Keep USB plugged dev units awake for testing — Serial true when host has CDC open
+  // Stay awake when USB is plugged for power (VBUS). Serial alone is DTR-only,
+  // so also check TinyUSB VBUS state via weak symbols if available.
   bool usbStayAwake = (bool)Serial;
+  {
+    // tud_connected/tud_mounted are weak in TinyUSB — check via dlsym-style weak refs
+    extern bool tud_connected(void) __attribute__((weak));
+    extern bool tud_mounted(void) __attribute__((weak));
+    if (tud_connected && tud_connected()) usbStayAwake = true;
+    if (tud_mounted && tud_mounted()) usbStayAwake = true;
+  }
 
   if (reboot_pending) {
     delay(200);
