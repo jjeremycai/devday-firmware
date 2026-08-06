@@ -8,7 +8,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARDUINO_CLI="${ARDUINO_CLI:-$ROOT/tools/bin/arduino-cli}"
-SKETCH="$ROOT/firmware/devday_terminal"
+SKETCH="$ROOT/firmware"
 BUILD_DIR="$ROOT/release/build"
 
 mkdir -p "$BUILD_DIR"
@@ -27,4 +27,4 @@ cp -f "$ROOT/partitions.csv" "$SKETCH/partitions.csv"
   "$SKETCH"
 
 echo
-echo "app binary: $BUILD_DIR/devday_terminal.ino.bin"
+echo "app binary: $BUILD_DIR/firmware.ino.bin"

@@ -159,10 +159,17 @@ void EPaper::drawString(const String& s, int32_t x, int32_t y, uint8_t) {
 
   CTFontRef font = makeFont(g_font);
   CFStringRef str = CFStringCreateWithCString(nullptr, s.c_str(), kCFStringEncodingUTF8);
-  CFStringRef keys[] = {kCTFontAttributeName};
-  CFTypeRef vals[] = {font};
+  // CTLineDraw defaults glyphs to black regardless of the context fill colour;
+  // without an explicit foreground the inverted tab label drew black-on-black
+  // and vanished. Carry setTextColor() through as a real attribute.
+  CGFloat comps[2] = {g_fg == TFT_BLACK ? (CGFloat)0.0 : (CGFloat)1.0, 1.0};
+  CGColorSpaceRef fg_space = CGColorSpaceCreateDeviceGray();
+  CGColorRef fg = CGColorCreate(fg_space, comps);
+  CGColorSpaceRelease(fg_space);
+  CFStringRef keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
+  CFTypeRef vals[] = {font, fg};
   CFDictionaryRef attrs = CFDictionaryCreate(
-      nullptr, (const void**)keys, (const void**)vals, 1,
+      nullptr, (const void**)keys, (const void**)vals, 2,
       &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
   CFAttributedStringRef as = CFAttributedStringCreate(nullptr, str, attrs);
   CTLineRef line = CTLineCreateWithAttributedString(as);
@@ -170,6 +177,7 @@ void EPaper::drawString(const String& s, int32_t x, int32_t y, uint8_t) {
   CGContextSetTextMatrix(ctx, CGAffineTransformMakeScale(1, -1));
   CGContextSetTextPosition(ctx, px, py);
   CTLineDraw(line, ctx);
+  CGColorRelease(fg);
 
   CFRelease(line);
   CFRelease(as);

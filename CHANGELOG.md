@@ -1,5 +1,74 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- The Usage card shows your **Codex pet** where the profile photo used to be —
+  a pet hatched under `~/.codex/pets`, else the built-in `codex` companion,
+  else your photo. Pushed over USB in the existing `avatar_hex` field, so no
+  protocol change. `tools/dash_sync.py --pet <id>` picks one, `--no-pet` opts
+  out.
+- Every unit ships with a bundled default pet, so the card is never faceless
+  before the first sync.
+- `tools/gen_pet.py` and `tools/gen_splash.py` generate the two shipped
+  bitmaps. Changing either is one command and a rebuild — no firmware edit.
+- `tools/imaging.py`, one implementation of the image conversions. Sprite art
+  gets an alpha silhouette; photographs keep Floyd-Steinberg. Dithering flat
+  sprite fills at this size turned the character into grey noise.
+- `content.push` replies with `cached`, so a caller can tell when the screen
+  updated but the payload was too large to persist.
+
+### Changed
+
+- The portrait is a 96x104 rectangle, not a 72x72 circle: pets have legs,
+  tails and props that a circular crop amputates. The original square is still
+  accepted and centred in the same space, so an older sync script keeps
+  working.
+- First boot shows a row of Dev Day mascot faces instead of the ASCII blossom.
+  Faces are real 1-bit bitmaps, scaled to fit whatever count and size the
+  generator emits. The current set is placeholder art pending OpenAI design.
+
+### Fixed
+
+- Boot factory reset (**D1+D4**) did nothing: it ran before `storageBegin()`,
+  so `prefs.clear()` hit an unopened Preferences handle and the cache clear hit
+  an unmounted filesystem.
+- Portal firmware update could never succeed. The page posts
+  `application/octet-stream`, which WebServer routes through its *raw* path, but
+  the handler read `server.upload()` — a null `_currentUpload` dereference. It
+  also sized the image from `header("Content-Length")`, which is always empty
+  because WebServer consumes that header before building the header map. Now a
+  raw handler using `server.raw()` and `clientContentLength()`, with
+  `Update.begin(size)` + strict `Update.end()` so short uploads are rejected.
+- A fetched content document replaced live content wholesale against an
+  all-empty struct, so any section the document omitted was cleared (and
+  `refresh_after_s` became 0). Fetched payloads now merge, like pushed ones.
+- Every content fetch burned the full 12 s timeout: the read loop waited on
+  `http.connected()`, which stays true on a keep-alive socket after the body
+  ends. It now stops at the content length or end of stream.
+- `config.write` rejected `startup_card: "agenda"` — one of the three shipping
+  pages — while accepting the retired `"brief"`, which `configLoad()` then
+  silently reset. All three entry points share one allowlist.
+- SoftAP credentials were invisible on the Usage and Weather pages, including
+  the page usually showing when `ap.start` runs.
+- Battery voltage assumed a 3.6 V full scale for 11 dB attenuation (actual
+  ≈3.1 V, non-linear); percent used a straight line across a LiPo's flat
+  discharge plateau. Now `analogReadMilliVolts` plus a curve.
+- `content.push` cached only the payload just received, so a partial push
+  dropped earlier sections from the cache and the screen disagreed with the
+  next cold boot. Cache writes merge section by section.
+- Long payload strings ran past their region into neighbouring elements;
+  they are now clipped, on UTF-8 character boundaries.
+- Preview harness drew inverted tab labels black-on-black: `CTLineDraw`
+  ignores the context fill colour without an explicit foreground attribute.
+
+### Removed
+
+- Dead `quote` and `brief` render paths, bundled quote pool, and their content
+  fields — both pages were already mapped to Agenda. Payloads carrying those
+  sections are still accepted and ignored.
+
 ## [1.0.0-rc1] - 2026-08-05
 
 Factory release candidate for the Seeed August 11 manufacturing start.

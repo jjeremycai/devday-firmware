@@ -19,7 +19,9 @@ String netDescribe(); // human-readable connection line for the Build card foote
 // True once a content refresh cycle (connect + optional fetch) has finished,
 // so the power manager knows it can go back to sleep.
 bool netCycleComplete();
-// Validated fresh content, if a fetch succeeded this cycle.
-bool netTakeFreshContent(CardContent& out);
+// Hands over the raw payload of a fetch that already passed schema validation,
+// exactly once. The caller merges it into its own live content so a document
+// that omits a section keeps the bundled/cached one.
+bool netTakeFreshPayload(String& out);
 
 void netDisconnect();

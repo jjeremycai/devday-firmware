@@ -9,7 +9,10 @@ bool OtaSession::begin(size_t total_len, String& err) {
     err = "bad_length";
     return false;
   }
-  if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+  // Pass the real length so Update tracks progress against it and end() below
+  // can reject a short image. UPDATE_SIZE_UNKNOWN would make every truncated
+  // upload look complete.
+  if (!Update.begin(total_len)) {
     err = "ota_begin_failed";
     return false;
   }
@@ -61,9 +64,10 @@ bool OtaSession::finish(String& err) {
   for (int i = 0; i < 32; i++) snprintf(hex + 2 * i, 3, "%02x", hash[i]);
   sha256_hex_ = hex;
 
-  // Update.end validates the ESP32 image header and commits the new boot slot.
-  if (!Update.end(true)) {
-    err = "bad_image";
+  // Strict end(): fails unless exactly expected_total_ bytes were flashed, on
+  // top of the ESP32 image magic/header checks. Then commits the new boot slot.
+  if (!Update.end()) {
+    err = Update.getError() == UPDATE_ERROR_MAGIC_BYTE ? "bad_image" : "truncated";
     abort();
     return false;
   }

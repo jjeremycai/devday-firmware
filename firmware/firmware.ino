@@ -29,6 +29,8 @@ static String current_card = "agenda";
 static uint32_t boots = 0;
 static uint32_t last_activity_ms = 0;
 static bool reboot_pending = false;
+static bool content_render_pending = false;
+static String pending_card;
 
 static constexpr uint32_t AWAKE_IDLE_MS = 90000;  // sleep after 90 s idle
 static constexpr uint32_t MIN_AWAKE_MS = 10000;   // never sleep before this
@@ -88,7 +90,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
   }
   if (obj["startup_card"].is<const char*>()) {
     String v = obj["startup_card"].as<String>();
-    if (v != "build" && v != "brief" && v != "yours" && v != "dash" && v != "weather") {
+    if (!cardIsStartup(v)) {
       err_code = "bad_params";
       return false;
     }
@@ -136,7 +138,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
 }
 
 static bool hookCardPreview(const String& card, String& err_code) {
-  if (card != "build" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
+  if (!cardIsRenderable(card)) {
     err_code = "bad_params";
     return false;
   }
@@ -146,7 +148,8 @@ static bool hookCardPreview(const String& card, String& err_code) {
   return true;
 }
 
-static bool hookContentPush(const String& payload, const String& show_card, String& err_code) {
+static bool hookContentPush(const String& payload, const String& show_card, JsonObject data,
+                            String& err_code) {
   if (payload.length() == 0 || payload.length() > CONTENT_MAX_BYTES) {
     err_code = "bad_params";
     return false;
@@ -157,18 +160,28 @@ static bool hookContentPush(const String& payload, const String& show_card, Stri
     return false;
   }
   content = next;
-  cacheWriteContent(payload, "");
+  // Merge, don't overwrite: a partial push (weather only, agenda only) must not
+  // drop fields an earlier push cached, or the screen and the next cold boot
+  // would disagree.
+  //
+  // A merge can still be refused — most likely because the accumulated sections
+  // no longer fit CONTENT_MAX_BYTES. The screen is already correct, so the push
+  // succeeds, but say so: otherwise the next cold boot quietly shows older
+  // content and nothing ever reported why.
+  bool cached = cacheMergeContent(payload);
+  data["cached"] = cached;
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
-  if (card == "quote" || card == "brief") card = "agenda";
-  if (card != "build" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
+  if (card == "quote" || card == "brief") card = "agenda"; // retired names
+  if (!cardIsRenderable(card)) {
     err_code = "bad_params";
     return false;
   }
   current_card = card;
   last_activity_ms = millis();
   refreshStatus();
-  renderCard(current_card, content, st);
+  pending_card = current_card;
+  content_render_pending = true;
   return true;
 }
 
@@ -266,6 +279,10 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   delay(50);
 
+  // Storage first: configFactoryReset() clears NVS and the LittleFS cache, so
+  // it is a no-op until Preferences is open and the filesystem is mounted.
+  storageBegin();
+
   // Hold D1+D4 at boot to clear configuration.
   if (buttonsResetComboHeld()) {
     uint32_t t0 = millis();
@@ -276,7 +293,6 @@ void setup() {
     if (buttonsResetComboHeld()) configFactoryReset();
   }
 
-  storageBegin();
   cfg = configLoad();
   boots = storageNextBootCount();
 
@@ -317,6 +333,15 @@ void setup() {
 
 void loop() {
   protocolPoll();
+
+  // A content push can arrive over USB while the display is idle. A full
+  // e-paper refresh is slow, so let the protocol response reach the host
+  // before doing the display work.
+  if (content_render_pending) {
+    content_render_pending = false;
+    renderCard(pending_card, content, st);
+  }
+
   netPoll();
   portalPoll();
 
@@ -330,18 +355,22 @@ void loop() {
     } else if (ev == ButtonEvent::B3) {
       current_card = "agenda";
     } else {
-      // B4 / quote killed — map to agenda for back-compat
-      current_card = "agenda";
+      current_card = "agenda"; // B4: four keys, three pages
     }
     refreshStatus();
     renderCard(current_card, content, st);
   }
 
-  CardContent fresh;
-  if (netTakeFreshContent(fresh)) {
-    content = fresh;
-    refreshStatus();
-    renderCard(current_card, content, st);
+  // Merge a fetched payload into live content the same way content.push does,
+  // so a document that omits a section keeps the bundled/cached one.
+  String fetched;
+  if (netTakeFreshPayload(fetched)) {
+    CardContent next = content;
+    if (contentParse(fetched, next)) {
+      content = next;
+      refreshStatus();
+      renderCard(current_card, content, st);
+    }
   }
 
   if (Serial.available()) last_activity_ms = millis();

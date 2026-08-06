@@ -12,7 +12,7 @@ static int hexNibble(char c) {
   return -1;
 }
 
-static bool decodeHexAvatar(const char* hex, size_t len, uint8_t* out, size_t out_len) {
+static bool decodeHex(const char* hex, size_t len, uint8_t* out, size_t out_len) {
   if (len != out_len * 2) return false;
   for (size_t i = 0; i < out_len; i++) {
     int hi = hexNibble(hex[i * 2]);
@@ -23,36 +23,12 @@ static bool decodeHexAvatar(const char* hex, size_t len, uint8_t* out, size_t ou
   return true;
 }
 
-struct BundledQuote { const char* text; const char* author; const char* source; };
-static const BundledQuote kBundledQuotes[] = {
-  {"The best way to predict the future is to invent it.", "Alan Kay", "1971"},
-  {"Stay hungry, stay foolish.", "Steve Jobs", "2005"},
-  {"Nothing in life is to be feared, it is only to be understood.", "Marie Curie", "—"},
-  {"Imagination is more important than knowledge.", "Albert Einstein", "1929"},
-  {"Whether you think you can, or you think you can't — you're right.", "Henry Ford", "—"},
-  {"Our greatest weakness lies in giving up.", "Thomas Edison", "—"},
-  {"You will face many defeats in life, but never let yourself be defeated.", "Maya Angelou", "—"},
-  {"Be yourself; everyone else is already taken.", "Oscar Wilde", "—"},
-};
-static constexpr size_t kBundledQuoteCount = sizeof(kBundledQuotes)/sizeof(kBundledQuotes[0]);
-
-static uint32_t hashStr(const String& s) {
-  uint32_t h = 2166136261u;
-  for (size_t i = 0; i < s.length(); i++) { h ^= (uint8_t)s.charAt(i); h *= 16777619u; }
-  return h;
-}
-
 void contentDefaults(CardContent& c, const String& device_name) {
+  (void)device_name;
   c.build_state = "ready";
   c.build_title = "Factory firmware " FW_VERSION;
   c.build_detail = "Flashed at the Seeed line. Connect over USB to teach it a job.";
   c.build_updated_at = "";
-
-  // brief (teach it a job) killed — vestigial, keep minimal for back-compat
-  c.brief_eyebrow = "";
-  c.brief_title = "";
-  c.brief_line_count = 0;
-  c.brief_footer = "";
 
   c.dash_present = false;
   c.dash_name = "";
@@ -71,6 +47,7 @@ void contentDefaults(CardContent& c, const String& device_name) {
   memset(c.dash_day_tokens, 0, sizeof(c.dash_day_tokens));
   memset(c.dash_avatar, 0, sizeof(c.dash_avatar));
   c.dash_avatar_present = false;
+  c.dash_avatar_square = false;
 
   c.weather_location = "";
   c.weather_date = "";
@@ -96,16 +73,7 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.agenda_time[3] = "16:30"; c.agenda_title[3] = "Demo";            c.agenda_detail[3] = "Hall B · 30m";
   c.agenda_count = 4;
 
-  // pick a bundled quote deterministically from device_name so each terminal shows something but rotates with push
-  {
-    uint32_t h = hashStr(device_name);
-    size_t idx = h % kBundledQuoteCount;
-    c.quote_text = kBundledQuotes[idx].text;
-    c.quote_author = kBundledQuotes[idx].author;
-    c.quote_source = kBundledQuotes[idx].source;
-  }
-
-  c.header_date = "Thursday, August 6";
+  c.header_date = c.agenda_date;
 
   c.refresh_after_s = DEFAULT_REFRESH_MINUTES * 60UL;
 }
@@ -134,22 +102,6 @@ bool contentParse(const String& payload, CardContent& c) {
     if (build["title"].is<const char*>()) c.build_title = build["title"].as<String>();
     if (build["detail"].is<const char*>()) c.build_detail = build["detail"].as<String>();
     if (build["updated_at"].is<const char*>()) c.build_updated_at = build["updated_at"].as<String>();
-  }
-
-  JsonObject brief = doc["brief"].as<JsonObject>();
-  if (!brief.isNull()) {
-    if (brief["eyebrow"].is<const char*>()) c.brief_eyebrow = brief["eyebrow"].as<String>();
-    if (brief["title"].is<const char*>()) c.brief_title = brief["title"].as<String>();
-    JsonArray lines = brief["lines"].as<JsonArray>();
-    if (!lines.isNull()) {
-      size_t n = 0;
-      for (JsonVariant v : lines) {
-        if (n >= CardContent::BRIEF_MAX_LINES) break;
-        c.brief_lines[n++] = v.as<String>();
-      }
-      c.brief_line_count = n;
-    }
-    if (brief["footer"].is<const char*>()) c.brief_footer = brief["footer"].as<String>();
   }
 
   JsonObject dash = doc["dash"].as<JsonObject>();
@@ -181,11 +133,17 @@ bool contentParse(const String& payload, CardContent& c) {
       c.dash_day_count = n;
     }
 
+    // Sized by what arrived: the pet rectangle, or the square an older sync
+    // script sends. Anything else is left alone rather than half-decoded.
     if (dash["avatar_hex"].is<const char*>()) {
       const char* hex = dash["avatar_hex"];
       size_t len = strlen(hex);
-      if (decodeHexAvatar(hex, len, c.dash_avatar, CardContent::AVATAR_BYTES)) {
+      if (decodeHex(hex, len, c.dash_avatar, CardContent::PET_BYTES)) {
         c.dash_avatar_present = true;
+        c.dash_avatar_square = false;
+      } else if (decodeHex(hex, len, c.dash_avatar, CardContent::AVATAR_BYTES)) {
+        c.dash_avatar_present = true;
+        c.dash_avatar_square = true;
       }
     }
   }
@@ -252,29 +210,11 @@ bool contentParse(const String& payload, CardContent& c) {
     }
   }
 
-  JsonObject quote = doc["quote"].as<JsonObject>();
-  if (!quote.isNull()) {
-    if (quote["text"].is<const char*>()) c.quote_text = quote["text"].as<String>();
-    if (quote["author"].is<const char*>()) c.quote_author = quote["author"].as<String>();
-    if (quote["source"].is<const char*>()) c.quote_source = quote["source"].as<String>();
-  }
-
-  // header date — top-level "date" or "header_date", consistent across all 4 pages; agenda/weather fall back
+  // Header date — explicit top-level value wins, else agenda, else weather.
   if (doc["header_date"].is<const char*>()) c.header_date = doc["header_date"].as<String>();
   else if (doc["date"].is<const char*>()) c.header_date = doc["date"].as<String>();
   else if (!agenda.isNull() && agenda["date"].is<const char*>()) c.header_date = agenda["date"].as<String>();
-  else {
-    JsonObject wx2 = doc["weather"].as<JsonObject>();
-    if (!wx2.isNull() && wx2["date"].is<const char*>()) c.header_date = wx2["date"].as<String>();
-  }
-  // if no header_date supplied but quote came from bundled pool, rotate quote by header_date hash
-  if (quote.isNull() && c.header_date.length()) {
-    uint32_t h = hashStr(c.header_date);
-    size_t idx = h % kBundledQuoteCount;
-    c.quote_text = kBundledQuotes[idx].text;
-    c.quote_author = kBundledQuotes[idx].author;
-    c.quote_source = kBundledQuotes[idx].source;
-  }
+  else if (!wx.isNull() && wx["date"].is<const char*>()) c.header_date = wx["date"].as<String>();
 
   return true;
 }

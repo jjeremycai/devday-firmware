@@ -9,13 +9,13 @@ mkdir -p "$OUT"
 
 clang++ -std=c++17 -O1 \
   -I "$ROOT/tools/preview/stubs" \
-  -I "$ROOT/firmware/devday_terminal" \
+  -I "$ROOT/firmware" \
   -I "$ROOT/tools/preview" \
   -DEPAPER_ENABLE \
   "$ROOT/tools/preview/preview.cpp" \
   "$ROOT/tools/preview/harness_common.cpp" \
   "$ROOT/tools/preview/epaper_coretext.cpp" \
-  "$ROOT/firmware/devday_terminal/cards.cpp" \
+  "$ROOT/firmware/cards.cpp" \
   -framework CoreFoundation -framework CoreGraphics -framework CoreText \
   -o "$OUT/preview"
 

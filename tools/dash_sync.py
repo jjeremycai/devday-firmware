@@ -10,6 +10,8 @@ Uses the signed-in local Codex install:
 Then dithers the avatar and sends `content.push` over the USB serial port.
 
 Examples:
+  tools/dash_sync.py --install           # enable automatic sync at login (once)
+  tools/dash_sync.py --uninstall         # remove automatic sync
   tools/dash_sync.py                  # once, auto-detect port (online: profile+weather)
   tools/dash_sync.py --offline --json # offline preview: local usage only, no Wi-Fi
   tools/dash_sync.py --watch          # re-push whenever the terminal is plugged in
@@ -24,12 +26,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import locale
 import os
+import re
+import shlex
 import shutil
-import struct
 import subprocess
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -38,10 +41,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-AVATAR = 72
-AVATAR_BYTES = (AVATAR * AVATAR) // 8
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import imaging  # noqa: E402  (path set above so the tool runs from anywhere)
+from pet import PET_H, PET_W, load_pet_bits, resolve_pet  # noqa: E402
+
 BAUD = 115200
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+FW_NAME = "devday-terminal"
+AUTO_SYNC_LABEL = "com.openai.devday-dash-sync"
+AUTO_SYNC_SERVICE = "devday-dash-sync.service"
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +57,34 @@ CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 # ---------------------------------------------------------------------------
 class AppServerError(RuntimeError):
     pass
+
+
+def locale_country_code() -> str:
+    """Return the country portion of the host locale, when it is available."""
+    for key in ("LC_MEASUREMENT", "LC_ALL", "LANG"):
+        value = os.environ.get(key, "")
+        match = re.search(r"(?:^|[_-])([A-Za-z]{2})(?:[.@]|$)", value)
+        if match:
+            return match.group(1).upper()
+
+    try:
+        value = locale.getlocale(locale.LC_TIME)[0] or ""
+    except locale.Error:
+        value = ""
+    match = re.search(r"(?:^|[_-])([A-Za-z]{2})(?:[.@]|$)", value)
+    return match.group(1).upper() if match else ""
+
+
+def weather_units(country_code: str) -> Tuple[str, str, str]:
+    """Use the IP country when known, otherwise the host locale's convention."""
+    country = (country_code or locale_country_code()).upper()
+    if country in {"US", "LR", "MM"}:
+        return "fahrenheit", "mph", "mph"
+    return "celsius", "kmh", "km/h"
+
+
+def normalize_terminal_serial(value: Optional[str]) -> str:
+    return re.sub(r"[^0-9A-Fa-f]", "", value or "").upper()
 
 
 def find_codex_binary() -> str:
@@ -240,101 +276,14 @@ def fetch_codex_profile() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Avatar → 72×72 1-bit hex (macOS sips, or Pillow if present)
+# Profile photo → 1-bit hex (see tools/imaging.py for the conversion)
 # ---------------------------------------------------------------------------
-def read_bmp_gray(path: Path) -> List[int]:
-    data = path.read_bytes()
-    if data[:2] != b"BM":
-        raise ValueError("not a BMP")
-    pixel_offset = struct.unpack_from("<I", data, 10)[0]
-    header_size = struct.unpack_from("<I", data, 14)[0]
-    width, height = struct.unpack_from("<ii", data, 18)
-    bits = struct.unpack_from("<H", data, 28)[0]
-    if abs(width) != AVATAR or abs(height) != AVATAR:
-        raise ValueError(f"expected {AVATAR}x{AVATAR}, got {width}x{height}")
-    row_padded = ((abs(width) * bits + 31) // 32) * 4
-    top_down = height < 0
-    height = abs(height)
-    pixels: List[int] = [0] * (AVATAR * AVATAR)
-    for y in range(height):
-        src_y = y if top_down else (height - 1 - y)
-        row = pixel_offset + src_y * row_padded
-        for x in range(AVATAR):
-            if bits == 24 or bits == 32:
-                b = data[row + x * (bits // 8)]
-                g = data[row + x * (bits // 8) + 1]
-                r = data[row + x * (bits // 8) + 2]
-                gray = int(0.299 * r + 0.587 * g + 0.114 * b)
-            elif bits == 8:
-                gray = data[row + x]
-            else:
-                raise ValueError(f"unsupported BMP bits={bits}")
-            pixels[y * AVATAR + x] = gray
-    return pixels
-
-
-def floyd_steinberg(gray: List[int]) -> bytearray:
-    buf = [float(v) for v in gray]
-    out = bytearray(AVATAR_BYTES)
-    for y in range(AVATAR):
-        for x in range(AVATAR):
-            i = y * AVATAR + x
-            old = buf[i]
-            neu = 0.0 if old < 128 else 255.0
-            err = old - neu
-            buf[i] = neu
-            if neu < 128:
-                out[i >> 3] |= 0x80 >> (i & 7)
-            if x + 1 < AVATAR:
-                buf[i + 1] += err * 7 / 16
-            if y + 1 < AVATAR:
-                if x > 0:
-                    buf[i + AVATAR - 1] += err * 3 / 16
-                buf[i + AVATAR] += err * 5 / 16
-                if x + 1 < AVATAR:
-                    buf[i + AVATAR + 1] += err * 1 / 16
-    return out
-
-
 def dither_image_bytes(image_bytes: bytes) -> str:
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        src = tmp_path / "avatar.bin"
-        bmp = tmp_path / "avatar.bmp"
-        src.write_bytes(image_bytes)
-
-        if shutil.which("sips"):
-            subprocess.check_call(
-                [
-                    "sips",
-                    "-s",
-                    "format",
-                    "bmp",
-                    "-z",
-                    str(AVATAR),
-                    str(AVATAR),
-                    str(src),
-                    "--out",
-                    str(bmp),
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            gray = read_bmp_gray(bmp)
-        else:
-            try:
-                from PIL import Image  # type: ignore
-                import io
-
-                im = Image.open(io.BytesIO(image_bytes)).convert("L")
-                im = im.resize((AVATAR, AVATAR), Image.Resampling.LANCZOS)
-                gray = list(im.getdata())
-            except Exception as exc:
-                raise AppServerError(
-                    "Need macOS `sips` or Pillow to dither the profile photo"
-                ) from exc
-
-        return floyd_steinberg(gray).hex()
+    """A profile photograph, error-diffused to the panel's pet-sized box."""
+    try:
+        return imaging.photo_to_bits(image_bytes, PET_W, PET_H).hex()
+    except imaging.ImagingError as exc:
+        raise AppServerError(str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -382,10 +331,10 @@ def days_from_usage(usage: Dict[str, Any], count: int = 14) -> List[int]:
 
 def resolve_location(
     lat: Optional[float], lon: Optional[float]
-) -> Tuple[float, float, str]:
-    """Return (lat, lon, label). Uses flags/env first, else IP geolocation."""
+) -> Tuple[float, float, str, str]:
+    """Return (lat, lon, label, country). Uses flags/env first, else IP geolocation."""
     if lat is not None and lon is not None:
-        return lat, lon, f"{lat:.2f},{lon:.2f}"
+        return lat, lon, f"{lat:.2f},{lon:.2f}", locale_country_code()
 
     headers = {"User-Agent": "devday-dash-sync/0.1"}
     errors: List[str] = []
@@ -399,7 +348,7 @@ def resolve_location(
             city = d.get("city") or ""
             region = d.get("region_code") or d.get("region") or ""
             label = ", ".join(p for p in (city, region) if p) or f"{la},{lo}"
-            return float(la), float(lo), label
+            return float(la), float(lo), label, str(d.get("country_code") or "")
     except Exception as exc:
         errors.append(f"ipapi.co: {exc}")
 
@@ -412,22 +361,22 @@ def resolve_location(
             city = d.get("city") or ""
             region = d.get("region") or ""
             label = ", ".join(p for p in (city, region) if p) or loc
-            return float(la_s), float(lo_s), label
+            return float(la_s), float(lo_s), label, str(d.get("country") or "")
     except Exception as exc:
         errors.append(f"ipinfo.io: {exc}")
 
-    # ip-api.com (HTTP; fine for a LAN CLI tool)
+    # ipwho.is
     try:
-        d = http_json("http://ip-api.com/json/", headers)
-        if d.get("status") == "success":
-            la = d["lat"]
-            lo = d["lon"]
+        d = http_json("https://ipwho.is/", headers)
+        if d.get("success", True):
+            la = d["latitude"]
+            lo = d["longitude"]
             city = d.get("city") or ""
-            region = d.get("regionName") or d.get("region") or ""
+            region = d.get("region") or ""
             label = ", ".join(p for p in (city, region) if p) or f"{la},{lo}"
-            return float(la), float(lo), label
+            return float(la), float(lo), label, str(d.get("country_code") or "")
     except Exception as exc:
-        errors.append(f"ip-api.com: {exc}")
+        errors.append(f"ipwho.is: {exc}")
 
     raise AppServerError("could not resolve location; pass --lat/--lon (" + "; ".join(errors) + ")")
 
@@ -465,7 +414,8 @@ def fetch_weather(
     lat: Optional[float], lon: Optional[float]
 ) -> Tuple[str, str, str, Dict[str, Any]]:
     """Return (temp, detail, location_label, weather_section)."""
-    la, lo, label = resolve_location(lat, lon)
+    la, lo, label, country = resolve_location(lat, lon)
+    temperature_unit, wind_speed_unit, wind_label = weather_units(country)
     qs = urllib.parse.urlencode(
         {
             "latitude": la,
@@ -474,8 +424,8 @@ def fetch_weather(
             "hourly": "temperature_2m,weather_code,precipitation_probability,"
                       "wind_speed_10m,wind_direction_10m",
             "daily": "temperature_2m_max,temperature_2m_min",
-            "temperature_unit": "fahrenheit",
-            "wind_speed_unit": "mph",
+            "temperature_unit": temperature_unit,
+            "wind_speed_unit": wind_speed_unit,
             "timezone": "auto",
             "forecast_days": 1,
         }
@@ -516,26 +466,34 @@ def fetch_weather(
             {
                 "label": seg_label,
                 "temp": f"{round(sum(seg_t) / len(seg_t))}°",
-                "cond": WMO_TEXT.get(cond_code, ""),
-                "wind": f"{_compass(dir_avg)} {round(wind_avg)} mph",
+                "cond": WMO_TEXT.get(cond_code, "") if isinstance(cond_code, int) else "",
+                "wind": f"{_compass(dir_avg)} {round(wind_avg)} {wind_label}",
                 "precip": f"rain {max(seg_p)}%" if seg_p else "",
             }
         )
 
-    tmin = min(t for t in temps if t is not None)
-    tmax = max(t for t in temps if t is not None)
+    hourly_temps = [t for t in temps if t is not None]
+    if not hourly_temps:
+        raise AppServerError("weather forecast did not include hourly temperatures")
+    tmin = min(hourly_temps)
+    tmax = max(hourly_temps)
     span = (tmax - tmin) or 1
     hours = [round((t - tmin) * 255 / span) if t is not None else 0 for t in temps]
 
+    try:
+        local_time = datetime.strptime(str(cur.get("time", ""))[:16], "%Y-%m-%dT%H:%M")
+    except ValueError:
+        local_time = datetime.now()
+
     weather = {
         "location": label,
-        "date": datetime.now().strftime("%A, %B %-d"),
+        "date": local_time.strftime("%A, %B ") + str(local_time.day),
         "now_temp": temp,
         "now_cond": condition,
         "now_hilo": f"H{hi}° L{lo_t}°",
         "segments": segments,
         "hours": hours,
-        "hour_now": datetime.now().hour,
+        "hour_now": local_time.hour,
     }
     return temp, detail, label, weather
 
@@ -576,16 +534,9 @@ def build_payload(
             "days": days_from_usage(usage),
             "avatar_hex": avatar_hex,
         },
-        "brief": {
-            "eyebrow": "CODEX",
-            "title": "Usage synced locally",
-            "lines": [
-                "tools/dash_sync.py --watch",
-                "No browser required",
-                "Uses your Codex login",
-            ],
-            "footer": handle or name,
-        },
+        # Shared header date, so the Usage and Agenda pages agree even when
+        # weather is skipped (--offline / --no-weather).
+        "date": datetime.now().strftime("%A, %B %-d"),
     }
     if weather:
         payload["weather"] = weather
@@ -626,8 +577,10 @@ def open_serial(port: str):
     attrs[6][termios.VTIME] = 1
     termios.tcsetattr(fd, termios.TCSANOW, attrs)
     termios.tcflush(fd, termios.TCIOFLUSH)
-    # Give CDC a moment after open.
-    time.sleep(0.35)
+    # Give CDC a moment after open. The macOS CDC driver pulses DTR on open,
+    # which resets the ESP32-S3 USB-Serial/JTAG target; wait out the full boot
+    # so the first request isn't sent to the ROM bootloader.
+    time.sleep(2.5)
     return fd
 
 
@@ -665,31 +618,69 @@ def serial_read_line(fd: int, timeout_s: float = 20.0) -> str:
     raise TimeoutError("serial response timeout")
 
 
-def push_to_device(port: str, payload: Dict[str, Any]) -> None:
+def serial_request(
+    fd: int,
+    request_id: str,
+    command: str,
+    params: Optional[Dict[str, Any]] = None,
+    timeout_s: float = 20.0,
+) -> Dict[str, Any]:
+    request: Dict[str, Any] = {"v": 1, "cmd": command, "id": request_id}
+    if params is not None:
+        request["params"] = params
+    serial_write_line(fd, json.dumps(request, separators=(",", ":")))
+    try:
+        response = json.loads(serial_read_line(fd, timeout_s=timeout_s))
+    except json.JSONDecodeError as exc:
+        raise AppServerError("terminal returned an invalid USB response") from exc
+    if str(response.get("id", "")) != request_id:
+        raise AppServerError("terminal returned a response for a different request")
+    if not response.get("ok"):
+        error = response.get("error") or {}
+        raise AppServerError(f"terminal rejected {command}: {error}")
+    data = response.get("data")
+    return data if isinstance(data, dict) else {}
+
+
+def verify_terminal(fd: int, expected_serial: str = "") -> str:
+    status = serial_request(fd, "sync-status", "status", timeout_s=10)
+    firmware = str(status.get("fw") or "")
+    if not firmware.startswith(FW_NAME):
+        raise AppServerError(
+            f"USB device is not a Dev Day terminal (reported firmware: {firmware or 'unknown'})"
+        )
+    factory = serial_request(fd, "sync-factory-check", "factory.check", timeout_s=10)
+    serial = normalize_terminal_serial(str(factory.get("serial") or ""))
+    if len(serial) != 12:
+        raise AppServerError("terminal did not provide a valid factory serial")
+    expected = normalize_terminal_serial(expected_serial)
+    if expected and serial != expected:
+        raise AppServerError(
+            f"terminal serial {serial} does not match the trusted terminal {expected}"
+        )
+    return serial
+
+
+def push_to_device(port: str, payload: Dict[str, Any], expected_serial: str = "") -> None:
     fd = open_serial(port)
     try:
-        req = {
-            "v": 1,
-            "cmd": "content.push",
-            "id": "1",
-            "params": {"show": "dash", "payload": payload},
-        }
-        serial_write_line(fd, json.dumps(req, separators=(",", ":")))
-        resp_line = serial_read_line(fd, timeout_s=25)
-        resp = json.loads(resp_line)
-        if not resp.get("ok"):
-            err = resp.get("error") or {}
-            raise AppServerError(f"device rejected push: {err}")
+        verify_terminal(fd, expected_serial)
+        serial_request(
+            fd,
+            "push-content",
+            "content.push",
+            {"show": "dash", "payload": payload},
+            timeout_s=25,
+        )
         # Prefer dash on next boot.
-        req2 = {
-            "v": 1,
-            "cmd": "config.write",
-            "id": "2",
-            "params": {"startup_card": "dash"},
-        }
-        serial_write_line(fd, json.dumps(req2, separators=(",", ":")))
         try:
-            serial_read_line(fd, timeout_s=8)
+            serial_request(
+                fd,
+                "set-startup-card",
+                "config.write",
+                {"startup_card": "dash"},
+                timeout_s=8,
+            )
         except TimeoutError:
             pass
     finally:
@@ -714,7 +705,7 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
     profile: Dict[str, Any] = {}
     avatar_hex = ""
     if offline:
-        print("→ offline: skipping profile + avatar (no Wi-Fi)", file=sys.stderr)
+        print("→ offline: skipping profile (no Wi-Fi)", file=sys.stderr)
     else:
         print("→ Codex profile (local auth)…", file=sys.stderr)
         try:
@@ -727,16 +718,28 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             print(f"  profile skipped (offline?): {exc}", file=sys.stderr)
             profile = {}
 
-        pic = profile.get("profile_picture_url") or ""
-        if pic and not args.no_avatar:
-            print("→ profile photo…", file=sys.stderr)
+    # The pet comes first: it is what Codex shows you, it survives with no
+    # network once hatched or cached, and it reads far better than a
+    # thresholded photograph. The profile picture is the fallback.
+    if not args.no_pet:
+        print("→ Codex pet…", file=sys.stderr)
+        try:
+            label, bits = load_pet_bits(args.pet, allow_download=not offline)
+            avatar_hex = bits.hex()
+            print(f"  {label} at {PET_W}×{PET_H} ({len(bits)} bytes)", file=sys.stderr)
+        except Exception as exc:
+            print(f"  pet skipped: {exc}", file=sys.stderr)
+
+    pic = profile.get("profile_picture_url") or ""
+    if not avatar_hex and pic and not args.no_avatar:
+        print("→ profile photo…", file=sys.stderr)
+        try:
             headers = load_auth_headers()
-            try:
-                image_bytes = http_bytes(pic, headers)
-                avatar_hex = dither_image_bytes(image_bytes)
-                print(f"  dithered {AVATAR}×{AVATAR} ({len(avatar_hex)//2} bytes)", file=sys.stderr)
-            except Exception as exc:
-                print(f"  avatar skipped: {exc}", file=sys.stderr)
+            image_bytes = http_bytes(pic, headers)
+            avatar_hex = dither_image_bytes(image_bytes)
+            print(f"  dithered {PET_W}×{PET_H} ({len(avatar_hex)//2} bytes)", file=sys.stderr)
+        except Exception as exc:
+            print(f"  avatar skipped: {exc}", file=sys.stderr)
 
     if args.no_weather or offline:
         if offline:
@@ -769,6 +772,30 @@ def resolve_port(explicit: Optional[str]) -> str:
     return ports[0]
 
 
+def discover_terminal_serial(explicit_port: Optional[str]) -> str:
+    ports = [explicit_port] if explicit_port else list_serial_candidates()
+    if not ports:
+        raise AppServerError(
+            "Plug in the Dev Day terminal before enabling automatic sync, or pass --terminal-serial."
+        )
+
+    errors: List[str] = []
+    for port in ports:
+        try:
+            fd = open_serial(port)
+            try:
+                serial = verify_terminal(fd)
+            finally:
+                os.close(fd)
+            print(f"trusted terminal {serial} at {port}", file=sys.stderr)
+            return serial
+        except Exception as exc:
+            errors.append(f"{port}: {exc}")
+            if explicit_port:
+                break
+    raise AppServerError("could not identify a Dev Day terminal (" + "; ".join(errors) + ")")
+
+
 def run_once(args: argparse.Namespace) -> int:
     payload = asyncio.run(collect_payload(args))
     if args.json:
@@ -777,7 +804,7 @@ def run_once(args: argparse.Namespace) -> int:
         return 0
     port = resolve_port(args.port)
     print(f"→ USB {port}…", file=sys.stderr)
-    push_to_device(port, payload)
+    push_to_device(port, payload, getattr(args, "terminal_serial", ""))
     print("✓ usage pushed", file=sys.stderr)
     return 0
 
@@ -785,13 +812,20 @@ def run_once(args: argparse.Namespace) -> int:
 def run_watch(args: argparse.Namespace) -> int:
     print("watching for terminal USB plug-in (Ctrl+C to stop)…", file=sys.stderr)
     seen: set[str] = set()
+    configured_port = args.port
+
+    def watched_ports() -> set[str]:
+        if configured_port:
+            return {configured_port} if Path(configured_port).exists() else set()
+        return set(list_serial_candidates())
+
     # Ignore ports already present at start unless --push-existing.
     if not args.push_existing:
-        seen.update(list_serial_candidates())
+        seen.update(watched_ports())
         if seen:
             print(f"  ignoring already-connected: {sorted(seen)}", file=sys.stderr)
     while True:
-        current = set(list_serial_candidates())
+        current = watched_ports()
         new_ports = sorted(current - seen)
         gone = seen - current
         seen = current | (seen - gone)
@@ -806,15 +840,159 @@ def run_watch(args: argparse.Namespace) -> int:
         time.sleep(1.0)
 
 
+# ---------------------------------------------------------------------------
+# Background auto-sync install (no root privileges or additional credentials)
+# ---------------------------------------------------------------------------
+def auto_sync_command(args: argparse.Namespace, terminal_serial: str) -> List[str]:
+    python = str(Path(sys.executable).resolve()) if sys.executable else (shutil.which("python3") or "python3")
+    command = [
+        python,
+        str(Path(__file__).resolve()),
+        "--watch",
+        "--push-existing",
+        "--terminal-serial",
+        terminal_serial,
+    ]
+    if args.port:
+        command.extend(["--port", args.port])
+    if args.lat is not None:
+        command.extend(["--lat", str(args.lat)])
+    if args.lon is not None:
+        command.extend(["--lon", str(args.lon)])
+    if args.offline:
+        command.append("--offline")
+    if args.no_weather:
+        command.append("--no-weather")
+    if args.no_avatar:
+        command.append("--no-avatar")
+    if getattr(args, "pet", None):
+        command.extend(["--pet", args.pet])
+    if getattr(args, "no_pet", False):
+        command.append("--no-pet")
+    return command
+
+
+def command_error(result: subprocess.CompletedProcess[str]) -> str:
+    detail = (result.stderr or result.stdout or "").strip()
+    return detail or f"exit status {result.returncode}"
+
+
+def run_service_command(command: List[str]) -> None:
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise AppServerError(f"{' '.join(command[:2])} failed: {command_error(result)}")
+
+
+def xml_escape(value: str) -> str:
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
+def launchd_plist(command: List[str], log_path: Path) -> str:
+    args = "\n".join(f"    <string>{xml_escape(arg)}</string>" for arg in command)
+    log = xml_escape(str(log_path))
+    workdir = xml_escape(str(Path(__file__).resolve().parent))
+    return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\"><dict>
+  <key>Label</key><string>{AUTO_SYNC_LABEL}</string>
+  <key>ProgramArguments</key><array>
+{args}
+  </array>
+  <key>WorkingDirectory</key><string>{workdir}</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>{log}</string>
+  <key>StandardErrorPath</key><string>{log}</string>
+</dict></plist>
+"""
+
+
+def install_auto_sync(args: argparse.Namespace) -> Path:
+    terminal_serial = normalize_terminal_serial(args.terminal_serial)
+    if not terminal_serial:
+        terminal_serial = discover_terminal_serial(args.port)
+    if len(terminal_serial) != 12:
+        raise AppServerError("--terminal-serial must be a 12-character eFuse MAC")
+    command = auto_sync_command(args, terminal_serial)
+    if sys.platform == "darwin":
+        path = Path.home() / "Library" / "LaunchAgents" / f"{AUTO_SYNC_LABEL}.plist"
+        log_path = Path.home() / "Library" / "Logs" / "DevDayTerminal" / "dash-sync.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(launchd_plist(command, log_path))
+
+        domain = f"gui/{os.getuid()}"
+        # A prior version may be registered by label or by plist path; either is safe to ignore.
+        subprocess.run(["launchctl", "bootout", f"{domain}/{AUTO_SYNC_LABEL}"], capture_output=True, text=True)
+        subprocess.run(["launchctl", "bootout", domain, str(path)], capture_output=True, text=True)
+        run_service_command(["launchctl", "bootstrap", domain, str(path)])
+        run_service_command(["launchctl", "kickstart", "-k", f"{domain}/{AUTO_SYNC_LABEL}"])
+        return path
+
+    if sys.platform.startswith("linux"):
+        config_home = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+        path = config_home / "systemd" / "user" / AUTO_SYNC_SERVICE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        exec_start = " ".join(shlex.quote(arg) for arg in command)
+        path.write_text(
+            "[Unit]\nDescription=Dev Day Terminal automatic Codex usage sync\n\n"
+            "[Service]\nType=simple\n"
+            f"ExecStart={exec_start}\nRestart=always\nRestartSec=5\n\n"
+            "[Install]\nWantedBy=default.target\n"
+        )
+        run_service_command(["systemctl", "--user", "daemon-reload"])
+        run_service_command(["systemctl", "--user", "enable", "--now", AUTO_SYNC_SERVICE])
+        return path
+
+    raise AppServerError("automatic sync install is supported on macOS and Linux")
+
+
+def uninstall_auto_sync() -> Path:
+    if sys.platform == "darwin":
+        path = Path.home() / "Library" / "LaunchAgents" / f"{AUTO_SYNC_LABEL}.plist"
+        domain = f"gui/{os.getuid()}"
+        subprocess.run(["launchctl", "bootout", f"{domain}/{AUTO_SYNC_LABEL}"], capture_output=True, text=True)
+        path.unlink(missing_ok=True)
+        return path
+
+    if sys.platform.startswith("linux"):
+        config_home = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+        path = config_home / "systemd" / "user" / AUTO_SYNC_SERVICE
+        subprocess.run(["systemctl", "--user", "disable", "--now", AUTO_SYNC_SERVICE], capture_output=True, text=True)
+        path.unlink(missing_ok=True)
+        run_service_command(["systemctl", "--user", "daemon-reload"])
+        return path
+
+    raise AppServerError("automatic sync uninstall is supported on macOS and Linux")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    auto_sync = ap.add_mutually_exclusive_group()
+    auto_sync.add_argument("--install", action="store_true", help="install the per-user USB auto-sync service")
+    auto_sync.add_argument("--uninstall", action="store_true", help="remove the per-user USB auto-sync service")
     ap.add_argument("--port", help="USB serial device (auto-detect otherwise)")
+    ap.add_argument(
+        "--terminal-serial",
+        help="trusted terminal eFuse MAC (captured automatically by --install)",
+    )
     ap.add_argument("--watch", action="store_true", help="re-sync on every plug-in")
     ap.add_argument("--push-existing", action="store_true", help="with --watch, also sync ports already connected")
     ap.add_argument("--json", action="store_true", help="print payload JSON only")
     ap.add_argument("--offline", action="store_true", help="no Wi-Fi: skip profile/avatar/weather, local usage only")
     ap.add_argument("--no-weather", action="store_true", help="skip Open-Meteo")
     ap.add_argument("--no-avatar", action="store_true")
+    ap.add_argument(
+        "--pet",
+        default=None,
+        metavar="ID|PATH",
+        help="pet to show: a built-in id, a name under ~/.codex/pets, or a path "
+        "(default: your hatched pet, else the built-in codex pet)",
+    )
+    ap.add_argument(
+        "--no-pet", action="store_true", help="use the profile photo instead of a pet"
+    )
     ap.add_argument("--lat", type=float, default=None, help="override latitude (else IP geolocate)")
     ap.add_argument("--lon", type=float, default=None, help="override longitude (else IP geolocate)")
     args = ap.parse_args()
@@ -825,6 +1003,14 @@ def main() -> int:
         args.lon = float(os.environ["DASH_LON"])
 
     try:
+        if args.install:
+            path = install_auto_sync(args)
+            print(f"automatic sync enabled: {path}", file=sys.stderr)
+            return 0
+        if args.uninstall:
+            path = uninstall_auto_sync()
+            print(f"automatic sync removed: {path}", file=sys.stderr)
+            return 0
         if args.watch:
             return run_watch(args)
         return run_once(args)

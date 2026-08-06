@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/firmware/devday_terminal/ca_bundle.h"
+OUT="$ROOT/firmware/ca_bundle.h"
 TMP="$(mktemp)"
 
 curl -fsSL --proto '=https' --tlsv1.2 https://curl.se/ca/cacert.pem -o "$TMP"

@@ -3,11 +3,16 @@
 #include <SPI.h>
 #include <TFT_eSPI.h> // Seeed_GFX (gfxfont.h provides the standard FreeSans fonts)
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "config.h"
 #include "buttons.h"
 #include "qr_recipe.h"
+// Both generated: tools/gen_pet.py and tools/gen_splash.py. Regenerating them
+// changes the bundled pet and the first-boot faces without touching this file.
+#include "pet_asset.h"
+#include "devday_splash.h"
 
 #ifdef EPAPER_ENABLE
 static EPaper epaper = EPaper();
@@ -113,6 +118,36 @@ static void header(const CardContent& c, const RenderStatus& st) {
 #endif
 }
 
+// Payload strings are attacker-shaped as far as layout is concerned: nothing
+// upstream bounds their length, drawString does not clip, and e-paper has no
+// scroll. Trim to the space actually available, with an ellipsis so the reader
+// can tell something was cut.
+static String fit(const String& text, int16_t max_w) {
+#ifdef EPAPER_ENABLE
+  if (text.length() == 0 || epaper.textWidth(text, GFXFF) <= max_w) return text;
+  // Plain ASCII: the GFX free fonts stop at 0x7E, so a U+2026 ellipsis would
+  // render as nothing at all on the panel.
+  const char* kCut = "...";
+  int16_t budget = max_w - epaper.textWidth(kCut, GFXFF);
+  if (budget <= 0) return kCut;
+
+  // Longest prefix that fits, stepping only on UTF-8 character boundaries —
+  // payloads carry multi-byte glyphs (the ° in every temperature) and half a
+  // sequence is not valid text. Lengths here are tens of characters, so a
+  // linear walk costs less than the string churn of a binary search.
+  size_t n = text.length();
+  while (n > 0) {
+    while (n > 0 && ((uint8_t)text.charAt(n) & 0xC0) == 0x80) n--; // snap to boundary
+    if (epaper.textWidth(text.substring(0, n), GFXFF) <= budget) break;
+    n--;
+  }
+  return text.substring(0, n) + kCut;
+#else
+  (void)max_w;
+  return text;
+#endif
+}
+
 static void apHint(const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   if (st.ap_hint.length() > 0) {
@@ -158,33 +193,67 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
 #endif
 }
 
-static void renderBrief(const CardContent& c, const RenderStatus& st) {
-#ifdef EPAPER_ENABLE
-  header(c, st);
+static String formatAgendaTime(const String& raw) {
+  String value = raw;
+  value.trim();
+  if (value.length() == 0) return value;
 
-  epaper.setFreeFont(&FreeSans12pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(c.brief_eyebrow, MARGIN, 84, GFXFF);
-
-  epaper.setFreeFont(&FreeSansBold24pt7b);
-  epaper.drawString(c.brief_title, MARGIN, 120, GFXFF);
-
-  epaper.setFreeFont(&FreeSans18pt7b);
-  int16_t y = 200;
-  for (size_t i = 0; i < c.brief_line_count; i++) {
-    epaper.drawString(c.brief_lines[i], MARGIN, y, GFXFF);
-    y += 46;
+  // Accept plain times as well as ISO-style date-time values.
+  int time_start = 0;
+  for (size_t i = 0; i < value.length(); i++) {
+    if (value.charAt(i) == 'T' || value.charAt(i) == 't') {
+      time_start = (int)i + 1;
+    }
+  }
+  if (time_start > 0 && time_start < (int)value.length()) {
+    value = value.substring(time_start, value.length());
   }
 
-  if (st.ap_hint.length() == 0) {
-    epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.setTextDatum(BR_DATUM);
-    epaper.drawString(c.brief_footer, W - MARGIN, H - 58, GFXFF);
+  int colon = -1;
+  for (size_t i = 0; i < value.length(); i++) {
+    if (value.charAt(i) == ':') {
+      colon = (int)i;
+      break;
+    }
+  }
+  if (colon < 1 || colon + 1 >= (int)value.length()) return raw;
+
+  int hour_start = colon - 1;
+  while (hour_start >= 0 && isdigit((unsigned char)value.charAt(hour_start))) hour_start--;
+  hour_start++;
+  String hour_text = value.substring(hour_start, colon);
+
+  int minute_end = colon + 1;
+  while (minute_end < (int)value.length() && isdigit((unsigned char)value.charAt(minute_end))) {
+    minute_end++;
+  }
+  String minute_text = value.substring(colon + 1, minute_end);
+  if (hour_text.length() == 0 || minute_text.length() == 0) return raw;
+
+  int hour = atoi(hour_text.c_str());
+  int minute = atoi(minute_text.c_str());
+  if (minute < 0 || minute > 59) return raw;
+
+  String upper = value;
+  upper.toUpperCase();
+  bool has_am = false;
+  bool has_pm = false;
+  for (size_t i = 0; i + 1 < upper.length(); i++) {
+    if (upper.charAt(i) == 'A' && upper.charAt(i + 1) == 'M') has_am = true;
+    if (upper.charAt(i) == 'P' && upper.charAt(i + 1) == 'M') has_pm = true;
   }
 
-  apHint(st);
-  pageTabs("agenda");
-#endif
+  bool pm = has_pm;
+  if (has_am || has_pm) {
+    if (hour < 1 || hour > 12) return raw;
+  } else {
+    if (hour < 0 || hour > 23) return raw;
+    pm = hour >= 12;
+    hour %= 12;
+    if (hour == 0) hour = 12;
+  }
+
+  return String(hour) + ":" + (minute < 10 ? "0" : "") + String(minute) + (pm ? " PM" : " AM");
 }
 
 static void renderAgenda(const CardContent& c, const RenderStatus& st) {
@@ -234,17 +303,21 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
     bool isNext = (i == 0);
     if (isNext) epaper.fillCircle(spineX, ry + row_h/2, 7, TFT_BLACK);
     else { epaper.drawCircle(spineX, ry + row_h/2, 5, TFT_BLACK); epaper.fillCircle(spineX, ry + row_h/2, 2, TFT_BLACK); }
-    // time — brutalist tabular, tight
-    epaper.setFreeFont(&FreeSansBold24pt7b);
+    // Keep a fixed time column so event names align cleanly to its right.
+    String time = formatAgendaTime(c.agenda_time[i]);
+    const int16_t time_x = MARGIN + 38;
+    const int16_t title_x = MARGIN + 180;
+    epaper.setFreeFont(&FreeSans18pt7b);
     epaper.setTextDatum(ML_DATUM);
-    epaper.drawString(c.agenda_time[i], MARGIN + 38, ry + 22, GFXFF);
-    // title + detail — clearer hierarchy
+    epaper.drawString(time, time_x, ry + row_h / 2, GFXFF);
+    // title + detail — clearer hierarchy; stop short of the chevron column
+    const int16_t text_w = (W - MARGIN - 40) - title_x;
     epaper.setFreeFont(&FreeSans12pt7b);
     epaper.setTextDatum(TL_DATUM);
-    epaper.drawString(c.agenda_title[i], MARGIN + 132, ry + 14, GFXFF);
+    epaper.drawString(fit(c.agenda_title[i], text_w), title_x, ry + 14, GFXFF);
     epaper.setFreeFont(&FreeSans9pt7b);
     String det = c.agenda_detail[i]; det.toUpperCase();
-    epaper.drawString(det, MARGIN + 132, ry + 38, GFXFF);
+    epaper.drawString(fit(det, text_w), title_x, ry + 38, GFXFF);
     // right chevron hint
     epaper.drawFastHLine(W - MARGIN - 28, ry + row_h/2, 10, TFT_BLACK);
     epaper.drawFastHLine(W - MARGIN - 22, ry + row_h/2 - 3, 6, TFT_BLACK);
@@ -253,69 +326,6 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
 
   apHint(st);
   pageTabs("agenda");
-#endif
-}
-
-static void renderQuote(const CardContent& c, const RenderStatus& st) {
-#ifdef EPAPER_ENABLE
-  header(c, st);
-
-  if (!contentHasQuote(c)) {
-    epaper.setFreeFont(&FreeSans18pt7b);
-    epaper.setTextDatum(MC_DATUM);
-    epaper.drawString("No quote yet", W / 2, 200, GFXFF);
-    epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.drawString("Push a quote over USB or set content_url", W / 2, 246, GFXFF);
-    pageTabs("quote");
-    return;
-  }
-
-  // Large quote, word-wrapped within margins
-  epaper.setFreeFont(&FreeSansBold24pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  String text = "\"" + c.quote_text + "\"";
-  const int16_t maxW = W - 2 * MARGIN;
-  int16_t y = 96;
-  int16_t lineH = 38;
-  String line = "";
-  size_t pos = 0;
-  while (pos < text.length() && y <= 300) {
-    size_t nextSp = text.length();
-    for (size_t k = pos; k < text.length(); k++) if (text.charAt(k) == ' ') { nextSp = k; break; }
-    String word = nextSp < text.length() ? text.substring(pos, nextSp) : text.substring(pos, text.length());
-    String trial = line.length() ? line + " " + word : word;
-    int16_t w = epaper.textWidth(trial, GFXFF);
-    if (w > maxW && line.length()) {
-      epaper.drawString(line, MARGIN, y, GFXFF);
-      y += lineH;
-      line = word;
-    } else {
-      line = trial;
-    }
-    pos = nextSp == text.length() ? text.length() : nextSp + 1;
-  }
-  if (line.length() && y <= 320) {
-    epaper.drawString(line, MARGIN, y, GFXFF);
-    y += lineH;
-  }
-
-  // Author / source bottom-right
-  epaper.drawFastHLine(MARGIN, y + 10, W - 2 * MARGIN, TFT_BLACK);
-  epaper.setFreeFont(&FreeSans12pt7b);
-  String attr = c.quote_author;
-  if (c.quote_source.length()) {
-    if (attr.length()) attr += "  \xC2\xB7  " + c.quote_source;
-    else attr = c.quote_source;
-  }
-  if (attr.length() && attr.charAt(0) != '-' ) {
-    bool hasDash = attr.length() >= 3 && (unsigned char)attr.charAt(0) == 0xE2;
-    if (!hasDash) attr = String("\xE2\x80\x94 ") + attr;
-  }
-  epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(attr, W - MARGIN, y + 28, GFXFF);
-
-  apHint(st);
-  pageTabs("quote");
 #endif
 }
 
@@ -426,21 +436,23 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
     epaper.setTextDatum(MC_DATUM);
     epaper.drawString("No forecast", W / 2, 198, GFXFF);
     epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.drawString("Weather syncs with usage — plug USB: tools/dash_sync.py", W / 2, 236, GFXFF);
-    epaper.drawString("or push weather via content.push  weather.segments[]", W / 2, 258, GFXFF);
+    epaper.drawString("Automatic sync reads IP weather when you plug in USB.", W / 2, 236, GFXFF);
+    epaper.drawString("Enable once: tools/dash_sync.py --install", W / 2, 258, GFXFF);
     epaper.drawRoundRect(W/2 - 90, 284, 180, 28, 4, TFT_BLACK);
     epaper.drawString("KEY1 USAGE  •  KEY3 AGENDA", W/2, 298, GFXFF);
+    apHint(st);
     pageTabs("weather");
     return;
   }
 
   // Place + date row.
-  epaper.setFreeFont(&FreeSans18pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(c.weather_location, MARGIN, 74, GFXFF);
   epaper.setFreeFont(&FreeSans12pt7b);
+  const int16_t date_w = epaper.textWidth(c.weather_date, GFXFF);
   epaper.setTextDatum(TR_DATUM);
   epaper.drawString(c.weather_date, W - MARGIN, 80, GFXFF);
+  epaper.setFreeFont(&FreeSans18pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString(fit(c.weather_location, W - 2 * MARGIN - date_w - 24), MARGIN, 74, GFXFF);
 
   // Hero: current temp + condition, hi/lo on the right.
   epaper.setFreeFont(&FreeSansBold24pt7b);
@@ -470,72 +482,86 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
     }
   }
 
-  // 24-hour temperature skyline.
-  epaper.setFreeFont(&FreeSans12pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString("Next 24 hours", MARGIN, 346, GFXFF);
+  // 24-hour temperature skyline. It occupies the same band as the portal
+  // credentials, which matter more while the AP is up — drop it entirely then
+  // rather than drawing the two on top of each other.
+  if (st.ap_hint.length() == 0) {
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.setTextDatum(TL_DATUM);
+    epaper.drawString("Next 24 hours", MARGIN, 346, GFXFF);
 
-  drawHourStrip(c, MARGIN, 372, W - 2 * MARGIN, 36);
+    drawHourStrip(c, MARGIN, 372, W - 2 * MARGIN, 36);
 
-  static const char* kHourMarks[4] = {"12a", "6a", "12p", "6p"};
-  epaper.setFreeFont(&FreeSans9pt7b);
-  const int16_t strip_w = W - 2 * MARGIN;
-  for (uint8_t i = 0; i < 4; i++) {
-    int16_t hx = MARGIN + (int16_t)i * 6 * strip_w / 24;
-    if (i == 0) {
-      epaper.setTextDatum(TL_DATUM);
-      epaper.drawString(kHourMarks[i], hx, 412, GFXFF);
-    } else {
-      epaper.setTextDatum(TC_DATUM);
+    static const char* kHourMarks[4] = {"12a", "6a", "12p", "6p"};
+    epaper.setFreeFont(&FreeSans9pt7b);
+    const int16_t strip_w = W - 2 * MARGIN;
+    for (uint8_t i = 0; i < 4; i++) {
+      int16_t hx = MARGIN + (int16_t)i * 6 * strip_w / 24;
+      epaper.setTextDatum(i == 0 ? TL_DATUM : TC_DATUM);
       epaper.drawString(kHourMarks[i], hx, 412, GFXFF);
     }
   }
 
+  apHint(st);
   pageTabs("weather");
 #endif
 }
 
-static bool avatarBit(const CardContent& c, int x, int y) {
-  if (x < 0 || y < 0 || x >= (int)CardContent::AVATAR_SIZE || y >= (int)CardContent::AVATAR_SIZE) {
-    return false;
-  }
-  size_t bit = (size_t)y * CardContent::AVATAR_SIZE + (size_t)x;
-  size_t byte = bit / 8;
-  uint8_t mask = 0x80 >> (bit % 8);
-  return (c.dash_avatar[byte] & mask) != 0;
+static bool packedBit(const uint8_t* bits, int16_t w, int16_t x, int16_t y) {
+  size_t bit = (size_t)y * (size_t)w + (size_t)x;
+  return (bits[bit / 8] & (0x80 >> (bit % 8))) != 0;
 }
 
-static void drawAvatar(const CardContent& c, int16_t cx, int16_t cy) {
+// The pet (or profile photo) that sits at the top-left of the Usage card.
+// Drawn as a plain rectangle: a pet is a whole character, and the circular
+// crop the profile photo used would cut off its legs, tail and props. The
+// transparent margins baked in by tools/gen_pet.py do the framing instead.
+static void drawPet(const CardContent& c, int16_t x0, int16_t y0) {
 #ifdef EPAPER_ENABLE
-  const int16_t r = CardContent::AVATAR_SIZE / 2;
-  const int16_t x0 = cx - r;
-  const int16_t y0 = cy - r;
-
-  // Soft ring + filled portrait (1-bit dithered in the companion).
-  epaper.drawCircle(cx, cy, r + 2, TFT_BLACK);
-  epaper.drawCircle(cx, cy, r + 1, TFT_BLACK);
-
   if (c.dash_avatar_present) {
-    for (int16_t y = 0; y < (int16_t)CardContent::AVATAR_SIZE; y++) {
-      for (int16_t x = 0; x < (int16_t)CardContent::AVATAR_SIZE; x++) {
-        int16_t dx = x - r;
-        int16_t dy = y - r;
-        if (dx * dx + dy * dy > r * r) continue;
-        if (avatarBit(c, x, y)) {
-          epaper.drawPixel(x0 + x, y0 + y, TFT_BLACK);
+    const int16_t w = c.dash_avatar_square ? (int16_t)CardContent::AVATAR_SIZE
+                                           : (int16_t)CardContent::PET_W;
+    const int16_t h = c.dash_avatar_square ? (int16_t)CardContent::AVATAR_SIZE
+                                           : (int16_t)CardContent::PET_H;
+    // Keep a square photo centred in the space the pet would occupy, so the
+    // name block beside it does not shift between the two.
+    const int16_t ox = x0 + ((int16_t)CardContent::PET_W - w) / 2;
+    const int16_t oy = y0 + ((int16_t)CardContent::PET_H - h) / 2;
+    for (int16_t y = 0; y < h; y++) {
+      for (int16_t x = 0; x < w; x++) {
+        if (packedBit(c.dash_avatar, w, x, y)) {
+          epaper.drawPixel(ox + x, oy + y, TFT_BLACK);
         }
       }
     }
-  } else {
-    epaper.fillCircle(cx, cy, r, TFT_BLACK);
-    epaper.setTextColor(TFT_WHITE, TFT_BLACK);
-    epaper.setFreeFont(&FreeSansBold24pt7b);
-    epaper.setTextDatum(MC_DATUM);
-    char monogram[2] = {'?', 0};
-    if (c.dash_name.length() > 0) monogram[0] = (char)toupper(c.dash_name.charAt(0));
-    epaper.drawString(monogram, cx, cy + 2, GFXFF);
-    epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+    return;
   }
+
+#ifdef PET_ASSET_PRESENT
+  // Nothing pushed yet: the pet every unit ships with, so the card is never
+  // faceless out of the box.
+  for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
+    for (int16_t x = 0; x < (int16_t)CardContent::PET_W; x++) {
+      size_t bit = (size_t)y * CardContent::PET_W + (size_t)x;
+      uint8_t b = pgm_read_byte(&PET_ASSET_BITMAP[bit / 8]);
+      if (b & (0x80 >> (bit % 8))) {
+        epaper.drawPixel(x0 + x, y0 + y, TFT_BLACK);
+      }
+    }
+  }
+#else
+  const int16_t r = CardContent::PET_W / 2;
+  const int16_t cx = x0 + r;
+  const int16_t cy = y0 + CardContent::PET_H / 2;
+  epaper.fillCircle(cx, cy, r, TFT_BLACK);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setFreeFont(&FreeSansBold24pt7b);
+  epaper.setTextDatum(MC_DATUM);
+  char monogram[2] = {'?', 0};
+  if (c.dash_name.length() > 0) monogram[0] = (char)toupper(c.dash_name.charAt(0));
+  epaper.drawString(monogram, cx, cy + 2, GFXFF);
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+#endif
 #endif
 }
 
@@ -605,52 +631,58 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
 #endif
 }
 
-// First-boot splash: the OpenAI blossom as ASCII art (generated from the
-// official openai-blossom.svg). Drawn glyph-by-glyph on a fixed cell grid so
-// no monospace font is required.
-static const char* const kSplashArt[] = {
-  "            :+*%%@%#*=:                 ",
-  "          +%%*=;:::;=#%%=++++=;.        ",
-  "        :%%+       .=#%%*+==+*#@%+.     ",
-  "       :%@;     :+%@#+:        .=%%=    ",
-  "    =*%@@*   :*%%*=.    .==.     .#@*   ",
-  "  +%%+:*@=   #@+     ;+%@##@%+;   .@@:  ",
-  " #@*   *@=   #@= .=#@@#;.  .;*%%#=.@@;  ",
-  "+@#    *@=   #@##@#++#@%+;     :+#@@@:  ",
-  "%@;    *@=   #@#=.    .;*@%#=.    .+%%; ",
-  "#@+    *@*.  #@=        ;@@=#@%+:   .%@:",
-  ":%%:   :+%@#=%@=        ;@@  .*@#    =@#",
-  " :%%+.    :=#@@#;      ;*@@   =@#    :@%",
-  "  .@@@#+:     ;+%%#==*%%#@@   =@#    +@*",
-  "  :@@;=#@%*;    :#@@#+: ;@@   =@#    =@%",
-  "  .@@:   ;+%%#*%%*=.    =@@   =@#.=#@*. ",
-  "   +@#.     :=+:     ;+%@#=   =@@@#+.   ",
-  "    =%%=         .=*@%*;.    .%@;       ",
-  "     .+%%#+====+#@#+:       ;%@=        ",
-  "        .;++**++%@*=:...:;+%%*.         ",
-  "                 :=*#%@%%#+;            ",
-};
-static constexpr uint8_t SPLASH_ROWS = 20;
-static constexpr uint8_t SPLASH_COLS = 40;
+// One Dev Day mascot face, blitted at an integer scale. Whole modules as
+// filled rects rather than per-pixel writes, the same way drawQr() works.
+static void drawSplashFace(uint8_t index, int16_t x, int16_t y, uint8_t scale) {
+#ifdef EPAPER_ENABLE
+  const uint8_t* face = SPLASH_FACES[index % SPLASH_FACE_COUNT];
+  for (int16_t r = 0; r < SPLASH_FACE_H; r++) {
+    for (int16_t col = 0; col < SPLASH_FACE_W; col++) {
+      size_t bit = (size_t)r * SPLASH_FACE_W + (size_t)col;
+      uint8_t b = pgm_read_byte(&face[bit / 8]);
+      if (b & (0x80 >> (bit % 8))) {
+        epaper.fillRect(x + col * scale, y + r * scale, scale, scale, TFT_BLACK);
+      }
+    }
+  }
+#endif
+}
+
+// First-boot splash: a row of Dev Day mascots.
+//
+// Which face leads rotates per render. The first render on a factory-fresh
+// unit is always the same — 2,500 attendees get the identical, design-approved
+// first impression — and it only shifts if the splash is drawn again.
+static uint8_t splash_seed = 0;
 
 static void renderSplash() {
 #ifdef EPAPER_ENABLE
-  const int16_t cell_w = 15, cell_h = 21;
-  const int16_t footer_h = 42; // gap + unlock pill
-  const int16_t x0 = (W - SPLASH_COLS * cell_w) / 2;
-  const int16_t y0 = (H - SPLASH_ROWS * cell_h - footer_h) / 2;
-  epaper.setFreeFont(&FreeMono12pt7b);
-  for (uint8_t r = 0; r < SPLASH_ROWS; r++) {
-    const char* line = kSplashArt[r];
-    for (uint8_t c = 0; c < SPLASH_COLS && line[c]; c++) {
-      if (line[c] == ' ') continue;
-      char glyph[2] = {line[c], 0};
-      int16_t gw = epaper.textWidth(glyph, GFXFF);
-      epaper.setTextDatum(TL_DATUM);
-      epaper.drawString(glyph, x0 + c * cell_w + (cell_w - gw) / 2, y0 + r * cell_h, GFXFF);
-    }
+  const uint8_t seed = splash_seed++;
+  const uint8_t count = SPLASH_FACE_COUNT;
+  const int16_t gap = 28;
+  const int16_t footer_h = 62; // gap + unlock pill
+  const int16_t avail_w = W - 2 * MARGIN - (count - 1) * gap;
+  const int16_t avail_h = H - footer_h - 2 * MARGIN;
+
+  // Largest whole-pixel scale that fits the row; whole numbers only, since a
+  // fractional blit would alias the art.
+  uint8_t scale = 1;
+  while ((int16_t)((scale + 1) * SPLASH_FACE_W) * count <= avail_w &&
+         (int16_t)((scale + 1) * SPLASH_FACE_H) <= avail_h) {
+    scale++;
   }
-  const int16_t pill_y = y0 + SPLASH_ROWS * cell_h + 12;
+
+  const int16_t fw = SPLASH_FACE_W * scale;
+  const int16_t fh = SPLASH_FACE_H * scale;
+  const int16_t total = count * fw + (count - 1) * gap;
+  const int16_t x0 = (W - total) / 2;
+  const int16_t y0 = (H - fh - footer_h) / 2;
+
+  for (uint8_t i = 0; i < count; i++) {
+    drawSplashFace((uint8_t)((seed + i) % count), x0 + i * (fw + gap), y0, scale);
+  }
+
+  const int16_t pill_y = y0 + fh + 20;
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(MC_DATUM);
   epaper.drawRoundRect(W / 2 - 130, pill_y, 260, 30, 4, TFT_BLACK);
@@ -670,33 +702,42 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.setTextDatum(MC_DATUM);
     epaper.drawString("No usage yet", W / 2, 198, GFXFF);
     epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.drawString("Usage syncs over USB — plug in: the web-emulator page or tools/dash_sync.py", W / 2, 236, GFXFF);
-    epaper.drawString("or push content via content.push  dash.name + metrics", W / 2, 258, GFXFF);
+    epaper.drawString("Automatic sync reads Codex when you plug in USB.", W / 2, 236, GFXFF);
+    epaper.drawString("Enable once: tools/dash_sync.py --install", W / 2, 258, GFXFF);
     epaper.drawRoundRect(W/2 - 110, 284, 220, 32, 4, TFT_BLACK);
     epaper.drawString("KEY2 WEATHER  •  KEY3 AGENDA", W/2, 300, GFXFF);
+    apHint(st);
     pageTabs("dash");
     return;
   }
   header(c, st);
 
-  const int16_t avatar_cx = MARGIN + 40;
-  const int16_t avatar_cy = 100;
-  drawAvatar(c, avatar_cx, avatar_cy);
+  // Top-left anchor, not a centre: the pet is a rectangle, and its baseline
+  // wants to sit just above the hairline under the identity block.
+  const int16_t pet_x = MARGIN;
+  const int16_t pet_y = 52;
+  drawPet(c, pet_x, pet_y);
 
-  const int16_t text_x = MARGIN + 100;
+  // Identity on the left, weather on the right; keep them from meeting.
+  const int16_t weather_w = 240;
+  const int16_t text_x = pet_x + (int16_t)CardContent::PET_W + 28;
+  const int16_t name_w =
+      (c.dash_weather_temp.length() > 0 ? W - MARGIN - weather_w - 20 : W - MARGIN) - text_x;
+
   epaper.setFreeFont(&FreeSansBold24pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(c.dash_name, text_x, 66, GFXFF);
+  epaper.drawString(fit(c.dash_name, name_w), text_x, 66, GFXFF);
 
   epaper.setFreeFont(&FreeSans12pt7b);
-  String handle_line = c.dash_handle;
+  int16_t plan_w = c.dash_plan.length() > 0 ? epaper.textWidth(c.dash_plan, GFXFF) + 32 : 0;
+  String handle_line = fit(c.dash_handle, name_w - plan_w);
   epaper.drawString(handle_line, text_x, 118, GFXFF);
 
   if (c.dash_plan.length() > 0) {
     int16_t hw = epaper.textWidth(handle_line, GFXFF);
     int16_t bx = text_x + hw + 14;
     int16_t by = 112;
-    int16_t bw = epaper.textWidth(c.dash_plan, GFXFF) + 18;
+    int16_t bw = plan_w - 14;
     int16_t bh = 26;
     epaper.drawRoundRect(bx, by, bw, bh, 4, TFT_BLACK);
     epaper.setTextDatum(ML_DATUM);
@@ -711,7 +752,7 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.setTextDatum(TR_DATUM);
     epaper.drawString(c.dash_weather_temp, wx, 66, GFXFF);
     epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.drawString(c.dash_weather_detail, wx, 118, GFXFF);
+    epaper.drawString(fit(c.dash_weather_detail, weather_w), wx, 118, GFXFF);
   }
 
   // Double hairline — brutalist separation
@@ -740,20 +781,34 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
 
   drawDayChart(c, MARGIN, 300, W - 2 * MARGIN, 104);
 
-  epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  if (c.dash_insight_left.length()) {
-    epaper.drawString(c.dash_insight_left, MARGIN, 412, GFXFF);
-  }
-  epaper.setTextDatum(TR_DATUM);
-  if (c.dash_insight_right.length()) {
-    epaper.drawString(c.dash_insight_right, W - MARGIN, 412, GFXFF);
-  } else {
-    epaper.drawString("updates when you plug in", W - MARGIN, 412, GFXFF);
+  // Insight row and the portal credentials share this band; the credentials win.
+  if (st.ap_hint.length() == 0) {
+    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.setTextDatum(TL_DATUM);
+    if (c.dash_insight_left.length()) {
+      epaper.drawString(c.dash_insight_left, MARGIN, 412, GFXFF);
+    }
+    epaper.setTextDatum(TR_DATUM);
+    if (c.dash_insight_right.length()) {
+      epaper.drawString(c.dash_insight_right, W - MARGIN, 412, GFXFF);
+    } else {
+      epaper.drawString("updates when you plug in", W - MARGIN, 412, GFXFF);
+    }
   }
 
+  apHint(st);
   pageTabs("dash");
 #endif
+}
+
+bool cardIsRenderable(const String& card) {
+  return card == "dash" || card == "weather" || card == "agenda" || card == "build" ||
+         card == "yours" || card == "splash";
+}
+
+bool cardIsStartup(const String& card) {
+  return card == "dash" || card == "weather" || card == "agenda" || card == "build" ||
+         card == "yours";
 }
 
 bool displayBegin() {
@@ -773,12 +828,9 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   if (card == "splash") renderSplash();
   else if (card == "build") renderBuild(content, status);
   else if (card == "yours") renderYours(content, status);
-  // brief (teach it a job) killed — vestigial, map to agenda
-  else if (card == "brief") renderAgenda(content, status);
   else if (card == "weather") renderWeather(content, status);
-  else if (card == "agenda") renderAgenda(content, status);
-  // quote killed — mapped to agenda for back-compat
-  else if (card == "quote") renderAgenda(content, status);
+  // "brief" and "quote" were retired pages; old callers land on agenda.
+  else if (card == "agenda" || card == "brief" || card == "quote") renderAgenda(content, status);
   else if (card == "dash") renderDash(content, status);
   else if (contentHasDash(content)) renderDash(content, status);
   else renderAgenda(content, status);

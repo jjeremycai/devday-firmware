@@ -105,16 +105,11 @@ function applyJson(text) {
   const payload = JSON.parse(text);
   const d = payload.dash || {};
   const b = payload.build || {};
-  const br = payload.brief || {};
 
   if (b.state) api.emu_set("build_state", b.state);
   if (b.title) api.emu_set("build_title", b.title);
   if (b.detail) api.emu_set("build_detail", b.detail);
   if (b.updated_at) api.emu_set("build_updated_at", b.updated_at);
-  if (br.eyebrow) api.emu_set("brief_eyebrow", br.eyebrow);
-  if (br.title) api.emu_set("brief_title", br.title);
-  if (br.footer) api.emu_set("brief_footer", br.footer);
-  if (Array.isArray(br.lines)) api.emu_set("brief_lines", br.lines.join("\n"));
 
   const strKeys = ["name", "handle", "plan", "weather_temp", "weather_detail",
                    "lifetime", "peak", "longest", "streak", "best_streak",

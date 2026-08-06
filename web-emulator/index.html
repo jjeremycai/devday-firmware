@@ -129,14 +129,14 @@
 <main>
   <h1>Plug in. It refreshes.</h1>
   <p class="sub">
-    Open this page in Chrome, authorize the terminal once, then leave the tab open.
-    Every time you plug in USB it pulls weather, your Codex profile photo, and usage —
-    no app install, no LaunchAgent, no CLI.
+    Run <code>tools/dash_sync.py --install</code> once to enable automatic local sync.
+    Each USB connection then reads the already signed-in Codex account and an IP-derived
+    forecast, with no browser location prompt or additional Codex authorization.
   </p>
 
   <div class="panel" id="setup-card">
     <div class="hero-row">
-      <button id="connect">Connect terminal once</button>
+      <button id="connect">Connect terminal manually</button>
       <button class="ghost" id="push-now" disabled>Refresh usage now</button>
       <span id="conn-pill" class="pill off">disconnected</span>
       <span id="dash-pill" class="pill off">usage idle</span>
@@ -163,8 +163,8 @@
   </div>
 
   <div class="panel" id="profile-card">
-    <h2 style="border:0;margin:0 0 .35rem;padding:0">Codex profile</h2>
-    <p class="hint">Saved in this browser only. Photo is dithered here and pushed as ink — nothing installs on your machine.</p>
+    <h2 style="border:0;margin:0 0 .35rem;padding:0">Manual payload preview</h2>
+    <p class="hint">The automatic local sync reads real Codex usage. These fields remain available only for previewing or pushing a custom payload.</p>
 
     <div class="grid-2">
       <div>
@@ -222,7 +222,7 @@
       </div>
     </div>
 
-    <label>Optional: paste <code>account/usage/read</code> JSON</label>
+    <label>Optional: paste <code>account/usage/read</code> JSON for preview</label>
     <textarea id="p-usage-json" placeholder='{"summary":{"lifetimeTokens":...},"dailyUsageBuckets":[...]}'></textarea>
     <div class="hero-row" style="margin-top:.75rem">
       <button class="ghost" id="save-profile" type="button">Save profile in browser</button>
@@ -244,8 +244,9 @@
     <label>Startup card</label>
     <select id="c-card">
       <option value="dash">Usage</option>
+      <option value="weather">Weather</option>
+      <option value="agenda">Agenda</option>
       <option value="build">Build</option>
-      <option value="brief">Brief</option>
       <option value="yours">Yours</option>
     </select>
     <label>Wi-Fi SSID (2.4 GHz)</label><input id="c-ssid" maxlength="32">
@@ -275,7 +276,7 @@
       <li>Set the display jumper to <b>24Pin–GND</b>.</li>
       <li>Connect the battery to the JST header (red = +, black = −).</li>
       <li>Plug the XIAO ESP32-S3 Plus into the driver board and connect USB-C.</li>
-      <li>Press <b>Connect terminal once</b> above. After that, plugging in auto-refreshes usage.</li>
+        <li>Run <code>tools/dash_sync.py --install</code> once. After that, plugging in auto-refreshes usage and weather.</li>
     </ol>
   </div>
 
@@ -289,7 +290,9 @@ arduino-cli upload  -b esp32:esp32:XIAO_ESP32S3_Plus -p PORT MyApp</pre>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const AVATAR = 72;
+// Must match CardContent::PET_W / PET_H in firmware/content.h.
+const PET_W = 96;
+const PET_H = 104;
 const STORE_KEY = "devday-dash-profile-v1";
 
 let port = null;
@@ -297,8 +300,8 @@ let reader = null;
 let lineBuf = "";
 let nextId = 1;
 const pending = new Map();
-let avatarBitmap = null; // Uint8Array length AVATAR*AVATAR/8
-let weather = { temp: "—", detail: "Weather unavailable" };
+let avatarBitmap = null; // Uint8Array length PET_W*PET_H/8
+let weather = { temp: "—", detail: "Weather unavailable", forecast: null };
 let autoPushTimer = null;
 
 const log = (t) => {
@@ -452,52 +455,85 @@ function applyUsagePaste() {
   paintPreview();
 }
 
+// Mirrors tools/imaging.py. Sprite art (a Codex pet, with transparency) gets an
+// alpha silhouette; a photograph gets error diffusion. Dithering flat sprite
+// fills at this size turns the character into grey mud.
 async function ditherFromImage(img) {
   await img.decode?.().catch(() => {});
   const c = document.createElement("canvas");
-  c.width = AVATAR; c.height = AVATAR;
+  c.width = PET_W; c.height = PET_H;
   const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, AVATAR, AVATAR);
-  // Cover-crop into circle bounds.
-  const s = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
-  const sx = ((img.naturalWidth || img.width) - s) / 2;
-  const sy = ((img.naturalHeight || img.height) - s) / 2;
-  ctx.drawImage(img, sx, sy, s, s, 0, 0, AVATAR, AVATAR);
-  const { data } = ctx.getImageData(0, 0, AVATAR, AVATAR);
-  const gray = new Float32Array(AVATAR * AVATAR);
-  for (let i = 0; i < gray.length; i++) {
+  ctx.clearRect(0, 0, PET_W, PET_H);
+
+  // Contain, don't cover: a pet has legs and props that a centre-crop removes.
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  const scale = Math.min(PET_W / iw, PET_H / ih);
+  const dw = Math.round(iw * scale);
+  const dh = Math.round(ih * scale);
+  ctx.drawImage(img, 0, 0, iw, ih,
+                Math.round((PET_W - dw) / 2), Math.round((PET_H - dh) / 2), dw, dh);
+
+  const { data } = ctx.getImageData(0, 0, PET_W, PET_H);
+  const n = PET_W * PET_H;
+  const gray = new Float32Array(n);
+  const alpha = new Uint8Array(n);
+  let transparent = 0;
+  for (let i = 0; i < n; i++) {
     const o = i * 4;
-    gray[i] = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+    const a = data[o + 3];
+    alpha[i] = a;
+    if (a < 250) transparent++;
+    // Composite over white so transparent margins do not read as ink.
+    const lum = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+    gray[i] = (lum * a) / 255 + (255 - a);
   }
-  // Floyd–Steinberg dither → 1-bit ink.
-  for (let y = 0; y < AVATAR; y++) {
-    for (let x = 0; x < AVATAR; x++) {
-      const i = y * AVATAR + x;
-      const old = gray[i];
-      const neu = old < 128 ? 0 : 255;
-      const err = old - neu;
-      gray[i] = neu;
-      if (x + 1 < AVATAR) gray[i + 1] += err * 7 / 16;
-      if (y + 1 < AVATAR) {
-        if (x > 0) gray[i + AVATAR - 1] += err * 3 / 16;
-        gray[i + AVATAR] += err * 5 / 16;
-        if (x + 1 < AVATAR) gray[i + AVATAR + 1] += err * 1 / 16;
+
+  const bytes = new Uint8Array(n / 8);
+  const setBit = (i) => { bytes[i >> 3] |= 0x80 >> (i & 7); };
+
+  if (transparent > n * 0.05) {
+    // Sprite art: shape from alpha, interior marks from luminance.
+    const THRESHOLD = 190;
+    let ink = 0, shape = 0;
+    for (let i = 0; i < n; i++) {
+      if (alpha[i] > 128) {
+        shape++;
+        if (gray[i] <= THRESHOLD) { setBit(i); ink++; }
       }
     }
+    // Too pale to read as a silhouette — fall back to the shape itself.
+    if (shape && ink / shape < 0.15) {
+      bytes.fill(0);
+      for (let i = 0; i < n; i++) if (alpha[i] > 128) setBit(i);
+    }
+  } else {
+    // Photograph: Floyd–Steinberg error diffusion.
+    for (let y = 0; y < PET_H; y++) {
+      for (let x = 0; x < PET_W; x++) {
+        const i = y * PET_W + x;
+        const old = gray[i];
+        const neu = old < 128 ? 0 : 255;
+        const err = old - neu;
+        gray[i] = neu;
+        if (x + 1 < PET_W) gray[i + 1] += err * 7 / 16;
+        if (y + 1 < PET_H) {
+          if (x > 0) gray[i + PET_W - 1] += err * 3 / 16;
+          gray[i + PET_W] += err * 5 / 16;
+          if (x + 1 < PET_W) gray[i + PET_W + 1] += err * 1 / 16;
+        }
+      }
+    }
+    for (let i = 0; i < n; i++) if (gray[i] < 128) setBit(i);
   }
-  const bytes = new Uint8Array((AVATAR * AVATAR) / 8);
-  for (let i = 0; i < AVATAR * AVATAR; i++) {
-    if (gray[i] < 128) bytes[i >> 3] |= 0x80 >> (i & 7);
-  }
+
   avatarBitmap = bytes;
-  // Show dithered preview in the circle.
-  const out = ctx.createImageData(AVATAR, AVATAR);
-  for (let i = 0; i < AVATAR * AVATAR; i++) {
-    const ink = (bytes[i >> 3] & (0x80 >> (i & 7))) ? 0 : 255;
-    out.data[i * 4] = ink;
-    out.data[i * 4 + 1] = ink;
-    out.data[i * 4 + 2] = ink;
+  const out = ctx.createImageData(PET_W, PET_H);
+  for (let i = 0; i < n; i++) {
+    const inkPx = (bytes[i >> 3] & (0x80 >> (i & 7))) ? 0 : 255;
+    out.data[i * 4] = inkPx;
+    out.data[i * 4 + 1] = inkPx;
+    out.data[i * 4 + 2] = inkPx;
     out.data[i * 4 + 3] = 255;
   }
   ctx.putImageData(out, 0, 0);
@@ -546,24 +582,122 @@ const WMO = {
   95: "Thunderstorm", 96: "Thunderstorm", 99: "Thunderstorm",
 };
 
+function localeCountry() {
+  try { return new Intl.Locale(navigator.language).region || ""; }
+  catch { return ""; }
+}
+
+function weatherUnits(country) {
+  return ["US", "LR", "MM"].includes((country || localeCountry()).toUpperCase())
+    ? { temperature: "fahrenheit", wind: "mph", windLabel: "mph" }
+    : { temperature: "celsius", wind: "kmh", windLabel: "km/h" };
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.json();
+}
+
+async function resolveIpLocation() {
+  const attempts = [
+    async () => {
+      const data = await fetchJson("https://ipapi.co/json/");
+      if (data.latitude == null || data.longitude == null) throw new Error("ipapi returned no coordinates");
+      return {
+        lat: Number(data.latitude), lon: Number(data.longitude),
+        label: [data.city, data.region_code || data.region].filter(Boolean).join(", ") || `${data.latitude},${data.longitude}`,
+        country: data.country_code || "",
+      };
+    },
+    async () => {
+      const data = await fetchJson("https://ipwho.is/");
+      if (!data.success || data.latitude == null || data.longitude == null) throw new Error("ipwho returned no coordinates");
+      return {
+        lat: Number(data.latitude), lon: Number(data.longitude),
+        label: [data.city, data.region].filter(Boolean).join(", ") || `${data.latitude},${data.longitude}`,
+        country: data.country_code || "",
+      };
+    },
+  ];
+  let lastError = null;
+  for (const attempt of attempts) {
+    try { return await attempt(); }
+    catch (error) { lastError = error; }
+  }
+  throw lastError || new Error("IP location unavailable");
+}
+
+function weatherDate(value) {
+  const [year, month, day] = String(value).slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 async function fetchWeather() {
-  const pos = await new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("no geolocation"));
-    navigator.geolocation.getCurrentPosition(resolve, reject, { maximumAge: 600000, timeout: 8000 });
+  const location = await resolveIpLocation();
+  const units = weatherUnits(location.country);
+  const params = new URLSearchParams({
+    latitude: location.lat, longitude: location.lon,
+    current: "temperature_2m,weather_code",
+    hourly: "temperature_2m,weather_code,precipitation_probability,wind_speed_10m,wind_direction_10m",
+    daily: "temperature_2m_max,temperature_2m_min",
+    temperature_unit: units.temperature, wind_speed_unit: units.wind,
+    timezone: "auto", forecast_days: "1",
   });
-  const { latitude: lat, longitude: lon } = pos.coords;
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`;
-  const res = await fetch(url);
-  const j = await res.json();
-  const t = Math.round(j.current.temperature_2m);
-  const code = j.current.weather_code;
-  const hi = Math.round(j.daily.temperature_2m_max[0]);
-  const lo = Math.round(j.daily.temperature_2m_min[0]);
-  weather = {
-    temp: `${t}°`,
-    detail: `${WMO[code] || "Weather"} · H${hi}° L${lo}°`,
+  const data = await fetchJson(`https://api.open-meteo.com/v1/forecast?${params}`);
+  const current = data.current || {};
+  const daily = data.daily || {};
+  const hourly = data.hourly || {};
+  const temps = (hourly.temperature_2m || []).slice(0, 24);
+  const validTemps = temps.filter((temp) => Number.isFinite(temp));
+  if (!validTemps.length || !Number.isFinite(current.temperature_2m)) throw new Error("forecast contains no temperatures");
+
+  const code = Number(current.weather_code);
+  const hi = Math.round(daily.temperature_2m_max?.[0]);
+  const lo = Math.round(daily.temperature_2m_min?.[0]);
+  const condition = WMO[code] || "Weather";
+  const codes = (hourly.weather_code || []).slice(0, 24);
+  const precipitation = (hourly.precipitation_probability || []).slice(0, 24);
+  const winds = (hourly.wind_speed_10m || []).slice(0, 24);
+  const directions = (hourly.wind_direction_10m || []).slice(0, 24);
+  const average = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  const compass = (degrees) => ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.floor((degrees + 22.5) / 45) % 8];
+  const segments = [["Morning", 6, 12], ["Afternoon", 12, 18], ["Evening", 18, 24]].flatMap(([label, start, end]) => {
+    const segmentTemps = temps.slice(start, end).filter((temp) => Number.isFinite(temp));
+    if (!segmentTemps.length) return [];
+    const segmentCodes = codes.slice(start, end).filter(Number.isFinite);
+    const frequencies = new Map();
+    segmentCodes.forEach((segmentCode) => frequencies.set(segmentCode, (frequencies.get(segmentCode) || 0) + 1));
+    const commonCode = [...frequencies.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const segmentWinds = winds.slice(start, end).filter(Number.isFinite);
+    const segmentDirections = directions.slice(start, end).filter(Number.isFinite);
+    const segmentRain = precipitation.slice(start, end).filter(Number.isFinite);
+    return [{
+      label, temp: `${Math.round(average(segmentTemps))}\u00B0`, cond: WMO[commonCode] || "",
+      wind: `${compass(average(segmentDirections))} ${Math.round(average(segmentWinds))} ${units.windLabel}`,
+      precip: segmentRain.length ? `rain ${Math.max(...segmentRain)}%` : "",
+    }];
+  });
+  const low = Math.min(...validTemps);
+  const high = Math.max(...validTemps);
+  const span = high - low || 1;
+  const nowHour = Number(String(current.time || "").slice(11, 13));
+  const forecast = {
+    location: location.label, date: weatherDate(current.time),
+    now_temp: `${Math.round(current.temperature_2m)}\u00B0`, now_cond: condition,
+    now_hilo: `H${hi}\u00B0 L${lo}\u00B0`, segments,
+    hours: temps.map((temp) => Number.isFinite(temp) ? Math.round((temp - low) * 255 / span) : 0),
+    hour_now: Number.isInteger(nowHour) ? nowHour : 255,
   };
-  $("weather-line").textContent = `Weather: ${weather.temp} · ${weather.detail}`;
+  weather = {
+    temp: forecast.now_temp,
+    detail: `${condition} \u00B7 ${forecast.now_hilo}`,
+    forecast,
+  };
+  $("weather-line").textContent = `Weather: ${location.label} ${weather.temp} ${weather.detail}`;
 }
 
 function buildPayload() {
@@ -588,12 +722,9 @@ function buildPayload() {
       days,
       avatar_hex: avatarHex(),
     },
-    brief: {
-      eyebrow: "DEV DAY",
-      title: "Your usage is live",
-      lines: ["Plug in USB to refresh", "Weather + Codex profile", "No install required"],
-      footer: $("p-handle").value.trim() || "usage",
-    },
+    // Shared header date, so pages agree even when weather is unavailable.
+    date: new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
+    weather: weather.forecast || undefined,
   };
 }
 
@@ -617,38 +748,31 @@ function paintPreview() {
   ctx.fillStyle = "#111";
   ctx.strokeStyle = "#111";
 
-  // Avatar circle
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(76, 100, 38, 0, Math.PI * 2);
-  ctx.clip();
+  // Pet portrait — a plain rectangle, matching drawPet() in cards.cpp. No
+  // circular crop: it would cut the legs and props off a pet.
+  const PET_X = 28, PET_Y = 52;
   if (avatarBitmap) {
-    const img = ctx.createImageData(AVATAR, AVATAR);
-    for (let i = 0; i < AVATAR * AVATAR; i++) {
+    const img = ctx.createImageData(PET_W, PET_H);
+    for (let i = 0; i < PET_W * PET_H; i++) {
       const ink = (avatarBitmap[i >> 3] & (0x80 >> (i & 7))) ? 0 : 255;
       img.data.set([ink, ink, ink, 255], i * 4);
     }
     const tmp = document.createElement("canvas");
-    tmp.width = AVATAR; tmp.height = AVATAR;
+    tmp.width = PET_W; tmp.height = PET_H;
     tmp.getContext("2d").putImageData(img, 0, 0);
-    ctx.drawImage(tmp, 40, 64, 72, 72);
+    ctx.drawImage(tmp, PET_X, PET_Y);
   } else {
-    ctx.fillRect(40, 64, 72, 72);
+    ctx.fillRect(PET_X, PET_Y, PET_W, PET_H);
   }
-  ctx.restore();
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(76, 100, 40, 0, Math.PI * 2);
-  ctx.stroke();
 
   ctx.font = "700 34px Fraunces, serif";
-  ctx.fillText(p.name || "Codex", 136, 90);
+  ctx.fillText(p.name || "Codex", 152, 90);
   ctx.font = "550 18px Figtree, sans-serif";
-  ctx.fillText(p.handle || "", 136, 122);
+  ctx.fillText(p.handle || "", 152, 122);
   if (p.plan) {
     const hw = ctx.measureText(p.handle || "").width;
-    ctx.strokeRect(136 + hw + 12, 104, ctx.measureText(p.plan).width + 16, 24);
-    ctx.fillText(p.plan, 144 + hw + 12, 122);
+    ctx.strokeRect(152 + hw + 12, 104, ctx.measureText(p.plan).width + 16, 24);
+    ctx.fillText(p.plan, 160 + hw + 12, 122);
   }
   ctx.textAlign = "right";
   ctx.font = "700 34px Fraunces, serif";
@@ -770,7 +894,7 @@ async function refreshStatus() {
     $("s-card").textContent = s.card;
     if (!$("c-name").value) {
       $("c-name").value = s.name;
-      $("c-card").value = s.startup_card === "brief" && contentHasDashHint() ? "dash" : s.startup_card;
+      $("c-card").value = s.startup_card;
       $("c-ssid").value = s.wifi_ssid || "";
       $("c-url").value = s.content_url || "";
       $("c-refresh").value = s.refresh_minutes || 30;
@@ -778,15 +902,11 @@ async function refreshStatus() {
   } catch (e) { /* asleep or mid-transfer */ }
 }
 
-function contentHasDashHint() {
-  return !!($("p-name").value.trim());
-}
-
 async function pushDash() {
   setDash(false, "fetching…");
   try {
     try { await fetchWeather(); } catch (e) {
-      weather = { temp: "—", detail: "Allow location for weather" };
+      weather = { temp: "—", detail: "IP weather unavailable", forecast: null };
       $("weather-line").textContent = "Weather: " + weather.detail;
     }
     if ($("p-avatar-url").value.trim() && !avatarBitmap) {
@@ -841,7 +961,7 @@ if (!("serial" in navigator)) {
   $("serial-note").textContent = "This browser cannot talk USB serial. Use Chrome/Edge, or the AP fallback.";
 } else {
   $("serial-note").textContent =
-      "Authorize once. After that, keep this tab open — plugging USB auto-connects and refreshes usage. Nothing is installed.";
+      "Browser serial is optional for manual diagnostics. Use tools/dash_sync.py --install for permission-free plug-in sync.";
   navigator.serial.addEventListener("connect", async (event) => {
     log("USB device connected");
     try { await openPort(event.target); }
@@ -927,7 +1047,7 @@ if (saved) applyProfile(saved);
 else loadDemo();
 paintPreview();
 fetchWeather().then(paintPreview).catch(() => {
-  $("weather-line").textContent = "Weather: allow location (or push anyway)";
+  $("weather-line").textContent = "Weather: IP lookup unavailable (or push anyway)";
 });
 tryAutoReconnect();
 </script>

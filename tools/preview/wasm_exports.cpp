@@ -54,7 +54,7 @@ extern "C" int emu_pin(int pin, int down, uint32_t ms) {
   } else if (ev == ButtonEvent::B3) {
     g_card = "agenda";
   } else {
-    g_card = "quote";
+    g_card = "agenda"; // KEY4 shares the agenda page
   }
   renderCard(g_card, g_content, g_status);
   return (int)ev;
@@ -69,24 +69,6 @@ extern "C" void emu_set(const char* key, const char* value) {
   else if (k == "build_title") g_content.build_title = v;
   else if (k == "build_detail") g_content.build_detail = v;
   else if (k == "build_updated_at") g_content.build_updated_at = v;
-  else if (k == "brief_eyebrow") g_content.brief_eyebrow = v;
-  else if (k == "brief_title") g_content.brief_title = v;
-  else if (k == "brief_footer") g_content.brief_footer = v;
-  else if (k == "brief_lines") {
-    size_t n = 0;
-    int start = 0;
-    String s = v;
-    while (n < CardContent::BRIEF_MAX_LINES && start <= (int)s.length()) {
-      int nl = -1;
-      for (size_t i = start; i < s.length(); i++)
-        if (s.charAt(i) == '\n') { nl = (int)i; break; }
-      String line = nl < 0 ? s.substring(start, s.length()) : s.substring(start, nl);
-      if (line.length() > 0) g_content.brief_lines[n++] = line;
-      if (nl < 0) break;
-      start = nl + 1;
-    }
-    g_content.brief_line_count = n;
-  }
   else if (k == "dash_name") { g_content.dash_name = v; g_content.dash_present = true; }
   else if (k == "dash_handle") g_content.dash_handle = v;
   else if (k == "dash_plan") g_content.dash_plan = v;
@@ -108,9 +90,6 @@ extern "C" void emu_set(const char* key, const char* value) {
   else if (k == "weather_now_cond") g_content.weather_now_cond = v;
   else if (k == "weather_now_hilo") g_content.weather_now_hilo = v;
   else if (k == "agenda_date") g_content.agenda_date = v;
-  else if (k == "quote_text") g_content.quote_text = v;
-  else if (k == "quote_author") g_content.quote_author = v;
-  else if (k == "quote_source") g_content.quote_source = v;
   else if (k.startsWith("agenda_")) {
     size_t idx = (size_t)(k.charAt(7) - '0');
     if (idx < CardContent::AGENDA_MAX) {
@@ -178,15 +157,25 @@ static int hexNibble(char c) {
   return -1;
 }
 
+// Accepts either size the firmware does: the pet rectangle, or the square an
+// older sync script sends.
 extern "C" int emu_set_avatar_hex(const char* hex) {
   size_t len = strlen(hex);
-  if (len != CardContent::AVATAR_BYTES * 2) return 0;
-  for (size_t i = 0; i < CardContent::AVATAR_BYTES; i++) {
+  size_t bytes;
+  if (len == CardContent::PET_BYTES * 2) {
+    bytes = CardContent::PET_BYTES;
+  } else if (len == CardContent::AVATAR_BYTES * 2) {
+    bytes = CardContent::AVATAR_BYTES;
+  } else {
+    return 0;
+  }
+  for (size_t i = 0; i < bytes; i++) {
     int hi = hexNibble(hex[i * 2]);
     int lo = hexNibble(hex[i * 2 + 1]);
     if (hi < 0 || lo < 0) return 0;
     g_content.dash_avatar[i] = (uint8_t)((hi << 4) | lo);
   }
   g_content.dash_avatar_present = true;
+  g_content.dash_avatar_square = (bytes == CardContent::AVATAR_BYTES);
   return 1;
 }

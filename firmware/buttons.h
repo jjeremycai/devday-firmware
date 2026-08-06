@@ -2,14 +2,14 @@
 
 #include <Arduino.h>
 
-// Four page buttons, release-triggered. No long/short distinction:
-// 1 (D1) Usage · 2 (D2) Weather · 3 (D3) Agenda · 4 (D4) Quote.
+// Four keys on the board, three pages. Release-triggered, no long/short
+// distinction: 1 (D1) Usage · 2 (D2) Weather · 3 (D3) Agenda · 4 (D4) Agenda.
 enum class ButtonEvent : uint8_t {
   NONE,
   B1,  // Usage page (empty state until dash pushed)
   B2,  // Weather page
   B3,  // Agenda page
-  B4,  // Quote page
+  B4,  // Agenda page; D4 is also half of the boot factory-reset combo
 };
 
 void buttonsBegin();

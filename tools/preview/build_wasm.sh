@@ -9,14 +9,14 @@ mkdir -p "$OUT"
 
 em++ -std=c++17 -O2 \
   -I "$ROOT/tools/preview/stubs" \
-  -I "$ROOT/firmware/devday_terminal" \
+  -I "$ROOT/firmware" \
   -I "$ROOT/tools/preview" \
   -DEPAPER_ENABLE \
   "$ROOT/tools/preview/harness_common.cpp" \
   "$ROOT/tools/preview/epaper_wasm.cpp" \
   "$ROOT/tools/preview/wasm_exports.cpp" \
-  "$ROOT/firmware/devday_terminal/cards.cpp" \
-  "$ROOT/firmware/devday_terminal/buttons.cpp" \
+  "$ROOT/firmware/cards.cpp" \
+  "$ROOT/firmware/buttons.cpp" \
   --no-entry \
   -s WASM=1 \
   -s ENVIRONMENT=web \

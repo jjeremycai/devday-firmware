@@ -19,6 +19,7 @@ static void respond(bool ok, const JsonVariant& id, JsonObject data, const char*
   }
   serializeJson(out, Serial);
   Serial.print('\n');
+  Serial.flush();
 }
 
 static void dispatch(JsonDocument& req) {
@@ -55,8 +56,10 @@ static void dispatch(JsonDocument& req) {
     } else {
       String payload;
       serializeJson(params["payload"], payload);
-      if (hooks_.content_push && hooks_.content_push(payload, show, err)) {
-        respond(true, id, JsonObject(), nullptr, "");
+      JsonDocument data;
+      if (hooks_.content_push &&
+          hooks_.content_push(payload, show, data.to<JsonObject>(), err)) {
+        respond(true, id, data.as<JsonObject>(), nullptr, "");
       } else {
         respond(false, id, JsonObject(), err.length() ? err.c_str() : "failed", "content.push failed");
       }

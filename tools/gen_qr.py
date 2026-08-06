@@ -2,7 +2,7 @@
 """Generate qr_recipe.h - a fixed QR code bitmap for the hardware recipe URL.
 
 Usage: python3 tools/gen_qr.py [url]
-Output: firmware/devday_terminal/qr_recipe.h
+Output: firmware/qr_recipe.h
 """
 import sys
 from pathlib import Path
@@ -10,7 +10,7 @@ from pathlib import Path
 import qrcode
 
 URL = sys.argv[1] if len(sys.argv) > 1 else "https://github.com/jjeremycai/devday-firmware"
-OUT = Path(__file__).resolve().parent.parent / "firmware" / "devday_terminal" / "qr_recipe.h"
+OUT = Path(__file__).resolve().parent.parent / "firmware" / "qr_recipe.h"
 
 qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=2, box_size=1)
 qr.add_data(URL)

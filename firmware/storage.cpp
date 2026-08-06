@@ -1,8 +1,10 @@
 #include "storage.h"
 
+#include <ArduinoJson.h>
 #include <LittleFS.h>
 #include <Preferences.h>
 
+#include "cards.h"
 #include "config.h"
 
 static Preferences prefs;
@@ -39,10 +41,7 @@ DeviceConfig configLoad() {
   cfg.content_url = prefs.getString("url", "");
   cfg.refresh_minutes = prefs.getUShort("refresh", DEFAULT_REFRESH_MINUTES);
   cfg.wifi_configured = prefs.getBool("wifi_cfg", cfg.wifi_ssid.length() > 0);
-  if (cfg.startup_card != "build" && cfg.startup_card != "yours" &&
-      cfg.startup_card != "dash" && cfg.startup_card != "weather" && cfg.startup_card != "agenda") {
-    cfg.startup_card = "agenda";
-  }
+  if (!cardIsStartup(cfg.startup_card)) cfg.startup_card = "agenda";
   if (cfg.refresh_minutes == 0) cfg.refresh_minutes = DEFAULT_REFRESH_MINUTES;
   return cfg;
 }
@@ -83,6 +82,28 @@ bool cacheWriteContent(const String& payload, const String& etag) {
     e.close();
   }
   return true;
+}
+
+bool cacheMergeContent(const String& payload) {
+  JsonDocument incoming;
+  if (deserializeJson(incoming, payload)) return false;
+
+  String cached;
+  JsonDocument merged;
+  if (cacheReadContent(cached) && !deserializeJson(merged, cached) && merged.is<JsonObject>()) {
+    // Replace whole sections rather than deep-merging: a pushed "weather"
+    // object is the complete forecast, not a patch on the previous one.
+    for (JsonPairConst kv : incoming.as<JsonObjectConst>()) {
+      merged[kv.key()] = kv.value();
+    }
+  } else {
+    merged = incoming;
+  }
+
+  String out;
+  serializeJson(merged, out);
+  if (out.length() > CONTENT_MAX_BYTES) return false;
+  return cacheWriteContent(out, "");
 }
 
 String cacheReadEtag() {

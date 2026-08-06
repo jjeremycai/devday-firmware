@@ -29,7 +29,8 @@ section{border-top:1px solid #ddd;margin-top:2rem;padding-top:1rem}
 <form id="cfg">
 <label>Device name</label><input name="device_name">
 <label>Startup card</label><select name="startup_card">
-<option value="build">Build</option><option value="brief" selected>Brief</option><option value="dash">Usage</option><option value="yours">Yours</option></select>
+<option value="dash">Usage</option><option value="weather">Weather</option><option value="agenda" selected>Agenda</option>
+<option value="build">Build</option><option value="yours">Yours</option></select>
 <label>Wi-Fi SSID (2.4 GHz)</label><input name="wifi_ssid">
 <label>Wi-Fi password</label><input name="wifi_password" type="password">
 <label>Content URL (HTTPS, optional)</label><input name="content_url" placeholder="https://">
@@ -111,22 +112,26 @@ static void handleUpdateDone() {
   }
 }
 
-static void handleUpdateUpload() {
-  HTTPUpload& up = server.upload();
-  if (up.status == UPLOAD_FILE_START) {
+// The page POSTs the raw .bin as application/octet-stream, so WebServer routes
+// the body through the *raw* path, not the multipart upload path — the payload
+// arrives in server.raw() and server.upload() is not populated at all. Content
+// length comes from clientContentLength(); header("Content-Length") is always
+// empty because WebServer consumes that header before building the header map.
+static void handleUpdateRaw() {
+  HTTPRaw& raw = server.raw();
+  if (raw.status == RAW_START) {
     update_ok_ = false;
     update_err_ = "";
-    size_t total = server.header("Content-Length").toInt();
-    if (!ota_.begin(total, update_err_)) {
-      up.status = UPLOAD_FILE_ABORTED;
+    if (!ota_.begin(server.clientContentLength(), update_err_)) {
+      raw.status = RAW_ABORTED;
     }
-  } else if (up.status == UPLOAD_FILE_WRITE) {
-    if (!ota_.write(up.buf, up.currentSize, update_err_)) {
-      up.status = UPLOAD_FILE_ABORTED;
+  } else if (raw.status == RAW_WRITE) {
+    if (!ota_.write(raw.buf, raw.currentSize, update_err_)) {
+      raw.status = RAW_ABORTED;
     }
-  } else if (up.status == UPLOAD_FILE_END) {
+  } else if (raw.status == RAW_END) {
     update_ok_ = ota_.finish(update_err_);
-  } else if (up.status == UPLOAD_FILE_ABORTED) {
+  } else if (raw.status == RAW_ABORTED) {
     ota_.abort();
     if (update_err_.length() == 0) update_err_ = "aborted";
   }
@@ -153,7 +158,7 @@ bool portalStart() {
   server.on("/", HTTP_GET, handleIndex);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/config", HTTP_POST, handleConfig);
-  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
+  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateRaw);
   server.begin();
 
   started_ms_ = millis();

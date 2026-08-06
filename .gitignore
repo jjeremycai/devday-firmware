@@ -3,7 +3,11 @@ release/
 tools/bin/
 
 # Copied into the sketch by tools/build.sh
-firmware/devday_terminal/partitions.csv
+firmware/partitions.csv
 
 .DS_Store
 tools/preview/out/
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -12,14 +12,6 @@ struct CardContent {
   String build_detail;
   String build_updated_at;
 
-  // Brief card
-  String brief_eyebrow;
-  String brief_title;
-  static constexpr size_t BRIEF_MAX_LINES = 4;
-  String brief_lines[BRIEF_MAX_LINES];
-  size_t brief_line_count;
-  String brief_footer;
-
   // Usage card (Codex profile + weather + token chart)
   bool dash_present;
   String dash_name;
@@ -37,11 +29,20 @@ struct CardContent {
   static constexpr size_t DASH_DAYS = 14;
   uint8_t dash_day_tokens[DASH_DAYS]; // 0–255 relative heights for the chart
   size_t dash_day_count;
-  // Packed 1-bit MSB-first avatar, row-major. Empty = draw monogram.
+  // Packed 1-bit MSB-first portrait, row-major: the attendee's Codex pet, or
+  // their profile photo. Not square — a pet cell is 192x208, and cropping one
+  // to a circle cuts off its legs and props. Empty = draw the bundled pet.
+  static constexpr size_t PET_W = 96;
+  static constexpr size_t PET_H = 104;
+  static constexpr size_t PET_BYTES = (PET_W * PET_H + 7) / 8;
+  // Terminals in the field may still be paired with an older sync script that
+  // sends the original 72x72 square, so both sizes stay decodable.
   static constexpr size_t AVATAR_SIZE = 72;
   static constexpr size_t AVATAR_BYTES = (AVATAR_SIZE * AVATAR_SIZE + 7) / 8;
-  uint8_t dash_avatar[AVATAR_BYTES];
+  uint8_t dash_avatar[PET_BYTES];
   bool dash_avatar_present;
+  // Which layout dash_avatar currently holds.
+  bool dash_avatar_square;
 
   // Weather page (full today forecast)
   String weather_location;
@@ -69,13 +70,7 @@ struct CardContent {
   String agenda_detail[AGENDA_MAX]; // "with design · Room A"
   size_t agenda_count;
 
-  // Quote page — pre-installed example app
-  String quote_text;   // "The best way..."
-  String quote_author; // "Alan Kay"
-  String quote_source; // "— 1971" or publication
-  static constexpr size_t QUOTE_POOL = 8;
-
-  // Header date — consistent across all 4 pages (agenda wins, else weather, else bundled)
+  // Header date — shared by all pages (explicit wins, else agenda, else weather)
   String header_date; // e.g. "Thursday, August 6"
 
   // Seconds the device should wait before refreshing (clamped to >= 300).
@@ -90,4 +85,3 @@ inline bool contentHasDash(const CardContent& c) { return c.dash_present && c.da
 // True when a forecast has been pushed.
 inline bool contentHasWeather(const CardContent& c) { return c.weather_now_temp.length() > 0; }
 inline bool contentHasAgenda(const CardContent& c) { return c.agenda_count > 0; }
-inline bool contentHasQuote(const CardContent& c) { return c.quote_text.length() > 0; }

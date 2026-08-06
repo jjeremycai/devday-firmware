@@ -15,10 +15,10 @@ OUT="$ROOT/release"
 
 "$ROOT/tools/build.sh"
 
-APP="$BUILD/devday_terminal.ino.bin"
-MERGED="$BUILD/devday_terminal.ino.merged.bin"
-BOOTLOADER="$BUILD/devday_terminal.ino.bootloader.bin"
-PARTITIONS="$BUILD/devday_terminal.ino.partitions.bin"
+APP="$BUILD/firmware.ino.bin"
+MERGED="$BUILD/firmware.ino.merged.bin"
+BOOTLOADER="$BUILD/firmware.ino.bootloader.bin"
+PARTITIONS="$BUILD/firmware.ino.partitions.bin"
 
 FACTORY="$OUT/devday-terminal-factory-$VERSION.bin"
 UPDATE="$OUT/devday-terminal-update-$VERSION.bin"

@@ -12,7 +12,7 @@ static NetState state_ = NetState::IDLE;
 static uint32_t started_ms_ = 0;
 static bool fetched_ = false;
 static bool fresh_valid_ = false;
-static CardContent fresh_;
+static String fresh_payload_;
 static String describe_ = "Offline";
 
 void netBegin(const DeviceConfig& cfg) {
@@ -57,20 +57,45 @@ static void fetchContent() {
   int code = http.GET();
   if (code == HTTP_CODE_OK) {
     String etag_new = http.header("ETag");
-    Stream& s = http.getStream();
-    String payload;
-    payload.reserve(CONTENT_MAX_BYTES);
-    uint32_t deadline = millis() + CONTENT_FETCH_MS;
-    while (http.connected() && millis() < deadline && payload.length() < CONTENT_MAX_BYTES) {
-      int b = s.read();
-      if (b >= 0) payload += (char)b;
-      else delay(1);
+    // getSize() is -1 for a chunked response. getStreamPtr() hands back the raw
+    // socket, so chunk-length framing would arrive inline and be parsed as if
+    // it were JSON — require Content-Length instead of guessing.
+    const int declared = http.getSize();
+    WiFiClient* s = http.getStreamPtr();
+    if (declared >= 0 && declared <= (int)CONTENT_MAX_BYTES && s != nullptr) {
+      String payload;
+      payload.reserve((size_t)declared);
+
+      // Stop as soon as the body is complete. With keep-alive the socket stays
+      // open past the last byte, so waiting on connected() never ends the read
+      // and would burn the whole CONTENT_FETCH_MS budget on every fetch.
+      uint32_t deadline = millis() + CONTENT_FETCH_MS;
+      while ((int)payload.length() < declared && millis() < deadline) {
+        size_t avail = s->available();
+        if (avail == 0) {
+          if (!s->connected()) break; // peer hung up mid-body
+          delay(5);
+          continue;
+        }
+        uint8_t buf[256];
+        size_t want = avail < sizeof(buf) ? avail : sizeof(buf);
+        size_t n = s->readBytes(buf, want);
+        if (n == 0) continue;
+        payload.concat(buf, (unsigned int)n);
+      }
+
+      // Validate against a defaulted struct before caching, so a malformed or
+      // short document never replaces a good one. The caller merges the payload
+      // into its own live content.
+      CardContent probe;
+      contentDefaults(probe, "");
+      if ((int)payload.length() == declared && contentParse(payload, probe)) {
+        cacheWriteContent(payload, etag_new);
+        fresh_payload_ = payload;
+        fresh_valid_ = true;
+      }
     }
-    if (payload.length() <= CONTENT_MAX_BYTES && contentParse(payload, fresh_)) {
-      cacheWriteContent(payload, etag_new);
-      fresh_valid_ = true;
-    }
-    // Malformed or oversized: keep cached/bundled card.
+    // Chunked, oversized, truncated or malformed: keep the cached/bundled card.
   } else if (code == HTTP_CODE_NOT_MODIFIED) {
     // Cached payload remains valid; nothing to do.
   }
@@ -99,9 +124,10 @@ bool netCycleComplete() {
   return state_ == NetState::DONE || state_ == NetState::FAILED || state_ == NetState::IDLE;
 }
 
-bool netTakeFreshContent(CardContent& out) {
+bool netTakeFreshPayload(String& out) {
   if (!fresh_valid_) return false;
-  out = fresh_;
+  out = fresh_payload_;
+  fresh_payload_ = "";
   fresh_valid_ = false;
   return true;
 }

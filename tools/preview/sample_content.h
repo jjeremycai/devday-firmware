@@ -1,8 +1,11 @@
 // Sample content shared by the native preview and the WASM emulator.
 #pragma once
 
+#include <string.h>
+
 #include "cards.h"
 #include "config.h"
+#include "pet_asset.h"
 
 inline CardContent sampleContent() {
   CardContent c{};
@@ -10,12 +13,6 @@ inline CardContent sampleContent() {
   c.build_title = "Factory firmware " FW_VERSION;
   c.build_detail = "Flashed at the Seeed line. Connect over USB to teach it a job.";
   c.build_updated_at = "";
-
-  // brief killed — vestigial
-  c.brief_eyebrow = "";
-  c.brief_title = "";
-  c.brief_line_count = 0;
-  c.brief_footer = "";
 
   c.dash_present = true;
   c.dash_name = "Jeremy Cai";
@@ -35,17 +32,11 @@ inline CardContent sampleContent() {
   memcpy(c.dash_day_tokens, days, sizeof days);
   c.dash_day_count = CardContent::DASH_DAYS;
 
-  // Synthetic 1-bit "portrait": radial rings + noise dither.
-  for (size_t y = 0; y < CardContent::AVATAR_SIZE; y++) {
-    for (size_t x = 0; x < CardContent::AVATAR_SIZE; x++) {
-      int dx = (int)x - 36, dy = (int)y - 36;
-      int r2 = dx * dx + dy * dy;
-      bool on = ((r2 / 90) % 2 == 0) ^ (((x * 7 + y * 13) & 7) < 3);
-      size_t bit = y * CardContent::AVATAR_SIZE + x;
-      if (on) c.dash_avatar[bit / 8] |= 0x80 >> (bit % 8);
-    }
-  }
+  // The bundled pet, as though it had been pushed over USB — so the preview
+  // shows the real conversion rather than a synthetic stand-in.
+  memcpy(c.dash_avatar, PET_ASSET_BITMAP, CardContent::PET_BYTES);
   c.dash_avatar_present = true;
+  c.dash_avatar_square = false;
 
   c.weather_location = "Salt Lake City, UT";
   c.weather_date = "Thursday, August 6";
@@ -79,9 +70,6 @@ inline CardContent sampleContent() {
   c.agenda_time[2] = "14:00"; c.agenda_title[2] = "Deep work";       c.agenda_detail[2] = "Terminal demo prep";
   c.agenda_time[3] = "16:30"; c.agenda_title[3] = "Demo";            c.agenda_detail[3] = "Hall B · 30m";
   c.agenda_count = 4;
-  c.quote_text = "The best way to predict the future is to invent it.";
-  c.quote_author = "Alan Kay";
-  c.quote_source = "1971";
 
   c.refresh_after_s = 1800;
   return c;

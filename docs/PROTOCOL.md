@@ -53,8 +53,8 @@ Partial configuration update; only present fields are applied. Persisted in
 
 | Field | Type | Notes |
 |---|---|---|
-| `device_name` | string 1–32 | shown in card header |
-| `startup_card` | `"build"\|"brief"\|"yours"\|"dash"` | card rendered at boot |
+| `device_name` | string 1–32 | stored; not drawn on the cards |
+| `startup_card` | `"dash"\|"weather"\|"agenda"\|"build"\|"yours"` | card rendered at boot |
 | `wifi_ssid` | string ≤32 | 2.4 GHz network |
 | `wifi_password` | string 8–63 | write-only |
 | `content_url` | string | empty or `https://…` (≤200 chars) |
@@ -65,16 +65,16 @@ Partial configuration update; only present fields are applied. Persisted in
 Render a card immediately (full refresh).
 
 ```json
-{"v":1,"cmd":"card.preview","id":"2","params":{"card":"brief"}}
+{"v":1,"cmd":"card.preview","id":"2","params":{"card":"weather"}}
 ```
 
-`card` is one of `build`, `brief`, `yours`, `dash`. `dash` requires a prior
-payload that includes a `dash` object (see Content API).
+`card` is one of `dash`, `weather`, `agenda`, `build`, `yours`, `splash`.
+Each renders its own empty state when the matching payload section is absent.
 
 ### `content.push`
 
 Push a full schema-1 content payload over USB (no Wi-Fi required). Used by the
-companion site to refresh the dash the moment the terminal is plugged in.
+local sync service to refresh the dash the moment the terminal is plugged in.
 Caches the payload in LittleFS and renders immediately.
 
 ```json
@@ -100,14 +100,28 @@ Caches the payload in LittleFS and renders immediately.
         "insight_left": "Most used reasoning · Extra High · 41%",
         "insight_right": "Wed 11:04 PM",
         "days": [40, 55, 90, 120, 80, 70, 95],
-        "avatar_hex": "<1296 hex chars for a 72×72 1-bit MSB bitmap>"
+        "avatar_hex": "<2496 hex chars for a 96×104 1-bit MSB bitmap>"
       }
     }
   }
 }
 ```
 
-`show` defaults to `dash`. Payload size is capped at 12 KB.
+`show` defaults to `dash`. Payload size is capped at 12 KB. The payload is
+merged into current content and into the LittleFS cache section by section, so
+a weather-only push keeps a previously pushed dash — on screen and after a
+power cycle.
+
+`data`: `cached` — whether the merged payload was written to the LittleFS
+cache. A push can render on screen and still report `cached: false` when the
+accumulated sections would exceed the 12 KB cap; the display is current, but a
+power cycle falls back to the last payload that did fit.
+
+`avatar_hex` holds the portrait shown on the Usage card — a Codex pet, or a
+profile photo. Two sizes are accepted: 2496 hex chars for the 96×104 pet
+rectangle, and 1296 for the original 72×72 square, which is centred in the same
+space so older sync scripts keep working. Any other length is ignored, leaving
+the previous portrait in place. Generate one with `tools/gen_pet.py --hex`.
 
 ### `ap.start`
 
@@ -136,9 +150,12 @@ Equivalent to holding **D1+D4** at boot.
 ## Content API
 
 `GET content_url` (HTTPS only, verified against the embedded Mozilla CA
-bundle). Maximum 8 KB. The device sends `If-None-Match` with the cached ETag
-and accepts `304 Not Modified`. Missing, malformed, oversized, or unavailable
-content leaves the cached/bundled card in place.
+bundle). Maximum 12 KB, and the response **must carry `Content-Length`** —
+chunked transfer encoding is not supported. The device sends `If-None-Match`
+with the cached ETag and accepts `304 Not Modified`. Missing, malformed,
+chunked, oversized, truncated, or unavailable content leaves the cached/bundled
+card in place. A fetched document is merged into current content, so omitting a
+section keeps the section already there.
 
 Response schema:
 
@@ -151,12 +168,6 @@ Response schema:
     "title": "main · build 1842",
     "detail": "Completed in 2m 14s",
     "updated_at": "2026-09-29T18:30:00Z"
-  },
-  "brief": {
-    "eyebrow": "DEV DAY",
-    "title": "Teach it a job",
-    "lines": ["Connect USB", "Open the guide", "Build with Codex"],
-    "footer": "Terminal 04F2"
   },
   "dash": {
     "name": "Jeremy Cai",
@@ -172,7 +183,7 @@ Response schema:
     "insight_left": "Most used reasoning · Extra High · 41%",
     "insight_right": "Wed 11:04 PM",
     "days": [40, 55, 90, 120, 80, 70, 95],
-    "avatar_hex": "<72×72 1-bit MSB-first row-major, hex-encoded>"
+    "avatar_hex": "<96×104 1-bit MSB-first row-major, hex-encoded>"
   },
   "agenda": {
     "date": "Thursday, August 6",
@@ -181,19 +192,19 @@ Response schema:
       {"time": "11:30", "title": "Lunch with team", "detail": "Downtown · 1h"}
     ]
   },
-  "quote": {
-    "text": "The best way to predict the future is to invent it.",
-    "author": "Alan Kay",
-    "source": "1971"
-  }
+  "date": "Thursday, August 6"
 }
 ```
 
 All fields optional except `schema`. `refresh_after_s` is clamped to ≥300.
-Unknown `build.state` values are ignored (keep last known). Page buttons
-(release-triggered): **1** Usage (empty state until a dash payload arrives),
-**2** Weather, **3** Agenda, **4** Quote. `brief`/`yours` remain accepted for
-backwards compatibility but are no longer shown on tabs.
+Unknown `build.state` values are ignored (keep last known). `date` (or
+`header_date`) sets the date shown in every card header; without it the agenda
+date is used, then the weather date.
+
+Page buttons, release-triggered: **1** Usage (empty state until a dash payload
+arrives), **2** Weather, **3** Agenda. The board's fourth key also shows
+Agenda. Retired `brief` and `quote` sections are ignored rather than rejected,
+and `show: "brief"` / `show: "quote"` fall back to Agenda.
 
 An optional `weather` object powers the Weather page:
 
