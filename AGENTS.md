@@ -47,9 +47,42 @@ cd devday-firmware && tools/dash_sync.py --install
 
 ## Changing what it shows
 
-Three pages on the first three keys: Usage, Weather, Agenda. Content arrives as
-one JSON document over USB (`content.push`) — see `docs/PROTOCOL.md` for the
-schema, and `tools/dash_sync.py` for a working sender.
+Three pages on the first three keys: Usage, Weather, Agenda.
+
+**To put anything on the screen, write a schema-1 document and push it:**
+
+```sh
+tools/push.py agenda.json                  # or: … | tools/push.py -
+tools/push.py --show agenda agenda.json    # and switch to that page
+```
+
+```json
+{
+  "schema": 1,
+  "agenda": {
+    "date": "Thursday, August 6",
+    "events": [
+      {"time": "09:30", "title": "Standup", "detail": "with design · Room A"}
+    ]
+  }
+}
+```
+
+Documents merge section by section, so a push containing only `agenda` leaves
+the owner's pet and usage untouched. Four events max, and the whole document
+must stay under 12 KB — `push.py` checks both before sending. Full schema in
+`docs/PROTOCOL.md`.
+
+**For their real calendar**, prefer the built-in reader over writing your own:
+
+```sh
+tools/dash_sync.py --ics "<their calendar's private iCal URL>"
+```
+
+Google Calendar exposes this as *"Secret address in iCal format"* under a
+calendar's settings; iCloud as a public calendar link. Do not try to read the
+local macOS calendar — AppleScript enumeration takes minutes and the Calendar
+store is TCC-protected.
 
 The pet follows `tui.pet` in `~/.codex/config.toml` — whichever one the owner
 picked in Codex. To override it for the terminal only:

@@ -42,12 +42,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ics  # noqa: E402
 import imaging  # noqa: E402  (path set above so the tool runs from anywhere)
 from pet import PET_H, PET_W, load_pet_bits, pet_is_disabled, resolve_pet  # noqa: E402
 
 BAUD = 115200
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 FW_NAME = "devday-terminal"
+# Must match CONTENT_MAX_BYTES in firmware/config.h.
+CONTENT_MAX_BYTES = 12000
+# Must match CardContent::AGENDA_MAX in firmware/content.h.
+AGENDA_MAX = 4
 AUTO_SYNC_LABEL = "com.openai.devday-dash-sync"
 AUTO_SYNC_SERVICE = "devday-dash-sync.service"
 
@@ -516,6 +521,7 @@ def build_payload(
     profile: Dict[str, Any],
     avatar_hex: str,
     weather: Optional[Dict[str, Any]] = None,
+    agenda: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     summary = usage.get("summary") or {}
     acct = (account.get("account") or {}) if account else {}
@@ -548,6 +554,8 @@ def build_payload(
     }
     if weather:
         payload["weather"] = weather
+    if agenda:
+        payload["agenda"] = agenda
     return payload
 
 
@@ -837,9 +845,25 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             weather_temp, weather_detail, weather = "—", "weather unavailable", None
             print(f"  weather skipped: {exc}", file=sys.stderr)
 
-    return build_payload(
-        account, usage, profile, avatar_hex, weather
-    )
+    # Without a feed the Agenda page keeps its bundled example day, which is
+    # obviously not the reader's — so say what would fix it rather than
+    # silently shipping placeholder events.
+    agenda = None
+    if args.ics:
+        remote = args.ics.startswith(("http://", "https://", "webcal://"))
+        if offline and remote:
+            print("→ offline: skipping calendar (remote feed)", file=sys.stderr)
+        else:
+            print("→ calendar…", file=sys.stderr)
+            try:
+                agenda = ics.agenda_section(ics.fetch(args.ics), AGENDA_MAX)
+                n = len(agenda["events"])
+                print(f"  {n} event{'' if n == 1 else 's'} today", file=sys.stderr)
+            except Exception as exc:
+                agenda = None
+                print(f"  calendar skipped: {exc}", file=sys.stderr)
+
+    return build_payload(account, usage, profile, avatar_hex, weather, agenda)
 
 
 def resolve_port(explicit: Optional[str]) -> str:
@@ -1089,6 +1113,14 @@ def main() -> int:
         "--refresh-minutes", type=int, metavar="N", help="poll interval, 5-1440"
     )
     wifi.add_argument("--reboot", action="store_true", help="reboot after writing")
+    ap.add_argument(
+        "--ics",
+        metavar="URL|PATH",
+        default=os.environ.get("DASH_ICS") or None,
+        help="calendar feed for the Agenda page — Google's \"secret address in "
+        "iCal format\", an iCloud share link, or a local .ics file "
+        "(or set DASH_ICS)",
+    )
     ap.add_argument("--lat", type=float, default=None, help="override latitude (else IP geolocate)")
     ap.add_argument("--lon", type=float, default=None, help="override longitude (else IP geolocate)")
     args = ap.parse_args()

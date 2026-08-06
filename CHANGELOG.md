@@ -4,6 +4,19 @@
 
 ### Added
 
+- `tools/push.py` sends any schema-1 document over USB, so putting your own
+  content on the screen needs no new tooling. Validates schema and size first,
+  and reports when a push rendered but was too large to cache.
+- `tools/dash_sync.py --ics <url|path>` fills the Agenda page from a real
+  calendar feed. Until now nothing ever wrote an agenda, so every unit showed
+  the same hardcoded example day. Handles all-day events, cancellations, and
+  `DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY` recurrence with `BYDAY`, `INTERVAL`,
+  `UNTIL` and `EXDATE`.
+- `tools/worker/` — a Cloudflare Worker serving the same agenda over HTTPS, for
+  a terminal that keeps itself current with no laptop attached. Returns a string
+  body so the runtime sets `Content-Length`; a streamed body would send chunked
+  and the terminal would silently ignore it. Both behaviours verified against
+  the real Workers runtime.
 - The Usage card shows your **Codex pet** where the profile photo used to be.
   It follows `tui.pet` — the pet you actually picked in Codex, read from the
   resolved config over `codex app-server` — then a pet hatched under

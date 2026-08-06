@@ -113,7 +113,7 @@ class DashSyncTests(unittest.TestCase):
             seen.clear()
             args = SimpleNamespace(
                 offline=True, no_weather=True, no_avatar=True,
-                no_pet=False, pet=pet_arg, lat=None, lon=None,
+                no_pet=False, pet=pet_arg, lat=None, lon=None, ics=None,
             )
             with patch.object(sync, "fetch_codex_usage",
                               return_value=({}, {"summary": {}}, configured)), \
@@ -144,13 +144,63 @@ class DashSyncTests(unittest.TestCase):
 
         args = SimpleNamespace(
             offline=True, no_weather=True, no_avatar=True,
-            no_pet=False, pet=None, lat=None, lon=None,
+            no_pet=False, pet=None, lat=None, lon=None, ics=None,
         )
         with patch.object(sync, "fetch_codex_usage",
                           return_value=({}, {"summary": {}}, "none")), \
              patch.object(sync, "load_pet_bits", side_effect=fake_load):
             asyncio.run(sync.collect_payload(args))
         self.assertFalse(called, "a disabled pet must not be pushed")
+
+    def test_ics_reads_todays_events_including_recurrence(self) -> None:
+        import datetime as dt
+
+        doc = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART:20260806T093000
+SUMMARY:Corey sync
+LOCATION:OpenAI
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260803T100000
+RRULE:FREQ=WEEKLY;BYDAY=MO,TH
+SUMMARY:Standup
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20260806
+SUMMARY:Ship day
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260805T140000
+RRULE:FREQ=DAILY
+EXDATE:20260806T140000
+SUMMARY:Excluded
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260806T160000
+STATUS:CANCELLED
+SUMMARY:Cancelled
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260807T090000
+SUMMARY:Tomorrow
+END:VEVENT
+END:VCALENDAR
+"""
+        events = sync.ics.todays_events(doc, dt.date(2026, 8, 6))  # a Thursday
+        titles = [e["title"] for e in events]
+        # All-day leads, then chronological by time of day — a recurring event
+        # must sort by today's occurrence, not by its first instance.
+        self.assertEqual(titles, ["Ship day", "Corey sync", "Standup"])
+        self.assertEqual(events[0]["time"], "All day")
+        self.assertEqual(events[1]["time"], "09:30")
+        self.assertNotIn("Excluded", titles)   # EXDATE
+        self.assertNotIn("Cancelled", titles)  # STATUS:CANCELLED
+        self.assertNotIn("Tomorrow", titles)
+
+        # Nothing parseable must degrade to an empty day, never an exception.
+        for junk in ("", "not a calendar", "BEGIN:VEVENT\nSUMMARY:x\nEND:VEVENT"):
+            self.assertEqual(sync.ics.todays_events(junk, dt.date(2026, 8, 6)), [])
 
     def test_launchd_service_runs_the_watch_mode(self) -> None:
         plist = plistlib.loads(

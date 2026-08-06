@@ -157,6 +157,39 @@ arbitrary host code when it is plugged in. `--install` is the one-time local
 bridge that makes subsequent plug-ins automatic without asking the user to
 sign in or grant permissions again.
 
+### Your calendar on the Agenda page
+
+Point the sync at a calendar feed — Google's *"Secret address in iCal format"*,
+an iCloud share link, or a local `.ics` file:
+
+```sh
+tools/dash_sync.py --ics "https://calendar.google.com/calendar/ical/…/basic.ics"
+export DASH_ICS="https://…"     # or set it once; --install remembers it
+```
+
+Reading the local macOS calendar is deliberately not supported: AppleScript
+enumeration takes minutes, the Calendar store is TCC-protected, and EventKit
+needs a pip install this toolchain avoids. An ICS URL is faster, works on Linux
+too, and is the same feed the Wi-Fi worker below consumes.
+
+Today's events only, four at most, all-day first. Recurring events resolve for
+`DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY` with `BYDAY`, `INTERVAL`, `UNTIL` and
+`EXDATE`; cancelled events are dropped.
+
+### Pushing your own content
+
+`tools/push.py` sends any schema-1 document, so anything you invent needs no new
+tooling:
+
+```sh
+tools/push.py agenda.json                  # a file
+tools/push.py --show agenda agenda.json    # …and switch to that page
+some-command | tools/push.py -             # or a pipe
+```
+
+Documents merge section by section, so pushing only `agenda` leaves the pet and
+usage alone. Schema and size are validated before anything is sent.
+
 ### Wi-Fi and periodic fetch
 
 USB sync covers pet and usage. Wi-Fi is for the terminal pulling its own
@@ -184,6 +217,30 @@ Requirements worth knowing before debugging a connection:
 
 The interval is served two ways: on battery the device deep-sleeps and wakes to
 fetch, and on USB — where it never sleeps — it re-fetches in place.
+
+`tools/worker/` is a ready-made endpoint: a Cloudflare Worker that turns a
+calendar feed into the document the terminal polls, so the device stays current
+with no laptop attached.
+
+```sh
+cd tools/worker
+npx wrangler secret put ICS_URL     # your calendar's private iCal address
+npx wrangler deploy
+```
+
+**Do not stream the response.** A string body gets `Content-Length` set for you;
+a `ReadableStream` sends `Transfer-Encoding: chunked`, which the terminal
+rejects — and it fails silently, leaving the last good screen up forever. Both
+behaviours are verified against the real Workers runtime. Check any endpoint
+with:
+
+```sh
+curl -sI https://your-worker.workers.dev/ | grep -iE 'content-length|transfer-encoding'
+```
+
+At the event itself, prefer USB. Conference Wi-Fi is usually behind a captive
+portal, and this device does verified-TLS-only with no browser — the portal's
+redirect page fails schema validation and the screen just never updates.
 
 ## Behavior summary
 

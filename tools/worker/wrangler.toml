@@ -1,0 +1,10 @@
+name = "devday-terminal-content"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Timezone the agenda is rendered in. The terminal has no clock of its own.
+TZ_NAME = "America/Denver"
+
+# ICS_URL is a secret, not a var — a calendar's private address is a credential:
+#   npx wrangler secret put ICS_URL
