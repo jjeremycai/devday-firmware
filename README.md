@@ -4,13 +4,20 @@ Mass-production firmware RC for the 7.5" (OG) DIY Kit: XIAO ESP32-S3
 Plus driving an 800×480 UC8179 e-paper, Arduino framework. Boots usefully
 without Wi-Fi and invites the attendee to **teach it a job**.
 
-**Build · Dash · Yours** — three cards mapped to buttons D1 / D2 / D4.
+**Dash · Brief · Yours · Build** — four pages on three buttons (D1 / D2 / D4;
+D3 is the display's BUSY line):
 
-- **Build** — `READY`, firmware version/hash, battery, display, connection.
-- **Dash** — Codex profile, weather, token chart (pushed over USB from the
-  companion page the moment you plug in — no native install). Falls back to
-  **Brief** until a dash payload arrives.
-- **Yours** — "This terminal is open" plus a fixed QR to this hardware recipe.
+- **D1 short → Dash** — Codex profile, weather, token chart (pushed over USB
+  from the companion page the moment you plug in — no native install). Falls
+  back to **Brief** until a dash payload arrives.
+- **D1 long → Build** — `READY`, firmware version/hash, battery, display,
+  connection diagnostics.
+- **D2 short → Brief** — "teach it a job" setup guide.
+- **D2 long → setup AP** portal; **D4 short → Yours** ("This terminal is open"
+  plus a fixed QR to this hardware recipe); **D4 long → refresh now**.
+
+The on-screen tab strip shows the three short-press pages with the current one
+inverted.
 
 ## Layout
 

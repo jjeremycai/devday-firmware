@@ -4,6 +4,10 @@
 
 static constexpr uint8_t NUM_BUTTONS = 3;
 static const int kPins[NUM_BUTTONS] = {PIN_BUTTON_D1, PIN_BUTTON_D2, PIN_BUTTON_D4};
+static const ButtonEvent kShort[NUM_BUTTONS] = {ButtonEvent::D1_SHORT, ButtonEvent::D2_SHORT,
+                                                ButtonEvent::D4_SHORT};
+static const ButtonEvent kLong[NUM_BUTTONS] = {ButtonEvent::D1_LONG, ButtonEvent::D2_LONG,
+                                               ButtonEvent::D4_LONG};
 
 static uint32_t pressedAt[NUM_BUTTONS] = {0, 0, 0};
 static bool wasDown[NUM_BUTTONS] = {false, false, false};
@@ -24,15 +28,13 @@ ButtonEvent buttonsPoll() {
       pressedAt[i] = now;
       longFired[i] = false;
     } else if (down && wasDown[i]) {
-      if (i == 1 && !longFired[i] && now - pressedAt[i] >= LONG_PRESS_MS) {
+      if (!longFired[i] && now - pressedAt[i] >= LONG_PRESS_MS) {
         longFired[i] = true;
-        return ButtonEvent::D2_LONG;
+        return kLong[i];
       }
     } else if (!down && wasDown[i]) {
       if (!longFired[i] && now - pressedAt[i] >= 30) { // debounce
-        if (i == 0) pending = ButtonEvent::D1_SHORT;
-        else if (i == 1) pending = ButtonEvent::D2_SHORT;
-        else pending = ButtonEvent::D4_SHORT;
+        pending = kShort[i];
       }
     }
     wasDown[i] = down;

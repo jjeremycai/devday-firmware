@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h> // Seeed_GFX (gfxfont.h provides the standard FreeSans fonts)
 #include <ctype.h>
+#include <string.h>
 
 #include "config.h"
 #include "qr_recipe.h"
@@ -14,6 +15,34 @@ static EPaper epaper = EPaper();
 static constexpr int16_t W = 800;
 static constexpr int16_t H = 480;
 static constexpr int16_t MARGIN = 36;
+
+// Page-tab strip shared by every card: the three short-press pages, with the
+// current one inverted. Build (hold D1) intentionally has no tab.
+static void pageTabs(const char* current) {
+#ifdef EPAPER_ENABLE
+  static const char* kIds[3] = {"dash", "brief", "yours"};
+  static const char* kLabels[3] = {"D1  DASH", "D2  BRIEF", "D4  YOURS"};
+  const int16_t tw = 168, th = 32, gap = 16;
+  const int16_t total = 3 * tw + 2 * gap;
+  int16_t x = (W - total) / 2;
+  const int16_t y = H - 12 - th;
+  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setTextDatum(MC_DATUM);
+  for (uint8_t i = 0; i < 3; i++) {
+    bool active = current != nullptr && strcmp(current, kIds[i]) == 0;
+    if (active) {
+      epaper.fillRoundRect(x, y, tw, th, 6, TFT_BLACK);
+      epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+    } else {
+      epaper.drawRoundRect(x, y, tw, th, 6, TFT_BLACK);
+      epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+    }
+    epaper.drawString(kLabels[i], x + tw / 2, y + th / 2 + 1, GFXFF);
+    x += tw + gap;
+  }
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+#endif
+}
 
 static void header(const RenderStatus& st, const char* card_label) {
 #ifdef EPAPER_ENABLE
@@ -31,20 +60,14 @@ static void header(const RenderStatus& st, const char* card_label) {
 #endif
 }
 
-static void footer(const RenderStatus& st) {
+static void apHint(const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   if (st.ap_hint.length() > 0) {
     // Setup portal credentials, front and center while the AP is up.
     epaper.setFreeFont(&FreeSans12pt7b);
     epaper.setTextDatum(BC_DATUM);
-    epaper.drawString(st.ap_hint, W / 2, H - 64, GFXFF);
+    epaper.drawString(st.ap_hint, W / 2, H - 58, GFXFF);
   }
-  epaper.drawFastHLine(MARGIN, H - 52, W - 2 * MARGIN, TFT_BLACK);
-  epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.setTextDatum(BL_DATUM);
-  epaper.drawString(st.connection, MARGIN, H - 18, GFXFF);
-  epaper.setTextDatum(BR_DATUM);
-  epaper.drawString(String("D1 Build   D2 Dash   D4 Yours   hold D2: setup"), W - MARGIN, H - 18, GFXFF);
 #endif
 }
 
@@ -77,7 +100,11 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
   epaper.drawString("display   UC8179 800x480  combo 502", MARGIN, y + 56, GFXFF);
   epaper.drawString("link      " + st.connection, MARGIN, y + 84, GFXFF);
 
-  footer(st);
+  epaper.setTextDatum(BC_DATUM);
+  epaper.drawString("diagnostics - hold D1 any time", W / 2, H - 58, GFXFF);
+
+  apHint(st);
+  pageTabs(nullptr);
 #endif
 }
 
@@ -101,9 +128,10 @@ static void renderBrief(const CardContent& c, const RenderStatus& st) {
 
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.setTextDatum(BR_DATUM);
-  epaper.drawString(c.brief_footer, W - MARGIN, H - 64, GFXFF);
+  epaper.drawString(c.brief_footer, W - MARGIN, H - 58, GFXFF);
 
-  footer(st);
+  apHint(st);
+  pageTabs("brief");
 #endif
 }
 
@@ -140,7 +168,8 @@ static void renderYours(const CardContent&, const RenderStatus& st) {
 
   drawQr(W - MARGIN - 37 * 6, 100, 6);
 
-  footer(st);
+  apHint(st);
+  pageTabs("yours");
 #endif
 }
 
@@ -188,13 +217,15 @@ static void drawAvatar(const CardContent& c, int16_t cx, int16_t cy) {
 #endif
 }
 
-static void drawMetric(int16_t x, int16_t y, const String& value, const String& label) {
+static void drawMetric(int16_t x, int16_t y, const String& value, const char* label) {
 #ifdef EPAPER_ENABLE
   epaper.setFreeFont(&FreeSans18pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(value.length() ? value : "—", x, y, GFXFF);
+  epaper.drawString(value.length() ? value : "-", x, y, GFXFF);
+  String up = label;
+  up.toUpperCase();
   epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.drawString(label, x, y + 36, GFXFF);
+  epaper.drawString(up, x, y + 38, GFXFF);
 #endif
 }
 
@@ -210,33 +241,43 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
     return;
   }
 
-  const int16_t pad = 10;
+  const int16_t pad = 12;
+  const int16_t base_y = y + h - pad;          // shared baseline for all bars
   const int16_t inner_w = w - pad * 2;
-  const int16_t inner_h = h - pad * 2;
-  const int16_t gap = 4;
+  const int16_t inner_h = h - pad * 2 - 8;     // leave room for the peak label
+  const int16_t gap = 6;
   int16_t bar_w = (inner_w - (int16_t)(n - 1) * gap) / (int16_t)n;
   if (bar_w < 4) bar_w = 4;
 
   uint8_t peak = 1;
+  size_t peak_i = 0;
   for (size_t i = 0; i < n; i++) {
-    if (c.dash_day_tokens[i] > peak) peak = c.dash_day_tokens[i];
+    if (c.dash_day_tokens[i] > peak) {
+      peak = c.dash_day_tokens[i];
+      peak_i = i;
+    }
   }
+
+  // Baseline rule the bars sit on.
+  epaper.drawFastHLine(x + pad, base_y, inner_w, TFT_BLACK);
 
   for (size_t i = 0; i < n; i++) {
     int16_t bh = (int16_t)((uint32_t)c.dash_day_tokens[i] * (uint32_t)inner_h / peak);
     if (c.dash_day_tokens[i] > 0 && bh < 3) bh = 3;
     int16_t bx = x + pad + (int16_t)i * (bar_w + gap);
-    int16_t by = y + pad + inner_h - bh;
-    // Alternating fill density reads as a soft gradient on 1-bit e-ink.
-    if (i % 2 == 0) {
-      epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK);
-    } else {
-      for (int16_t yy = by; yy < by + bh; yy++) {
-        for (int16_t xx = bx; xx < bx + bar_w; xx++) {
-          if (((xx + yy) & 1) == 0) epaper.drawPixel(xx, yy, TFT_BLACK);
-        }
-      }
+    int16_t by = base_y - bh;
+    if (i == n - 1) {
+      // Today: outlined bar with a solid core - reads as "selected".
       epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK);
+      if (bh > 6 && bar_w > 6) {
+        epaper.fillRect(bx + 3, by + 3, bar_w - 6, bh - 5, TFT_BLACK);
+      }
+    } else {
+      epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK);
+    }
+    if (i == peak_i && bh > 0) {
+      // Tick above the tallest day.
+      epaper.fillRect(bx + bar_w / 2 - 1, by - 6, 3, 4, TFT_BLACK);
     }
   }
 #endif
@@ -258,7 +299,7 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
   const int16_t text_x = MARGIN + 100;
   epaper.setFreeFont(&FreeSansBold24pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(c.dash_name, text_x, 68, GFXFF);
+  epaper.drawString(c.dash_name, text_x, 66, GFXFF);
 
   epaper.setFreeFont(&FreeSans12pt7b);
   String handle_line = c.dash_handle;
@@ -276,53 +317,56 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.setTextDatum(TL_DATUM);
   }
 
-  // Weather, top-right — glanceable before you leave.
+  // Weather, top-right, with its own divider so it never crowds the name.
   if (c.dash_weather_temp.length() > 0) {
+    int16_t wx = W - MARGIN;
     epaper.setFreeFont(&FreeSansBold24pt7b);
     epaper.setTextDatum(TR_DATUM);
-    epaper.drawString(c.dash_weather_temp, W - MARGIN, 68, GFXFF);
+    epaper.drawString(c.dash_weather_temp, wx, 66, GFXFF);
     epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.drawString(c.dash_weather_detail, W - MARGIN, 118, GFXFF);
+    epaper.drawString(c.dash_weather_detail, wx, 118, GFXFF);
+    int16_t tw = epaper.textWidth(c.dash_weather_detail, GFXFF);
+    int16_t temp_w = epaper.textWidth(c.dash_weather_temp, GFXFF);
+    if (temp_w > tw) tw = temp_w;
+    epaper.drawFastVLine(wx - tw - 24, 66, 78, TFT_BLACK);
   }
 
   epaper.drawFastHLine(MARGIN, 160, W - 2 * MARGIN, TFT_BLACK);
 
   // Five metrics across — same rhythm as the Codex profile card.
-  const int16_t metric_y = 178;
+  const int16_t metric_y = 180;
   const int16_t col = (W - 2 * MARGIN) / 5;
-  drawMetric(MARGIN + 0 * col, metric_y, c.dash_lifetime, "Lifetime tokens");
-  drawMetric(MARGIN + 1 * col, metric_y, c.dash_peak, "peak tokens");
+  drawMetric(MARGIN + 0 * col, metric_y, c.dash_lifetime, "lifetime");
+  drawMetric(MARGIN + 1 * col, metric_y, c.dash_peak, "peak day");
   drawMetric(MARGIN + 2 * col, metric_y, c.dash_longest, "longest chat");
-  drawMetric(MARGIN + 3 * col, metric_y, c.dash_streak, "current streak");
-  drawMetric(MARGIN + 4 * col, metric_y, c.dash_best_streak, "longest streak");
+  drawMetric(MARGIN + 3 * col, metric_y, c.dash_streak, "streak");
+  drawMetric(MARGIN + 4 * col, metric_y, c.dash_best_streak, "best streak");
 
-  epaper.drawFastHLine(MARGIN, 250, W - 2 * MARGIN, TFT_BLACK);
+  epaper.drawFastHLine(MARGIN, 252, W - 2 * MARGIN, TFT_BLACK);
 
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString("Token activity", MARGIN, 268, GFXFF);
+  epaper.drawString("Token activity", MARGIN, 270, GFXFF);
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TR_DATUM);
   epaper.drawString("last " + String((unsigned)(c.dash_day_count ? c.dash_day_count : 7)) + " days",
-                    W - MARGIN, 272, GFXFF);
+                    W - MARGIN, 274, GFXFF);
 
-  drawDayChart(c, MARGIN, 296, W - 2 * MARGIN, 110);
+  drawDayChart(c, MARGIN, 300, W - 2 * MARGIN, 104);
 
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
   if (c.dash_insight_left.length()) {
-    epaper.drawString(c.dash_insight_left, MARGIN, 422, GFXFF);
+    epaper.drawString(c.dash_insight_left, MARGIN, 418, GFXFF);
   }
   epaper.setTextDatum(TR_DATUM);
   if (c.dash_insight_right.length()) {
-    epaper.drawString(c.dash_insight_right, W - MARGIN, 422, GFXFF);
+    epaper.drawString(c.dash_insight_right, W - MARGIN, 418, GFXFF);
+  } else {
+    epaper.drawString("updates when you plug in", W - MARGIN, 418, GFXFF);
   }
 
-  epaper.drawFastHLine(MARGIN, H - 40, W - 2 * MARGIN, TFT_BLACK);
-  epaper.setTextDatum(BL_DATUM);
-  epaper.drawString("D1 Build   D2 Dash   D4 Yours", MARGIN, H - 12, GFXFF);
-  epaper.setTextDatum(BR_DATUM);
-  epaper.drawString("updates when you plug in", W - MARGIN, H - 12, GFXFF);
+  pageTabs("dash");
 #endif
 }
 
@@ -342,7 +386,7 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   epaper.fillScreen(TFT_WHITE);
   if (card == "build") renderBuild(content, status);
   else if (card == "yours") renderYours(content, status);
-  else if (card == "dash" || (card == "brief" && contentHasDash(content))) renderDash(content, status);
+  else if (card == "dash" && contentHasDash(content)) renderDash(content, status);
   else renderBrief(content, status);
   epaper.update();
 #endif

@@ -20,12 +20,15 @@ unit eFuse MAC from `factory.check.serial`.
 
 ## 3. Buttons
 
-- [ ] Short **D1** → Build card
+- [ ] Short **D1** → Dash card (Brief until a dash payload has been pushed)
+- [ ] Long **D1** (≥1.5 s) → Build card (`READY` diagnostics)
 - [ ] Short **D2** → Brief card ("Teach it a job")
 - [ ] Short **D4** → Yours card ("This terminal is open" + QR, scan once per
       batch to confirm it resolves)
 - [ ] Long **D2** (≥1.5 s) → setup AP starts; screen shows SSID `DevDay-XXXX`,
       password, and `192.168.4.1`
+- [ ] Long **D4** (≥1.5 s) → starts a Wi-Fi content refresh cycle
+- [ ] Tab strip at the bottom highlights the active page (none on Build)
 - [ ] AP stops by itself within 5 minutes
 - [ ] Hold **D1+D4** at boot → configuration cleared (next `status` shows defaults)
 

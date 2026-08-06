@@ -16,9 +16,10 @@
 // ---------------------------------------------------------------------------
 // Pins (XIAO ESP32-S3 Plus / 7.5" OG DIY Kit, driver board v1.0)
 // ---------------------------------------------------------------------------
-static constexpr int PIN_BUTTON_D1 = D1; // GPIO2 - Build card
-static constexpr int PIN_BUTTON_D2 = D2; // GPIO3 - Brief card / long-press AP
-static constexpr int PIN_BUTTON_D4 = D4; // GPIO5 - Yours card
+static constexpr int PIN_BUTTON_D1 = D1; // GPIO2 - Dash page (short) / Build diagnostics (long)
+static constexpr int PIN_BUTTON_D2 = D2; // GPIO3 - Brief page (short) / setup AP (long)
+static constexpr int PIN_BUTTON_D4 = D4; // GPIO5 - Yours page (short) / refresh now (long)
+// GPIO4 (D3) is the e-paper BUSY line - not available as a button.
 static constexpr int PIN_BATTERY_ADC = 1; // GPIO1 (D0) - BAT_ADC
 static constexpr int PIN_ADC_EN = 6;      // GPIO6 (D5) - ADC_EN divider enable
 

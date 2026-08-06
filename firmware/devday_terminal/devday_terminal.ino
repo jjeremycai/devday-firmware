@@ -255,9 +255,9 @@ static void goToSleep() {
 static String wakeCard() {
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return "";
   uint64_t status = esp_sleep_get_ext1_wakeup_status();
-  if (status & (1ULL << PIN_BUTTON_D1)) return "build";
+  if (status & (1ULL << PIN_BUTTON_D1)) return contentHasDash(content) ? "dash" : "brief";
+  if (status & (1ULL << PIN_BUTTON_D2)) return "brief";
   if (status & (1ULL << PIN_BUTTON_D4)) return "yours";
-  if (status & (1ULL << PIN_BUTTON_D2)) return contentHasDash(content) ? "dash" : "brief";
   return "";
 }
 
@@ -329,13 +329,17 @@ void loop() {
         refreshStatus();
         renderCard(current_card, content, st); // credentials on screen
       }
+    } else if (ev == ButtonEvent::D4_LONG) {
+      netConnectBackground(); // refresh now; fresh content re-renders on arrival
     } else {
       if (ev == ButtonEvent::D1_SHORT) {
-        current_card = "build";
-      } else if (ev == ButtonEvent::D4_SHORT) {
-        current_card = "yours";
-      } else {
         current_card = contentHasDash(content) ? "dash" : "brief";
+      } else if (ev == ButtonEvent::D1_LONG) {
+        current_card = "build";
+      } else if (ev == ButtonEvent::D2_SHORT) {
+        current_card = "brief";
+      } else {
+        current_card = "yours";
       }
       refreshStatus();
       renderCard(current_card, content, st);
