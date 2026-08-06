@@ -35,6 +35,16 @@ static String pending_card;
 static constexpr uint32_t AWAKE_IDLE_MS = 90000;  // sleep after 90 s idle
 static constexpr uint32_t MIN_AWAKE_MS = 10000;   // never sleep before this
 
+// isPlugged() is a recency check on USB SOF packets, so a single sample can
+// read false while the cable is still in — a host suspending an idle CDC
+// device, or the re-enumeration that follows the DTR pulse macOS sends on
+// port open. Sleeping on one such sample would strand the terminal for a full
+// refresh interval with someone standing over it, so require USB to be gone
+// continuously for this long before believing it.
+static constexpr uint32_t USB_ABSENT_GRACE_MS = 60000;
+static uint32_t last_usb_seen_ms = 0;
+static bool usb_ever_seen = false;
+
 // ---------------------------------------------------------------------------
 // Status / hooks
 // ---------------------------------------------------------------------------
@@ -65,6 +75,10 @@ static void hookStatus(JsonObject data) {
   data["battery_pct"] = st.battery_pct;
   data["connection"] = st.connection;
   data["usb"] = protocolUsbActive();
+  // Raw SOF check vs the latched view that actually gates sleep. If these ever
+  // disagree in the field, the cable is fine and the host is dropping SOF.
+  data["usb_plugged"] = Serial.isPlugged();
+  data["usb_seen_s_ago"] = usb_ever_seen ? (int)((millis() - last_usb_seen_ms) / 1000) : -1;
   data["uptime_s"] = millis() / 1000;
   data["boots"] = boots;
   JsonObject ap = data["ap"].to<JsonObject>();
@@ -377,7 +391,13 @@ void loop() {
   // Stay awake while USB is attached to a live host (SOF present), even when
   // no program has the serial port open. isPlugged() wraps the IDF
   // usb_serial_jtag_is_connected() SOF check; (bool)Serial covers host-open.
-  bool usbStayAwake = Serial.isPlugged() || (bool)Serial;
+  // Latched rather than sampled — see USB_ABSENT_GRACE_MS.
+  if (Serial.isPlugged() || (bool)Serial) {
+    last_usb_seen_ms = millis();
+    usb_ever_seen = true;
+  }
+  bool usbStayAwake =
+      usb_ever_seen && millis() - last_usb_seen_ms < USB_ABSENT_GRACE_MS;
 
   if (reboot_pending) {
     delay(200);
