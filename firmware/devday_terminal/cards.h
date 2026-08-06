@@ -15,5 +15,5 @@ struct RenderStatus {
 };
 
 bool displayBegin();
-// Full-refresh render of "build" | "brief" | "yours".
+// Full-refresh render of "build" | "brief" | "yours" | "dash".
 void renderCard(const String& card, const CardContent& content, const RenderStatus& status);

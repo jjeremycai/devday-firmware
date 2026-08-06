@@ -4,10 +4,12 @@ Mass-production firmware RC for the 7.5" (OG) DIY Kit: XIAO ESP32-S3
 Plus driving an 800×480 UC8179 e-paper, Arduino framework. Boots usefully
 without Wi-Fi and invites the attendee to **teach it a job**.
 
-**Build · Brief · Yours** — three cards mapped to buttons D1 / D2 / D4.
+**Build · Dash · Yours** — three cards mapped to buttons D1 / D2 / D4.
 
 - **Build** — `READY`, firmware version/hash, battery, display, connection.
-- **Brief** — "Teach it a job" with USB setup + Codex instructions.
+- **Dash** — Codex profile, weather, token chart (pushed over USB from the
+  companion page the moment you plug in — no native install). Falls back to
+  **Brief** until a dash payload arrives.
 - **Yours** — "This terminal is open" plus a fixed QR to this hardware recipe.
 
 ## Layout
@@ -52,6 +54,22 @@ arduino-cli lib install --zip-path /tmp/seeed_gfx.zip
 
 Regenerable inputs: `tools/gen_qr.py` (Yours-card QR),
 `tools/gen_ca_bundle.sh` (embedded Mozilla CA store).
+
+### Local Codex dash (no browser)
+
+If you're already signed into Codex on the machine, sync profile + usage over USB
+with zero web UI:
+
+```sh
+tools/dash_sync.py                  # one-shot (Codex + weather via IP geolocation)
+tools/dash_sync.py --watch          # re-push whenever you plug in USB
+tools/dash_sync.py --lat 39.74 --lon -104.99   # pin weather coords
+tools/dash_sync.py --no-weather     # Codex only
+```
+
+Uses `codex app-server` + `~/.codex/auth.json` (already on disk). Weather from
+Open-Meteo after IP geolocation (or `--lat/--lon` / `DASH_LAT`+`DASH_LON`).
+No pip deps.
 
 ## Behavior summary
 

@@ -3,168 +3,731 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dev Day Terminal — Assembly &amp; Setup</title>
+<title>Dev Day Terminal — Plug in, it refreshes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Figtree:wght@400;550;650&display=swap" rel="stylesheet">
 <style>
-  :root { --ink:#111; --paper:#fff; --line:#ddd; --accent:#111; }
-  * { box-sizing:border-box; }
-  body { font-family:system-ui,-apple-system,sans-serif; color:var(--ink); background:#f7f7f5;
-         max-width:860px; margin:0 auto; padding:2rem 1.25rem 4rem; line-height:1.55; }
-  h1 { font-size:1.6rem; margin-bottom:.25rem; }
-  h2 { font-size:1.15rem; margin-top:2.5rem; border-top:1px solid var(--line); padding-top:1.25rem; }
-  .sub { color:#555; margin-top:0; }
-  .card { background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:1.25rem 1.5rem; margin-top:1rem; }
-  label { display:block; font-weight:600; font-size:.85rem; margin:.9rem 0 .2rem; }
-  input, select { width:100%; padding:.55rem .65rem; border:1px solid #bbb; border-radius:6px; font:inherit; background:#fff; }
-  button { padding:.6rem 1.1rem; border:0; border-radius:6px; background:var(--accent); color:#fff;
-           font:inherit; cursor:pointer; margin-top:.75rem; }
-  button.ghost { background:#fff; color:var(--ink); border:1px solid #999; }
-  button:disabled { opacity:.4; cursor:default; }
-  .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-  pre, code { font-family:ui-monospace,SFMono-Regular,monospace; font-size:.85rem; }
-  pre { background:#111; color:#eee; padding:1rem; border-radius:8px; overflow-x:auto; white-space:pre-wrap; }
-  #log { height:180px; overflow-y:auto; background:#111; color:#9f9; padding:.75rem; border-radius:8px;
-         font-family:ui-monospace,monospace; font-size:.78rem; white-space:pre-wrap; }
-  .status-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.5rem; margin-top:.75rem; }
-  .status-grid div { background:#fafafa; border:1px solid var(--line); border-radius:6px; padding:.5rem .75rem; font-size:.85rem; }
-  .status-grid b { display:block; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#777; }
-  .pill { display:inline-block; padding:.15rem .6rem; border-radius:99px; font-size:.75rem; font-weight:600; }
-  .pill.on { background:#e3f5e3; color:#1a7a1a; } .pill.off { background:#f5e3e3; color:#a33; }
-  ol li { margin:.35rem 0; }
+  :root {
+    --ink: #1a1814;
+    --paper: #f4f0e6;
+    --panel: #fffdf8;
+    --line: #d9d2c4;
+    --muted: #6f685c;
+    --accent: #1a1814;
+    --good: #2f6b3a;
+    --bad: #8a2f2f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 500px at 10% -10%, #fff8e8 0%, transparent 55%),
+      linear-gradient(180deg, #efe8d8 0%, var(--paper) 40%, #ebe4d4 100%);
+    font-family: "Figtree", sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
+  h1 {
+    font-family: "Fraunces", serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    letter-spacing: -0.02em;
+    margin: 0 0 .35rem;
+    line-height: 1.1;
+  }
+  h2 {
+    font-family: "Fraunces", serif;
+    font-size: 1.25rem;
+    margin: 2.5rem 0 .75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--line);
+  }
+  .sub { color: var(--muted); margin: 0 0 1.5rem; max-width: 42rem; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1.25rem 1.35rem;
+    margin-top: 1rem;
+    box-shadow: 0 1px 0 rgba(26,24,20,.04);
+  }
+  .hero-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+  .pill {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .2rem .7rem; border-radius: 999px; font-size: .78rem; font-weight: 650;
+    border: 1px solid var(--line); background: #fff;
+  }
+  .pill.on { color: var(--good); border-color: #b9d4be; background: #eef7f0; }
+  .pill.off { color: var(--bad); border-color: #e2c2c2; background: #faf0f0; }
+  button {
+    font: inherit; font-weight: 650; cursor: pointer;
+    border: 0; border-radius: 999px; padding: .65rem 1.15rem;
+    background: var(--accent); color: #fffdf8;
+  }
+  button.ghost {
+    background: transparent; color: var(--ink);
+    border: 1px solid #b9b1a2;
+  }
+  button:disabled { opacity: .4; cursor: default; }
+  label { display: block; font-weight: 650; font-size: .82rem; margin: .85rem 0 .25rem; }
+  input, select, textarea {
+    width: 100%; padding: .6rem .7rem; border: 1px solid #c9c1b2; border-radius: 8px;
+    font: inherit; background: #fff;
+  }
+  textarea { min-height: 90px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .8rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem 1rem; }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+  .status-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: .5rem; margin-top: .9rem;
+  }
+  .status-grid div {
+    background: #faf7f0; border: 1px solid var(--line); border-radius: 8px;
+    padding: .55rem .7rem; font-size: .85rem;
+  }
+  .status-grid b {
+    display: block; font-size: .68rem; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--muted); font-weight: 650;
+  }
+  #log {
+    height: 160px; overflow-y: auto; background: #1a1814; color: #c8e6b0;
+    padding: .75rem; border-radius: 10px; font-family: ui-monospace, monospace;
+    font-size: .75rem; white-space: pre-wrap;
+  }
+  .preview-wrap {
+    display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: .75rem;
+  }
+  .eink {
+    width: 100%; max-width: 800px; aspect-ratio: 800 / 480;
+    border: 1px solid #bbb; border-radius: 6px; background: #fff;
+    image-rendering: pixelated; box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
+  }
+  .avatar-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+  .avatar-preview {
+    width: 72px; height: 72px; border-radius: 50%; border: 2px solid var(--ink);
+    object-fit: cover; background: #ddd;
+  }
+  .hint { font-size: .85rem; color: var(--muted); margin: .4rem 0 0; }
+  .drop {
+    border: 1.5px dashed #b9b1a2; border-radius: 10px; padding: 1rem;
+    text-align: center; color: var(--muted); background: #faf7f0; cursor: pointer;
+  }
+  .drop.drag { border-color: var(--ink); color: var(--ink); background: #fff; }
+  ol { padding-left: 1.2rem; }
+  ol li { margin: .35rem 0; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, monospace; font-size: .85rem; }
+  pre {
+    background: #1a1814; color: #eee; padding: 1rem; border-radius: 10px;
+    overflow-x: auto; white-space: pre-wrap;
+  }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
-<h1>Dev Day Terminal</h1>
-<p class="sub">Assembly, setup, and the replacement-app recipe for your 7.5&Prime; e-ink terminal.</p>
+<main>
+  <h1>Plug in. It refreshes.</h1>
+  <p class="sub">
+    Open this page in Chrome, authorize the terminal once, then leave the tab open.
+    Every time you plug in USB it pulls weather, your Codex profile photo, and usage —
+    no app install, no LaunchAgent, no CLI.
+  </p>
 
-<div class="card" id="setup-card">
-  <div class="row">
-    <button id="connect">Connect over USB</button>
-    <span id="conn-pill" class="pill off">disconnected</span>
+  <div class="panel" id="setup-card">
+    <div class="hero-row">
+      <button id="connect">Connect terminal once</button>
+      <button class="ghost" id="push-now" disabled>Refresh dash now</button>
+      <span id="conn-pill" class="pill off">disconnected</span>
+      <span id="dash-pill" class="pill off">dash idle</span>
+    </div>
+    <p id="serial-note" class="hint"></p>
+
+    <div id="unsupported" class="hidden">
+      <p><b>Web Serial is not available in this browser.</b> Use Chrome/Edge on a laptop, or the on-device AP:</p>
+      <ol>
+        <li>Hold <b>D2</b> for 2 seconds.</li>
+        <li>Join the <b>DevDay-XXXX</b> network shown on screen.</li>
+        <li>Open <code>http://192.168.4.1</code>.</li>
+      </ol>
+    </div>
+
+    <div class="status-grid hidden" id="status-grid">
+      <div><b>Firmware</b><span id="s-fw">—</span></div>
+      <div><b>Name</b><span id="s-name">—</span></div>
+      <div><b>Battery</b><span id="s-batt">—</span></div>
+      <div><b>Connection</b><span id="s-conn">—</span></div>
+      <div><b>Card</b><span id="s-card">—</span></div>
+      <div><b>Last push</b><span id="s-push">—</span></div>
+    </div>
   </div>
-  <p id="serial-note" style="font-size:.85rem;color:#555"></p>
 
-  <div id="unsupported" hidden>
-    <p><b>Web Serial is not available in this browser.</b> Use the on-demand setup portal instead:</p>
+  <div class="panel" id="profile-card">
+    <h2 style="border:0;margin:0 0 .35rem;padding:0">Codex profile</h2>
+    <p class="hint">Saved in this browser only. Photo is dithered here and pushed as ink — nothing installs on your machine.</p>
+
+    <div class="grid-2">
+      <div>
+        <label>Display name</label>
+        <input id="p-name" placeholder="Jeremy Cai" autocomplete="name">
+      </div>
+      <div>
+        <label>Handle</label>
+        <input id="p-handle" placeholder="@permanentunderclass">
+      </div>
+      <div>
+        <label>Plan badge</label>
+        <input id="p-plan" placeholder="Pro" value="Pro">
+      </div>
+      <div>
+        <label>Avatar URL (optional)</label>
+        <input id="p-avatar-url" placeholder="https://…/your-codex-photo.jpg">
+      </div>
+    </div>
+
+    <label>Profile photo</label>
+    <div class="avatar-row">
+      <img id="avatar-img" class="avatar-preview" alt="Avatar preview">
+      <div style="flex:1;min-width:220px">
+        <div class="drop" id="avatar-drop">Drop Codex photo here, or click to choose a file</div>
+        <input id="avatar-file" type="file" accept="image/*" class="hidden">
+        <p class="hint">Tip: in Codex → Settings → Profile, save/share your card or copy the photo.</p>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top:.5rem">
+      <div>
+        <label>Lifetime tokens</label>
+        <input id="p-lifetime" placeholder="48.8B">
+      </div>
+      <div>
+        <label>Peak tokens</label>
+        <input id="p-peak" placeholder="2.7B">
+      </div>
+      <div>
+        <label>Longest chat</label>
+        <input id="p-longest" placeholder="34h 46m">
+      </div>
+      <div>
+        <label>Current streak</label>
+        <input id="p-streak" placeholder="38 days">
+      </div>
+      <div>
+        <label>Longest streak</label>
+        <input id="p-best" placeholder="64 days">
+      </div>
+      <div>
+        <label>Insight line</label>
+        <input id="p-insight" placeholder="Most used reasoning · Extra High · 41%">
+      </div>
+    </div>
+
+    <label>Optional: paste <code>account/usage/read</code> JSON</label>
+    <textarea id="p-usage-json" placeholder='{"summary":{"lifetimeTokens":...},"dailyUsageBuckets":[...]}'></textarea>
+    <div class="hero-row" style="margin-top:.75rem">
+      <button class="ghost" id="save-profile" type="button">Save profile in browser</button>
+      <button class="ghost" id="load-demo" type="button">Load sample stats</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 style="border:0;margin:0 0 .35rem;padding:0">Live preview</h2>
+    <p class="hint" id="weather-line">Weather: waiting for location…</p>
+    <div class="preview-wrap">
+      <canvas id="preview" class="eink" width="800" height="480"></canvas>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="config-card">
+    <h2 style="border:0;margin:0 0 .5rem;padding:0">Terminal config</h2>
+    <label>Device name</label><input id="c-name" maxlength="32">
+    <label>Startup card</label>
+    <select id="c-card">
+      <option value="dash">Dash</option>
+      <option value="build">Build</option>
+      <option value="brief">Brief</option>
+      <option value="yours">Yours</option>
+    </select>
+    <label>Wi-Fi SSID (2.4 GHz)</label><input id="c-ssid" maxlength="32">
+    <label>Wi-Fi password</label><input id="c-pass" type="password" maxlength="63">
+    <label>Content URL (HTTPS, optional)</label><input id="c-url" placeholder="https://example.com/card.json">
+    <label>Refresh interval (minutes)</label><input id="c-refresh" type="number" min="5" max="1440" value="30">
+    <div class="hero-row">
+      <button id="save">Save to terminal</button>
+      <button class="ghost" id="preview-build">Preview Build</button>
+      <button class="ghost" id="preview-dash">Preview Dash</button>
+      <button class="ghost" id="preview-yours">Preview Yours</button>
+      <button class="ghost" id="ap-start">Start setup AP</button>
+      <button class="ghost" id="reboot">Reboot</button>
+    </div>
+    <p id="ap-info" class="hint"></p>
+  </div>
+
+  <div class="panel hidden" id="log-card">
+    <b>Serial log</b>
+    <div id="log"></div>
+  </div>
+
+  <h2>Assemble the kit</h2>
+  <div class="panel">
     <ol>
-      <li>Hold <b>D2</b> on the terminal for 2 seconds (or press D2 to wake it first).</li>
-      <li>The screen shows a <b>DevDay-XXXX</b> network name and password.</li>
-      <li>Join that Wi-Fi, then open <code>http://192.168.4.1</code>.</li>
-      <li>The portal closes itself after 5 minutes.</li>
+      <li>Seat the e-paper FPC in the 24-pin connector, <b>metal side up</b>, and close the latch.</li>
+      <li>Set the display jumper to <b>24Pin–GND</b>.</li>
+      <li>Connect the battery to the JST header (red = +, black = −).</li>
+      <li>Plug the XIAO ESP32-S3 Plus into the driver board and connect USB-C.</li>
+      <li>Press <b>Connect terminal once</b> above. After that, plugging in auto-refreshes the dash.</li>
     </ol>
   </div>
 
-  <div class="status-grid" id="status-grid" hidden>
-    <div><b>Firmware</b><span id="s-fw">—</span></div>
-    <div><b>Name</b><span id="s-name">—</span></div>
-    <div><b>Battery</b><span id="s-batt">—</span></div>
-    <div><b>Connection</b><span id="s-conn">—</span></div>
-    <div><b>Card</b><span id="s-card">—</span></div>
-    <div><b>Boots</b><span id="s-boots">—</span></div>
+  <h2>Make it yours</h2>
+  <div class="panel">
+    <p>Raw USB flashing is unrestricted. Ask Codex to replace the factory app anytime.</p>
+    <pre>arduino-cli compile -b esp32:esp32:XIAO_ESP32S3_Plus MyApp
+arduino-cli upload  -b esp32:esp32:XIAO_ESP32S3_Plus -p PORT MyApp</pre>
   </div>
-</div>
-
-<div class="card" id="config-card" hidden>
-  <h2 style="border:0;margin-top:0;padding-top:0">Configure</h2>
-  <label>Device name</label><input id="c-name" maxlength="32">
-  <label>Startup card</label>
-  <select id="c-card"><option value="build">Build</option><option value="brief">Brief</option><option value="yours">Yours</option></select>
-  <label>Wi-Fi SSID (2.4 GHz)</label><input id="c-ssid" maxlength="32">
-  <label>Wi-Fi password</label><input id="c-pass" type="password" maxlength="63">
-  <label>Content URL (HTTPS, optional)</label><input id="c-url" placeholder="https://example.com/card.json">
-  <label>Refresh interval (minutes)</label><input id="c-refresh" type="number" min="5" max="1440" value="30">
-  <div class="row">
-    <button id="save">Save to terminal</button>
-    <button class="ghost" id="preview-build">Preview Build</button>
-    <button class="ghost" id="preview-brief">Preview Brief</button>
-    <button class="ghost" id="preview-yours">Preview Yours</button>
-  </div>
-  <div class="row">
-    <button class="ghost" id="ap-start">Start setup AP (5 min)</button>
-    <button class="ghost" id="factory-check">factory.check</button>
-    <button class="ghost" id="reboot">Reboot</button>
-  </div>
-  <p id="ap-info" style="font-size:.9rem"></p>
-</div>
-
-<div class="card" id="log-card" hidden>
-  <b>Serial log</b>
-  <div id="log"></div>
-</div>
-
-<h2>Assemble the kit</h2>
-<div class="card">
-  <ol>
-    <li>Seat the e-paper FPC in the 24-pin connector, <b>metal side up</b>, and close the latch. The cable is fragile — never bend it sideways.</li>
-    <li>Set the display jumper to <b>24Pin–GND</b>.</li>
-    <li>Connect the battery to the JST header (red = +, black = −).</li>
-    <li>Plug the XIAO ESP32-S3 Plus into the driver board and connect USB-C.</li>
-    <li>Press <b>Connect over USB</b> above. The terminal shows <b>READY</b> on the Build card within a few seconds.</li>
-  </ol>
-</div>
-
-<h2>Teach it a job</h2>
-<div class="card">
-  <ol>
-    <li>Connect over USB above (or use the AP fallback in any browser).</li>
-    <li>Enter your 2.4 GHz Wi-Fi and, optionally, an HTTPS content URL that returns the <a href="../docs/PROTOCOL.md#content-api">schema-1 card JSON</a>.</li>
-    <li>Save. The terminal caches the last good payload and keeps working without Wi-Fi.</li>
-  </ol>
-</div>
-
-<h2>Make it yours — the replacement-app recipe</h2>
-<div class="card">
-  <p>The factory app is deliberately replaceable. Raw USB flashing is unrestricted: erase and flash your own firmware any time.</p>
-  <ol>
-    <li>Install <a href="https://github.com/arduino/arduino-cli/releases/tag/v1.5.1">Arduino CLI 1.5.1</a>.</li>
-    <li>Install the pinned core and libraries:
-<pre>arduino-cli core install esp32:esp32@3.3.8 \
-  --additional-urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-arduino-cli lib install "ArduinoJson@7.4.3"
-# Seeed_GFX V3.1.0 ships as a GitHub ZIP:
-#   https://github.com/Seeed-Studio/Seeed_GFX/archive/refs/tags/V3.1.0.zip</pre></li>
-    <li>Create a sketch with a <code>driver.h</code>:
-<pre>#define BOARD_SCREEN_COMBO 502          // 7.5" UC8179 800x480
-#define USE_XIAO_EPAPER_DISPLAY_BOARD_EE04</pre></li>
-    <li>Draw with <code>EPaper</code> (Seeed_GFX): <code>epaper.begin()</code>, draw, <code>epaper.update()</code>. Buttons are D1/D2/D4 (active-low), battery ADC on GPIO1 with the GPIO6 divider enable and 0.968 calibration.</li>
-    <li>Ask Codex to build your app: <i>"Write an Arduino sketch for the XIAO ESP32-S3 Plus with Seeed_GFX that fetches my build status every 15 minutes and renders it on the 800×480 e-paper, deep-sleeping between refreshes."</i></li>
-    <li>Compile and flash over USB:
-<pre>arduino-cli compile -b esp32:esp32:XIAO_ESP32S3_Plus MyApp
-arduino-cli upload  -b esp32:esp32:XIAO_ESP32S3_Plus -p PORT MyApp</pre></li>
-  </ol>
-  <p>Bricked it? Hold the XIAO's <b>BOOT</b> button while plugging in USB and reflash — the USB bootloader always recovers the device.</p>
-</div>
+</main>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const logEl = $("log");
-let port, reader, lineBuf = "", nextId = 1;
+const AVATAR = 72;
+const STORE_KEY = "devday-dash-profile-v1";
+
+let port = null;
+let reader = null;
+let lineBuf = "";
+let nextId = 1;
 const pending = new Map();
+let avatarBitmap = null; // Uint8Array length AVATAR*AVATAR/8
+let weather = { temp: "—", detail: "Weather unavailable" };
+let autoPushTimer = null;
 
-const log = (t) => { logEl.textContent += t + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+const log = (t) => {
+  const el = $("log");
+  el.textContent += t + "\n";
+  el.scrollTop = el.scrollHeight;
+};
 
-if (!("serial" in navigator)) {
-  $("connect").disabled = true;
-  $("unsupported").hidden = false;
-  $("serial-note").textContent = "This browser cannot talk USB serial. The AP fallback below does everything this page does.";
-} else {
-  $("serial-note").textContent = "Chrome/Edge on a laptop, USB-C data cable. Nothing is installed on your machine.";
+function setConn(on, label) {
+  $("conn-pill").textContent = label;
+  $("conn-pill").className = "pill " + (on ? "on" : "off");
+  $("push-now").disabled = !on;
+  $("connect").disabled = on;
+  $("config-card").classList.toggle("hidden", !on);
+  $("log-card").classList.toggle("hidden", !on);
+}
+
+function setDash(on, label) {
+  $("dash-pill").textContent = label;
+  $("dash-pill").className = "pill " + (on ? "on" : "off");
+}
+
+function formatTokens(n) {
+  if (n == null || Number.isNaN(n)) return "";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B";
+  if (abs >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+
+function formatDuration(sec) {
+  if (sec == null || Number.isNaN(sec)) return "";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function saveProfile(extra = {}) {
+  const data = {
+    name: $("p-name").value.trim(),
+    handle: $("p-handle").value.trim(),
+    plan: $("p-plan").value.trim(),
+    avatarUrl: $("p-avatar-url").value.trim(),
+    lifetime: $("p-lifetime").value.trim(),
+    peak: $("p-peak").value.trim(),
+    longest: $("p-longest").value.trim(),
+    streak: $("p-streak").value.trim(),
+    best: $("p-best").value.trim(),
+    insight: $("p-insight").value.trim(),
+    usageJson: $("p-usage-json").value.trim(),
+    avatarDataUrl: extra.avatarDataUrl || (loadProfile()?.avatarDataUrl || ""),
+    days: extra.days || profileDays(),
+  };
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  return data;
+}
+
+function applyProfile(p) {
+  if (!p) return;
+  $("p-name").value = p.name || "";
+  $("p-handle").value = p.handle || "";
+  $("p-plan").value = p.plan || "Pro";
+  $("p-avatar-url").value = p.avatarUrl || "";
+  $("p-lifetime").value = p.lifetime || "";
+  $("p-peak").value = p.peak || "";
+  $("p-longest").value = p.longest || "";
+  $("p-streak").value = p.streak || "";
+  $("p-best").value = p.best || "";
+  $("p-insight").value = p.insight || "";
+  $("p-usage-json").value = p.usageJson || "";
+  if (p.avatarDataUrl) {
+    $("avatar-img").src = p.avatarDataUrl;
+    ditherFromImage($("avatar-img")).then(paintPreview);
+  }
+}
+
+function loadDemo() {
+  $("p-name").value = "Jeremy Cai";
+  $("p-handle").value = "@permanentunderclass";
+  $("p-plan").value = "Pro";
+  $("p-lifetime").value = "48.8B";
+  $("p-peak").value = "2.7B";
+  $("p-longest").value = "34h 46m";
+  $("p-streak").value = "38 days";
+  $("p-best").value = "64 days";
+  $("p-insight").value = "Most used reasoning · Extra High · 41%";
+  $("p-usage-json").value = "";
+  saveProfile({ days: demoDays() });
+  paintPreview();
+}
+
+function demoDays() {
+  return [40, 55, 30, 90, 120, 80, 70, 95, 110, 60, 45, 130, 100, 85];
+}
+
+function profileDays() {
+  const parsed = parseUsageJson($("p-usage-json").value);
+  if (parsed?.days?.length) return parsed.days;
+  const saved = loadProfile();
+  if (saved?.days?.length) return saved.days;
+  return demoDays();
+}
+
+function parseUsageJson(text) {
+  if (!text.trim()) return null;
+  try {
+    const j = JSON.parse(text);
+    const root = j.result || j;
+    const summary = root.summary || {};
+    const buckets = root.dailyUsageBuckets || root.daily_usage_buckets || [];
+    const days = buckets.slice(-14).map((b) => {
+      const t = Number(b.tokens ?? b.totalTokens ?? 0);
+      return Math.max(0, Math.min(255, Math.round(t > 0 ? Math.log10(t + 1) * 40 : 0)));
+    });
+    // Normalize to 0–255 relative to peak.
+    const peak = Math.max(1, ...days);
+    const norm = days.map((d) => Math.round((d / peak) * 255));
+    return {
+      lifetime: formatTokens(summary.lifetimeTokens),
+      peak: formatTokens(summary.peakDailyTokens),
+      longest: formatDuration(summary.longestRunningTurnSec),
+      streak: summary.currentStreakDays != null ? `${summary.currentStreakDays} days` : "",
+      best: summary.longestStreakDays != null ? `${summary.longestStreakDays} days` : "",
+      days: norm,
+    };
+  } catch (e) {
+    log("usage JSON parse failed: " + e.message);
+    return null;
+  }
+}
+
+function applyUsagePaste() {
+  const u = parseUsageJson($("p-usage-json").value);
+  if (!u) return;
+  if (u.lifetime) $("p-lifetime").value = u.lifetime;
+  if (u.peak) $("p-peak").value = u.peak;
+  if (u.longest) $("p-longest").value = u.longest;
+  if (u.streak) $("p-streak").value = u.streak;
+  if (u.best) $("p-best").value = u.best;
+  saveProfile({ days: u.days });
+  paintPreview();
+}
+
+async function ditherFromImage(img) {
+  await img.decode?.().catch(() => {});
+  const c = document.createElement("canvas");
+  c.width = AVATAR; c.height = AVATAR;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, AVATAR, AVATAR);
+  // Cover-crop into circle bounds.
+  const s = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+  const sx = ((img.naturalWidth || img.width) - s) / 2;
+  const sy = ((img.naturalHeight || img.height) - s) / 2;
+  ctx.drawImage(img, sx, sy, s, s, 0, 0, AVATAR, AVATAR);
+  const { data } = ctx.getImageData(0, 0, AVATAR, AVATAR);
+  const gray = new Float32Array(AVATAR * AVATAR);
+  for (let i = 0; i < gray.length; i++) {
+    const o = i * 4;
+    gray[i] = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+  }
+  // Floyd–Steinberg dither → 1-bit ink.
+  for (let y = 0; y < AVATAR; y++) {
+    for (let x = 0; x < AVATAR; x++) {
+      const i = y * AVATAR + x;
+      const old = gray[i];
+      const neu = old < 128 ? 0 : 255;
+      const err = old - neu;
+      gray[i] = neu;
+      if (x + 1 < AVATAR) gray[i + 1] += err * 7 / 16;
+      if (y + 1 < AVATAR) {
+        if (x > 0) gray[i + AVATAR - 1] += err * 3 / 16;
+        gray[i + AVATAR] += err * 5 / 16;
+        if (x + 1 < AVATAR) gray[i + AVATAR + 1] += err * 1 / 16;
+      }
+    }
+  }
+  const bytes = new Uint8Array((AVATAR * AVATAR) / 8);
+  for (let i = 0; i < AVATAR * AVATAR; i++) {
+    if (gray[i] < 128) bytes[i >> 3] |= 0x80 >> (i & 7);
+  }
+  avatarBitmap = bytes;
+  // Show dithered preview in the circle.
+  const out = ctx.createImageData(AVATAR, AVATAR);
+  for (let i = 0; i < AVATAR * AVATAR; i++) {
+    const ink = (bytes[i >> 3] & (0x80 >> (i & 7))) ? 0 : 255;
+    out.data[i * 4] = ink;
+    out.data[i * 4 + 1] = ink;
+    out.data[i * 4 + 2] = ink;
+    out.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  $("avatar-img").src = c.toDataURL("image/png");
+  return bytes;
+}
+
+function avatarHex() {
+  if (!avatarBitmap) return "";
+  return [...avatarBitmap].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function loadAvatarFromUrl(url) {
+  if (!url) return false;
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = url + (url.includes("?") ? "&" : "?") + "cachebust=" + Date.now();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+    await ditherFromImage(img);
+    const dataUrl = $("avatar-img").src;
+    saveProfile({ avatarDataUrl: dataUrl });
+    return true;
+  } catch (e) {
+    log("avatar URL fetch failed (CORS or network): " + e.message);
+    return false;
+  }
+}
+
+async function loadAvatarFromFile(file) {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.src = url;
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+  await ditherFromImage(img);
+  URL.revokeObjectURL(url);
+  saveProfile({ avatarDataUrl: $("avatar-img").src });
+  paintPreview();
+}
+
+const WMO = {
+  0: "Clear", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+  45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
+  61: "Light rain", 63: "Rain", 65: "Heavy rain", 71: "Light snow", 73: "Snow",
+  75: "Heavy snow", 80: "Rain showers", 81: "Rain showers", 82: "Violent showers",
+  95: "Thunderstorm", 96: "Thunderstorm", 99: "Thunderstorm",
+};
+
+async function fetchWeather() {
+  const pos = await new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("no geolocation"));
+    navigator.geolocation.getCurrentPosition(resolve, reject, { maximumAge: 600000, timeout: 8000 });
+  });
+  const { latitude: lat, longitude: lon } = pos.coords;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`;
+  const res = await fetch(url);
+  const j = await res.json();
+  const t = Math.round(j.current.temperature_2m);
+  const code = j.current.weather_code;
+  const hi = Math.round(j.daily.temperature_2m_max[0]);
+  const lo = Math.round(j.daily.temperature_2m_min[0]);
+  weather = {
+    temp: `${t}°`,
+    detail: `${WMO[code] || "Weather"} · H${hi}° L${lo}°`,
+  };
+  $("weather-line").textContent = `Weather: ${weather.temp} · ${weather.detail}`;
+}
+
+function buildPayload() {
+  applyUsagePasteQuiet();
+  const days = profileDays();
+  return {
+    schema: 1,
+    refresh_after_s: 1800,
+    dash: {
+      name: $("p-name").value.trim() || "Codex",
+      handle: $("p-handle").value.trim(),
+      plan: $("p-plan").value.trim(),
+      weather_temp: weather.temp,
+      weather_detail: weather.detail,
+      lifetime: $("p-lifetime").value.trim(),
+      peak: $("p-peak").value.trim(),
+      longest: $("p-longest").value.trim(),
+      streak: $("p-streak").value.trim(),
+      best_streak: $("p-best").value.trim(),
+      insight_left: $("p-insight").value.trim(),
+      insight_right: new Date().toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }),
+      days,
+      avatar_hex: avatarHex(),
+    },
+    brief: {
+      eyebrow: "DEV DAY",
+      title: "Your dash is live",
+      lines: ["Plug in USB to refresh", "Weather + Codex profile", "No install required"],
+      footer: $("p-handle").value.trim() || "dash",
+    },
+  };
+}
+
+function applyUsagePasteQuiet() {
+  const u = parseUsageJson($("p-usage-json").value);
+  if (!u) return;
+  if (u.lifetime) $("p-lifetime").value = u.lifetime;
+  if (u.peak) $("p-peak").value = u.peak;
+  if (u.longest) $("p-longest").value = u.longest;
+  if (u.streak) $("p-streak").value = u.streak;
+  if (u.best) $("p-best").value = u.best;
+  if (u.days?.length) saveProfile({ days: u.days });
+}
+
+function paintPreview() {
+  const canvas = $("preview");
+  const ctx = canvas.getContext("2d");
+  const p = buildPayload().dash;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, 800, 480);
+  ctx.fillStyle = "#111";
+  ctx.strokeStyle = "#111";
+
+  // Avatar circle
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(76, 100, 38, 0, Math.PI * 2);
+  ctx.clip();
+  if (avatarBitmap) {
+    const img = ctx.createImageData(AVATAR, AVATAR);
+    for (let i = 0; i < AVATAR * AVATAR; i++) {
+      const ink = (avatarBitmap[i >> 3] & (0x80 >> (i & 7))) ? 0 : 255;
+      img.data.set([ink, ink, ink, 255], i * 4);
+    }
+    const tmp = document.createElement("canvas");
+    tmp.width = AVATAR; tmp.height = AVATAR;
+    tmp.getContext("2d").putImageData(img, 0, 0);
+    ctx.drawImage(tmp, 40, 64, 72, 72);
+  } else {
+    ctx.fillRect(40, 64, 72, 72);
+  }
+  ctx.restore();
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(76, 100, 40, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.font = "700 34px Fraunces, serif";
+  ctx.fillText(p.name || "Codex", 136, 90);
+  ctx.font = "550 18px Figtree, sans-serif";
+  ctx.fillText(p.handle || "", 136, 122);
+  if (p.plan) {
+    const hw = ctx.measureText(p.handle || "").width;
+    ctx.strokeRect(136 + hw + 12, 104, ctx.measureText(p.plan).width + 16, 24);
+    ctx.fillText(p.plan, 144 + hw + 12, 122);
+  }
+  ctx.textAlign = "right";
+  ctx.font = "700 34px Fraunces, serif";
+  ctx.fillText(p.weather_temp || "", 764, 90);
+  ctx.font = "550 16px Figtree, sans-serif";
+  ctx.fillText(p.weather_detail || "", 764, 122);
+  ctx.textAlign = "left";
+
+  ctx.beginPath(); ctx.moveTo(36, 160); ctx.lineTo(764, 160); ctx.stroke();
+
+  const metrics = [
+    [p.lifetime, "lifetime tokens"],
+    [p.peak, "peak tokens"],
+    [p.longest, "longest chat"],
+    [p.streak, "current streak"],
+    [p.best_streak, "longest streak"],
+  ];
+  metrics.forEach(([v, label], i) => {
+    const x = 36 + i * 145;
+    ctx.font = "650 22px Figtree, sans-serif";
+    ctx.fillText(v || "—", x, 200);
+    ctx.font = "400 13px Figtree, sans-serif";
+    ctx.fillText(label, x, 222);
+  });
+
+  ctx.beginPath(); ctx.moveTo(36, 250); ctx.lineTo(764, 250); ctx.stroke();
+  ctx.font = "550 18px Figtree, sans-serif";
+  ctx.fillText("Token activity", 36, 278);
+  ctx.textAlign = "right";
+  ctx.font = "400 13px Figtree, sans-serif";
+  ctx.fillText(`last ${p.days.length} days`, 764, 278);
+  ctx.textAlign = "left";
+
+  const days = p.days.length ? p.days : demoDays();
+  const peak = Math.max(1, ...days);
+  const chartX = 36, chartY = 296, chartW = 728, chartH = 110;
+  ctx.strokeRect(chartX, chartY, chartW, chartH);
+  const gap = 4;
+  const barW = (chartW - 20 - (days.length - 1) * gap) / days.length;
+  days.forEach((d, i) => {
+    const bh = Math.max(d > 0 ? 3 : 0, Math.round((d / peak) * (chartH - 20)));
+    const bx = chartX + 10 + i * (barW + gap);
+    const by = chartY + chartH - 10 - bh;
+    if (i % 2 === 0) ctx.fillRect(bx, by, barW, bh);
+    else {
+      ctx.strokeRect(bx, by, barW, bh);
+      for (let yy = by; yy < by + bh; yy++) {
+        for (let xx = bx; xx < bx + barW; xx++) {
+          if (((xx + yy) & 1) === 0) ctx.fillRect(xx, yy, 1, 1);
+        }
+      }
+    }
+  });
+
+  ctx.font = "400 13px Figtree, sans-serif";
+  ctx.fillText(p.insight_left || "", 36, 430);
+  ctx.textAlign = "right";
+  ctx.fillText(p.insight_right || "", 764, 430);
+  ctx.textAlign = "left";
 }
 
 function send(cmd, params) {
   return new Promise((resolve, reject) => {
+    if (!port) return reject(new Error("not connected"));
     const id = String(nextId++);
     pending.set(id, { resolve, reject });
     const msg = { v: 1, cmd, id };
     if (params) msg.params = params;
     const writer = port.writable.getWriter();
-    writer.write(new TextEncoder().encode(JSON.stringify(msg) + "\n")).then(() => writer.releaseLock());
-    setTimeout(() => { if (pending.delete(id)) reject(new Error("timeout")); }, 8000);
+    writer.write(new TextEncoder().encode(JSON.stringify(msg) + "\n"))
+      .then(() => writer.releaseLock())
+      .catch((e) => { writer.releaseLock(); reject(e); });
+    setTimeout(() => { if (pending.delete(id)) reject(new Error("timeout")); }, 20000);
   });
 }
 
 async function readLoop() {
   const decoder = new TextDecoder();
-  while (port.readable) {
+  while (port?.readable) {
     reader = port.readable.getReader();
     try {
       for (;;) {
@@ -173,14 +736,19 @@ async function readLoop() {
         lineBuf += decoder.decode(value);
         let i;
         while ((i = lineBuf.indexOf("\n")) >= 0) {
-          const line = lineBuf.slice(0, i).trim(); lineBuf = lineBuf.slice(i + 1);
+          const line = lineBuf.slice(0, i).trim();
+          lineBuf = lineBuf.slice(i + 1);
           if (!line) continue;
-          try { handle(JSON.parse(line)); } catch { log("<< " + line); }
+          try { handle(JSON.parse(line)); }
+          catch { log("<< " + line); }
         }
       }
     } catch (e) { log("read error: " + e.message); }
     finally { reader.releaseLock(); }
   }
+  setConn(false, "disconnected");
+  setDash(false, "dash idle");
+  port = null;
 }
 
 function handle(msg) {
@@ -194,59 +762,174 @@ function handle(msg) {
 async function refreshStatus() {
   try {
     const s = await send("status");
-    $("status-grid").hidden = false;
-    $("s-fw").textContent = s.fw; $("s-name").textContent = s.name;
-    $("s-batt").textContent = s.battery_v.toFixed(2) + " V (" + s.battery_pct + "%)";
-    $("s-conn").textContent = s.connection; $("s-card").textContent = s.card;
-    $("s-boots").textContent = s.boots;
+    $("status-grid").classList.remove("hidden");
+    $("s-fw").textContent = s.fw;
+    $("s-name").textContent = s.name;
+    $("s-batt").textContent = `${s.battery_v.toFixed(2)} V (${s.battery_pct}%)`;
+    $("s-conn").textContent = s.connection;
+    $("s-card").textContent = s.card;
     if (!$("c-name").value) {
-      $("c-name").value = s.name; $("c-card").value = s.startup_card;
-      $("c-ssid").value = s.wifi_ssid; $("c-url").value = s.content_url;
-      $("c-refresh").value = s.refresh_minutes;
+      $("c-name").value = s.name;
+      $("c-card").value = s.startup_card === "brief" && contentHasDashHint() ? "dash" : s.startup_card;
+      $("c-ssid").value = s.wifi_ssid || "";
+      $("c-url").value = s.content_url || "";
+      $("c-refresh").value = s.refresh_minutes || 30;
     }
-  } catch (e) { /* device may be asleep */ }
+  } catch (e) { /* asleep or mid-transfer */ }
+}
+
+function contentHasDashHint() {
+  return !!($("p-name").value.trim());
+}
+
+async function pushDash() {
+  setDash(false, "fetching…");
+  try {
+    try { await fetchWeather(); } catch (e) {
+      weather = { temp: "—", detail: "Allow location for weather" };
+      $("weather-line").textContent = "Weather: " + weather.detail;
+    }
+    if ($("p-avatar-url").value.trim() && !avatarBitmap) {
+      await loadAvatarFromUrl($("p-avatar-url").value.trim());
+    }
+    saveProfile();
+    paintPreview();
+    const payload = buildPayload();
+    setDash(false, "pushing…");
+    await send("content.push", { payload, show: "dash" });
+    // Prefer dash on next cold boot.
+    try {
+      await send("config.write", { startup_card: "dash" });
+      $("c-card").value = "dash";
+    } catch { /* optional */ }
+    $("s-push").textContent = new Date().toLocaleTimeString();
+    setDash(true, "dash live");
+    refreshStatus();
+  } catch (e) {
+    setDash(false, "push failed");
+    log("push failed: " + e.message);
+  }
+}
+
+async function openPort(p) {
+  if (port) return;
+  port = p;
+  await port.open({ baudRate: 115200 });
+  setConn(true, "connected");
+  $("log-card").classList.remove("hidden");
+  readLoop();
+  if (autoPushTimer) clearInterval(autoPushTimer);
+  autoPushTimer = setInterval(refreshStatus, 4000);
+  await refreshStatus();
+  await pushDash();
+}
+
+async function tryAutoReconnect() {
+  if (!("serial" in navigator)) return;
+  const ports = await navigator.serial.getPorts();
+  if (ports.length) {
+    log("auto-reconnect: previously authorized port");
+    try { await openPort(ports[0]); }
+    catch (e) { log("auto-reconnect failed: " + e.message); setConn(false, "disconnected"); port = null; }
+  }
+}
+
+// ——— UI wiring ———
+if (!("serial" in navigator)) {
+  $("connect").disabled = true;
+  $("unsupported").classList.remove("hidden");
+  $("serial-note").textContent = "This browser cannot talk USB serial. Use Chrome/Edge, or the AP fallback.";
+} else {
+  $("serial-note").textContent =
+    "Authorize once. After that, keep this tab open — plugging USB auto-connects and refreshes the dash. Nothing is installed.";
+  navigator.serial.addEventListener("connect", async (event) => {
+    log("USB device connected");
+    try { await openPort(event.target); }
+    catch (e) { log("connect event failed: " + e.message); }
+  });
+  navigator.serial.addEventListener("disconnect", () => {
+    log("USB device disconnected");
+    setConn(false, "disconnected");
+    setDash(false, "dash idle");
+    port = null;
+  });
 }
 
 $("connect").onclick = async () => {
   try {
-    port = await navigator.serial.requestPort();
-    await port.open({ baudRate: 115200 });
-    $("conn-pill").textContent = "connected"; $("conn-pill").className = "pill on";
-    $("connect").disabled = true;
-    $("config-card").hidden = false; $("log-card").hidden = false;
-    readLoop();
-    setInterval(refreshStatus, 3000); refreshStatus();
+    const p = await navigator.serial.requestPort();
+    await openPort(p);
   } catch (e) { log("connect failed: " + e.message); }
 };
+
+$("push-now").onclick = () => pushDash();
+$("save-profile").onclick = () => { saveProfile(); paintPreview(); };
+$("load-demo").onclick = loadDemo;
+$("p-usage-json").addEventListener("change", applyUsagePaste);
+
+$("avatar-drop").onclick = () => $("avatar-file").click();
+$("avatar-file").onchange = () => {
+  const f = $("avatar-file").files?.[0];
+  if (f) loadAvatarFromFile(f);
+};
+["dragenter", "dragover"].forEach((ev) => {
+  $("avatar-drop").addEventListener(ev, (e) => {
+    e.preventDefault(); $("avatar-drop").classList.add("drag");
+  });
+});
+["dragleave", "drop"].forEach((ev) => {
+  $("avatar-drop").addEventListener(ev, (e) => {
+    e.preventDefault(); $("avatar-drop").classList.remove("drag");
+  });
+});
+$("avatar-drop").addEventListener("drop", (e) => {
+  const f = e.dataTransfer.files?.[0];
+  if (f) loadAvatarFromFile(f);
+});
+$("p-avatar-url").addEventListener("change", async () => {
+  await loadAvatarFromUrl($("p-avatar-url").value.trim());
+  paintPreview();
+});
+
+["p-name","p-handle","p-plan","p-lifetime","p-peak","p-longest","p-streak","p-best","p-insight"]
+  .forEach((id) => $(id).addEventListener("input", paintPreview));
 
 $("save").onclick = async () => {
   try {
     await send("config.write", {
-      device_name: $("c-name").value, startup_card: $("c-card").value,
-      wifi_ssid: $("c-ssid").value, wifi_password: $("c-pass").value,
-      content_url: $("c-url").value, refresh_minutes: Number($("c-refresh").value),
+      device_name: $("c-name").value,
+      startup_card: $("c-card").value,
+      wifi_ssid: $("c-ssid").value,
+      wifi_password: $("c-pass").value,
+      content_url: $("c-url").value,
+      refresh_minutes: Number($("c-refresh").value),
     });
-    log("config saved"); refreshStatus();
+    log("config saved");
+    refreshStatus();
   } catch (e) { alert("Save failed: " + e.message); }
 };
 
-for (const card of ["build", "brief", "yours"]) {
-  $("preview-" + card).onclick = () => send("card.preview", { card }).catch(e => alert(e.message));
+for (const card of ["build", "dash", "yours"]) {
+  $("preview-" + card).onclick = () => send("card.preview", { card }).catch((e) => alert(e.message));
 }
-
 $("ap-start").onclick = async () => {
   try {
     const d = await send("ap.start");
-    $("ap-info").innerHTML = `AP <b>${d.ssid}</b> · password <b>${d.password}</b> · open <code>http://${d.ip}</code> · expires in ${d.expires_s / 60} min (also on the terminal screen).`;
+    $("ap-info").innerHTML =
+      `AP <b>${d.ssid}</b> · password <b>${d.password}</b> · open <code>http://${d.ip}</code>`;
   } catch (e) { alert("AP start failed: " + e.message); }
 };
-
-$("factory-check").onclick = async () => {
-  try { log("factory.check: " + JSON.stringify(await send("factory.check"), null, 2)); }
-  catch (e) { alert(e.message); }
-};
-
 $("reboot").onclick = () => send("reboot").catch(() => {});
+
+// Boot
+const saved = loadProfile();
+if (saved) applyProfile(saved);
+else loadDemo();
+paintPreview();
+fetchWeather().then(paintPreview).catch(() => {
+  $("weather-line").textContent = "Weather: allow location (or push anyway)";
+});
+tryAutoReconnect();
 </script>
 </body>
 </html>

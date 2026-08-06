@@ -9,6 +9,7 @@ struct ProtoHooks {
   void (*status)(JsonObject data);
   bool (*config_write)(JsonObjectConst obj, String& err_code);
   bool (*card_preview)(const String& card, String& err_code);
+  bool (*content_push)(const String& payload, const String& show_card, String& err_code);
   bool (*ap_start)(JsonObject data, String& err_code);
   void (*factory_check)(JsonObject data);
   void (*reboot)();

@@ -54,7 +54,7 @@ Partial configuration update; only present fields are applied. Persisted in
 | Field | Type | Notes |
 |---|---|---|
 | `device_name` | string 1–32 | shown in card header |
-| `startup_card` | `"build"\|"brief"\|"yours"` | card rendered at boot |
+| `startup_card` | `"build"\|"brief"\|"yours"\|"dash"` | card rendered at boot |
 | `wifi_ssid` | string ≤32 | 2.4 GHz network |
 | `wifi_password` | string 8–63 | write-only |
 | `content_url` | string | empty or `https://…` (≤200 chars) |
@@ -67,6 +67,47 @@ Render a card immediately (full refresh).
 ```json
 {"v":1,"cmd":"card.preview","id":"2","params":{"card":"brief"}}
 ```
+
+`card` is one of `build`, `brief`, `yours`, `dash`. `dash` requires a prior
+payload that includes a `dash` object (see Content API).
+
+### `content.push`
+
+Push a full schema-1 content payload over USB (no Wi-Fi required). Used by the
+companion site to refresh the dash the moment the terminal is plugged in.
+Caches the payload in LittleFS and renders immediately.
+
+```json
+{
+  "v": 1,
+  "cmd": "content.push",
+  "id": "3",
+  "params": {
+    "show": "dash",
+    "payload": {
+      "schema": 1,
+      "dash": {
+        "name": "Jeremy Cai",
+        "handle": "@permanentunderclass",
+        "plan": "Pro",
+        "weather_temp": "72°",
+        "weather_detail": "Partly cloudy · H78° L61°",
+        "lifetime": "48.8B",
+        "peak": "2.7B",
+        "longest": "34h 46m",
+        "streak": "38 days",
+        "best_streak": "64 days",
+        "insight_left": "Most used reasoning · Extra High · 41%",
+        "insight_right": "Wed 11:04 PM",
+        "days": [40, 55, 90, 120, 80, 70, 95],
+        "avatar_hex": "<1296 hex chars for a 72×72 1-bit MSB bitmap>"
+      }
+    }
+  }
+}
+```
+
+`show` defaults to `dash`. Payload size is capped at 12 KB.
 
 ### `ap.start`
 
@@ -116,9 +157,26 @@ Response schema:
     "title": "Teach it a job",
     "lines": ["Connect USB", "Open the guide", "Build with Codex"],
     "footer": "Terminal 04F2"
+  },
+  "dash": {
+    "name": "Jeremy Cai",
+    "handle": "@permanentunderclass",
+    "plan": "Pro",
+    "weather_temp": "72°",
+    "weather_detail": "Partly cloudy · H78° L61°",
+    "lifetime": "48.8B",
+    "peak": "2.7B",
+    "longest": "34h 46m",
+    "streak": "38 days",
+    "best_streak": "64 days",
+    "insight_left": "Most used reasoning · Extra High · 41%",
+    "insight_right": "Wed 11:04 PM",
+    "days": [40, 55, 90, 120, 80, 70, 95],
+    "avatar_hex": "<72×72 1-bit MSB-first row-major, hex-encoded>"
   }
 }
 ```
 
 All fields optional except `schema`. `refresh_after_s` is clamped to ≥300.
-Unknown `build.state` values are ignored (keep last known).
+Unknown `build.state` values are ignored (keep last known). When `dash.name` is
+present, button **D2** shows the Dash card instead of Brief.

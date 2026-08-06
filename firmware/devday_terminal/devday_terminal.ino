@@ -88,7 +88,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
   }
   if (obj["startup_card"].is<const char*>()) {
     String v = obj["startup_card"].as<String>();
-    if (v != "build" && v != "brief" && v != "yours") {
+    if (v != "build" && v != "brief" && v != "yours" && v != "dash") {
       err_code = "bad_params";
       return false;
     }
@@ -136,11 +136,41 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
 }
 
 static bool hookCardPreview(const String& card, String& err_code) {
-  if (card != "build" && card != "brief" && card != "yours") {
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash") {
+    err_code = "bad_params";
+    return false;
+  }
+  if (card == "dash" && !contentHasDash(content)) {
     err_code = "bad_params";
     return false;
   }
   current_card = card;
+  refreshStatus();
+  renderCard(current_card, content, st);
+  return true;
+}
+
+static bool hookContentPush(const String& payload, const String& show_card, String& err_code) {
+  if (payload.length() == 0 || payload.length() > CONTENT_MAX_BYTES) {
+    err_code = "bad_params";
+    return false;
+  }
+  CardContent next = content;
+  if (!contentParse(payload, next)) {
+    err_code = "bad_params";
+    return false;
+  }
+  content = next;
+  cacheWriteContent(payload, "");
+  String card = show_card;
+  if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
+  if (card == "dash" && !contentHasDash(content)) card = "brief";
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash") {
+    err_code = "bad_params";
+    return false;
+  }
+  current_card = card;
+  last_activity_ms = millis();
   refreshStatus();
   renderCard(current_card, content, st);
   return true;
@@ -227,7 +257,7 @@ static String wakeCard() {
   uint64_t status = esp_sleep_get_ext1_wakeup_status();
   if (status & (1ULL << PIN_BUTTON_D1)) return "build";
   if (status & (1ULL << PIN_BUTTON_D4)) return "yours";
-  if (status & (1ULL << PIN_BUTTON_D2)) return "brief";
+  if (status & (1ULL << PIN_BUTTON_D2)) return contentHasDash(content) ? "dash" : "brief";
   return "";
 }
 
@@ -270,7 +300,7 @@ void setup() {
   esp_ota_mark_app_valid_cancel_rollback();
 #endif
 
-  ProtoHooks ph{hookStatus, hookConfigWrite, hookCardPreview, hookApStart,
+  ProtoHooks ph{hookStatus, hookConfigWrite, hookCardPreview, hookContentPush, hookApStart,
                 hookFactoryCheck, hookReboot, hookFactoryReset};
   protocolBegin(ph);
   PortalHooks poh{hookStatus, hookConfigWrite, []() {
@@ -300,9 +330,13 @@ void loop() {
         renderCard(current_card, content, st); // credentials on screen
       }
     } else {
-      current_card = (ev == ButtonEvent::D1_SHORT) ? "build"
-                     : (ev == ButtonEvent::D4_SHORT) ? "yours"
-                                                     : "brief";
+      if (ev == ButtonEvent::D1_SHORT) {
+        current_card = "build";
+      } else if (ev == ButtonEvent::D4_SHORT) {
+        current_card = "yours";
+      } else {
+        current_card = contentHasDash(content) ? "dash" : "brief";
+      }
       refreshStatus();
       renderCard(current_card, content, st);
     }

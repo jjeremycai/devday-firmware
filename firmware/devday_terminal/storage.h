@@ -6,7 +6,7 @@
 // never returned over the serial protocol or logged.
 struct DeviceConfig {
   String device_name;
-  String startup_card;   // "build" | "brief" | "yours"
+  String startup_card;   // "build" | "brief" | "yours" | "dash"
   String wifi_ssid;
   String wifi_password;  // write-only over the protocol
   String content_url;    // optional HTTPS endpoint

@@ -29,7 +29,7 @@ section{border-top:1px solid #ddd;margin-top:2rem;padding-top:1rem}
 <form id="cfg">
 <label>Device name</label><input name="device_name">
 <label>Startup card</label><select name="startup_card">
-<option value="build">Build</option><option value="brief" selected>Brief</option><option value="yours">Yours</option></select>
+<option value="build">Build</option><option value="brief" selected>Brief</option><option value="dash">Dash</option><option value="yours">Yours</option></select>
 <label>Wi-Fi SSID (2.4 GHz)</label><input name="wifi_ssid">
 <label>Wi-Fi password</label><input name="wifi_password" type="password">
 <label>Content URL (HTTPS, optional)</label><input name="content_url" placeholder="https://">

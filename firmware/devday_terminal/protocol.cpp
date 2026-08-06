@@ -21,14 +21,6 @@ static void respond(bool ok, const JsonVariant& id, JsonObject data, const char*
   Serial.print('\n');
 }
 
-static void sendEvent(const char* event) {
-  JsonDocument out;
-  out["v"] = PROTOCOL_VERSION;
-  out["event"] = event;
-  serializeJson(out, Serial);
-  Serial.print('\n');
-}
-
 static void dispatch(JsonDocument& req) {
   JsonVariant id = req["id"];
   String cmd = req["cmd"] | "";
@@ -54,6 +46,20 @@ static void dispatch(JsonDocument& req) {
       respond(true, id, JsonObject(), nullptr, "");
     } else {
       respond(false, id, JsonObject(), err.length() ? err.c_str() : "bad_params", "unknown card");
+    }
+  } else if (cmd == "content.push") {
+    String err;
+    String show = params["show"] | "dash";
+    if (params["payload"].isNull()) {
+      respond(false, id, JsonObject(), "bad_params", "payload object required");
+    } else {
+      String payload;
+      serializeJson(params["payload"], payload);
+      if (hooks_.content_push && hooks_.content_push(payload, show, err)) {
+        respond(true, id, JsonObject(), nullptr, "");
+      } else {
+        respond(false, id, JsonObject(), err.length() ? err.c_str() : "failed", "content.push failed");
+      }
     }
   } else if (cmd == "ap.start") {
     JsonDocument data;
@@ -82,7 +88,8 @@ static void dispatch(JsonDocument& req) {
 
 void protocolBegin(const ProtoHooks& hooks) {
   hooks_ = hooks;
-  line_.reserve(1024);
+  // Large enough for content.push with a 72×72 1-bit avatar hex blob.
+  line_.reserve(14000);
 }
 
 void protocolPoll() {
@@ -105,7 +112,7 @@ void protocolPoll() {
       }
       dispatch(req);
     } else {
-      if (line_.length() < 4096) line_ += ch;
+      if (line_.length() < 16000) line_ += ch;
       else line_ = ""; // runaway line; drop it
     }
   }
