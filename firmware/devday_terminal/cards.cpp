@@ -95,7 +95,7 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
 
   // Battery / display / connection self-report block.
   epaper.setFreeFont(&FreeSans9pt7b);
-  int16_t y = 340;
+  int16_t y = 324;
   epaper.drawString("firmware  " FW_NAME " v" FW_VERSION " (" + st.fw_hash + ")", MARGIN, y, GFXFF);
   epaper.drawString("battery   " + String(st.battery_v, 2) + " V (" + String(st.battery_pct) + "%)", MARGIN, y + 28, GFXFF);
   epaper.drawString("display   UC8179 800x480  combo 502", MARGIN, y + 56, GFXFF);
@@ -124,9 +124,11 @@ static void renderBrief(const CardContent& c, const RenderStatus& st) {
     y += 46;
   }
 
-  epaper.setFreeFont(&FreeSans12pt7b);
-  epaper.setTextDatum(BR_DATUM);
-  epaper.drawString(c.brief_footer, W - MARGIN, H - 58, GFXFF);
+  if (st.ap_hint.length() == 0) {
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.setTextDatum(BR_DATUM);
+    epaper.drawString(c.brief_footer, W - MARGIN, H - 58, GFXFF);
+  }
 
   apHint(st);
   pageTabs("brief");
@@ -156,13 +158,14 @@ static void renderYours(const CardContent&, const RenderStatus& st) {
 
   epaper.setFreeFont(&FreeSans12pt7b);
   int16_t y = 180;
-  epaper.drawString("Flash your own firmware over USB - no keys, no locks.", MARGIN, y, GFXFF);
-  epaper.drawString("Scan the code for the hardware recipe:", MARGIN, y + 40, GFXFF);
-  epaper.drawString("parts, wiring, and the exact Arduino + Codex", MARGIN, y + 80, GFXFF);
-  epaper.drawString("recipe to build and flash a replacement app.", MARGIN, y + 112, GFXFF);
+  epaper.drawString("Flash your own firmware over USB -", MARGIN, y, GFXFF);
+  epaper.drawString("no keys, no locks.", MARGIN, y + 32, GFXFF);
+  epaper.drawString("Scan the code for the hardware recipe:", MARGIN, y + 76, GFXFF);
+  epaper.drawString("parts, wiring, and the exact Arduino +", MARGIN, y + 108, GFXFF);
+  epaper.drawString("Codex recipe to build a replacement app.", MARGIN, y + 140, GFXFF);
 
   epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.drawString(RECIPE_URL, MARGIN, y + 170, GFXFF);
+  epaper.drawString(RECIPE_URL, MARGIN, y + 186, GFXFF);
 
   drawQr(W - MARGIN - 37 * 6, 100, 6);
 
@@ -315,7 +318,7 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.setTextDatum(TL_DATUM);
   }
 
-  // Weather, top-right, with its own divider so it never crowds the name.
+  // Weather, top-right — glanceable before you leave.
   if (c.dash_weather_temp.length() > 0) {
     int16_t wx = W - MARGIN;
     epaper.setFreeFont(&FreeSansBold24pt7b);
@@ -323,10 +326,6 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.drawString(c.dash_weather_temp, wx, 66, GFXFF);
     epaper.setFreeFont(&FreeSans12pt7b);
     epaper.drawString(c.dash_weather_detail, wx, 118, GFXFF);
-    int16_t tw = epaper.textWidth(c.dash_weather_detail, GFXFF);
-    int16_t temp_w = epaper.textWidth(c.dash_weather_temp, GFXFF);
-    if (temp_w > tw) tw = temp_w;
-    epaper.drawFastVLine(wx - tw - 24, 66, 78, TFT_BLACK);
   }
 
   epaper.drawFastHLine(MARGIN, 160, W - 2 * MARGIN, TFT_BLACK);
@@ -355,13 +354,13 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
   if (c.dash_insight_left.length()) {
-    epaper.drawString(c.dash_insight_left, MARGIN, 418, GFXFF);
+    epaper.drawString(c.dash_insight_left, MARGIN, 412, GFXFF);
   }
   epaper.setTextDatum(TR_DATUM);
   if (c.dash_insight_right.length()) {
-    epaper.drawString(c.dash_insight_right, W - MARGIN, 418, GFXFF);
+    epaper.drawString(c.dash_insight_right, W - MARGIN, 412, GFXFF);
   } else {
-    epaper.drawString("updates when you plug in", W - MARGIN, 418, GFXFF);
+    epaper.drawString("updates when you plug in", W - MARGIN, 412, GFXFF);
   }
 
   pageTabs("dash");

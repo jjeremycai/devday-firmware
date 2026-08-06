@@ -471,15 +471,12 @@ def fetch_weather(
     daily = data["daily"]
     temp = f"{round(cur['temperature_2m'])}°"
     condition = wmo.get(cur["weather_code"], "Weather")
+    # Short detail: the dash shows it next to the name/handle row.
     detail = (
         f"{condition} · "
         f"H{round(daily['temperature_2m_max'][0])}° "
         f"L{round(daily['temperature_2m_min'][0])}°"
     )
-    # Prefer a short city label on the detail line when space allows.
-    if label and not label[0].isdigit() and "," in label:
-        city = label.split(",", 1)[0].strip()
-        detail = f"{condition} · {city} · H{round(daily['temperature_2m_max'][0])}° L{round(daily['temperature_2m_min'][0])}°"
     return temp, detail, label
 
 
