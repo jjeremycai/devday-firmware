@@ -276,13 +276,20 @@
       <li>Set the display jumper to <b>24Pin–GND</b>.</li>
       <li>Connect the battery to the JST header (red = +, black = −).</li>
       <li>Plug the XIAO ESP32-S3 Plus into the driver board and connect USB-C.</li>
-        <li>Run <code>tools/dash_sync.py --install</code> once. After that, plugging in auto-refreshes usage and weather.</li>
+        <li>Plug into your laptop and ask Codex <em>"set up my Dev Day terminal"</em>. It reads the
+            Codex install already signed in on your machine and pushes your pet, usage and weather
+            over USB — no account, no permission prompt. After that, plugging in refreshes on its own.</li>
     </ol>
   </div>
 
   <h2>Make it yours</h2>
   <div class="panel">
-    <p>Raw USB flashing is unrestricted. Ask Codex to replace the factory app anytime.</p>
+    <p>Nothing here is locked. Swap the pet:</p>
+    <pre>tools/dash_sync.py --pet dewey            # a built-in companion
+tools/dash_sync.py --pet ~/.codex/pets/mypet</pre>
+    <p>Redraw a page in <code>firmware/cards.cpp</code> and preview it without a device
+       (<code>tools/preview/build.sh</code>), or replace the factory app outright — raw USB
+       flashing is unrestricted:</p>
     <pre>arduino-cli compile -b esp32:esp32:XIAO_ESP32S3_Plus MyApp
 arduino-cli upload  -b esp32:esp32:XIAO_ESP32S3_Plus -p PORT MyApp</pre>
   </div>

@@ -1,8 +1,16 @@
 # Dev Day E-Ink Terminal — Factory Firmware
 
 Mass-production firmware RC for the 7.5" (OG) DIY Kit: XIAO ESP32-S3
-Plus driving an 800×480 UC8179 e-paper, Arduino framework. Boots usefully
-without Wi-Fi and invites the attendee to **teach it a job**.
+Plus driving an 800×480 UC8179 e-paper, Arduino framework.
+
+It arrives already doing something: assemble it, and it shows a Codex pet,
+your token usage, the weather, and your day. Then **make it yours** — swap the
+pet, redraw a page, or replace the firmware outright. Nothing is locked; USB
+flashing is unrestricted and the whole sketch is in this repo.
+
+Plug it into a laptop and ask Codex *"set up my Dev Day terminal"* — it reads
+the Codex install already signed in on your machine and pushes your real pet
+and usage over USB. No account to create, no permission prompt.
 
 **Usage · Weather · Agenda** — three pages on the first three buttons,
 numbered 1-3 (KEY1 / KEY2 / KEY3) left to right. Press and release to switch;

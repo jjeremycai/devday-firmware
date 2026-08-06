@@ -27,7 +27,7 @@ void contentDefaults(CardContent& c, const String& device_name) {
   (void)device_name;
   c.build_state = "ready";
   c.build_title = "Factory firmware " FW_VERSION;
-  c.build_detail = "Flashed at the Seeed line. Connect over USB to teach it a job.";
+  c.build_detail = "Flashed at the Seeed line. Connect over USB and make it yours.";
   c.build_updated_at = "";
 
   c.dash_present = false;

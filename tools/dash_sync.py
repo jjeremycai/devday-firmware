@@ -581,7 +581,32 @@ def open_serial(port: str):
     # which resets the ESP32-S3 USB-Serial/JTAG target; wait out the full boot
     # so the first request isn't sent to the ROM bootloader.
     time.sleep(2.5)
+
+    # Flushing our own buffers says nothing about the device's. If a previous
+    # session died mid-line, those bytes are still sitting in the firmware's
+    # line accumulator and would prefix our first request, which then comes
+    # back as bad_json against an id we never sent. A bare newline closes that
+    # partial line; the error it may produce is drained below.
+    os.write(fd, b"\n")
+    time.sleep(0.3)
+    while True:
+        try:
+            if not os.read(fd, 4096):
+                break
+        except BlockingIOError:
+            break
+        except OSError:
+            break
     return fd
+
+
+# The firmware drains USB a few bytes at a time from loop(), between a Wi-Fi
+# poll, a button scan and a portal tick. Handed a few KB in one write, the
+# device's receive buffer overruns and the line arrives truncated — the request
+# then never matches a response and the push times out. Pacing costs about
+# 60 ms for a full payload and makes the transfer reliable.
+SERIAL_CHUNK = 256
+SERIAL_CHUNK_PAUSE_S = 0.004
 
 
 def serial_write_line(fd: int, line: str) -> None:
@@ -589,7 +614,7 @@ def serial_write_line(fd: int, line: str) -> None:
     total = 0
     while total < len(data):
         try:
-            n = os.write(fd, data[total:])
+            n = os.write(fd, data[total : total + SERIAL_CHUNK])
         except BlockingIOError:
             time.sleep(0.01)
             continue
@@ -597,6 +622,8 @@ def serial_write_line(fd: int, line: str) -> None:
             time.sleep(0.01)
             continue
         total += n
+        if total < len(data):
+            time.sleep(SERIAL_CHUNK_PAUSE_S)
 
 
 def serial_read_line(fd: int, timeout_s: float = 20.0) -> str:
