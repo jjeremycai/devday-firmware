@@ -349,6 +349,8 @@ void loop() {
   }
 
   if (Serial.available()) last_activity_ms = millis();
+  // Keep USB plugged dev units awake for testing — Serial true when host has CDC open
+  bool usbStayAwake = (bool)Serial;
 
   if (reboot_pending) {
     delay(200);
@@ -357,7 +359,7 @@ void loop() {
 
   bool idle_expired = millis() - last_activity_ms > AWAKE_IDLE_MS;
   bool min_awake_done = millis() > MIN_AWAKE_MS;
-  if (min_awake_done && idle_expired && !portalActive() && !protocolUsbActive() &&
+  if (min_awake_done && idle_expired && !portalActive() && !protocolUsbActive() && !usbStayAwake &&
       netCycleComplete()) {
     goToSleep();
   }
