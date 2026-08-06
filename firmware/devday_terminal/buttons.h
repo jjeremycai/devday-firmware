@@ -6,7 +6,7 @@
 // 1 (D1) Usage · 2 (D2) Weather · 3 (D3) Agenda · 4 (D4) Quote.
 enum class ButtonEvent : uint8_t {
   NONE,
-  B1,  // Usage page (Agenda until dash pushed)
+  B1,  // Usage page (empty state until dash pushed)
   B2,  // Weather page
   B3,  // Agenda page
   B4,  // Quote page

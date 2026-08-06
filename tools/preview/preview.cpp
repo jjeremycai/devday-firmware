@@ -26,6 +26,13 @@ int main(int argc, char** argv) {
     printf("wrote %s\n", path);
   }
 
+  // Usage empty state: no dash payload yet (what a fresh device shows on KEY1).
+  content.dash_present = false;
+  content.dash_name = "";
+  renderCard("dash", content, st);
+  epaperDumpPgm((std::string(out_dir) + "/dash_empty.pgm").c_str());
+  printf("wrote %s/dash_empty.pgm\n", out_dir);
+
   // AP-portal variant: credentials overlay on the brief page.
   st.ap_hint = "AP DevDay-7F3A   pass kx29-vq41-pz82   open http://192.168.4.1";
   renderCard("brief", content, st);

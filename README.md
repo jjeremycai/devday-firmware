@@ -12,8 +12,8 @@ refresh. Quote killed — 3 pages matches 3-key hardware (no KEY4).
 
 - **1 → Usage** — Codex profile, weather, token chart (pushed over USB from
   the companion page the moment you plug in — no native install, `--offline`
-  works with no Wi-Fi: local usage only, monogram instead of avatar). Falls
-  back to **Agenda** until a dash payload arrives.
+  works with no Wi-Fi: local usage only, monogram instead of avatar). Shows
+  an empty state until a dash payload arrives.
 - **2 → Weather** — today's forecast: current conditions, morning /
   afternoon / evening cards, and a 24-hour temperature strip (synced with
   the dash payload; shows "No forecast yet" placeholder until first sync).

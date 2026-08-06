@@ -85,18 +85,28 @@ static void pageTabs(const char* current) {
 #endif
 }
 
+// Battery gauge: outline + nub, fill level = charge percent.
+static void drawBatteryIcon(int16_t x, int16_t y, uint8_t pct) {
+#ifdef EPAPER_ENABLE
+  epaper.drawRect(x, y, 18, 11, TFT_BLACK);
+  epaper.fillRect(x + 19, y + 3, 2, 5, TFT_BLACK); // nub
+  if (pct > 100) pct = 100;
+  int16_t fill = (int16_t)((uint16_t)pct * 14 / 100);
+  if (fill > 0) epaper.fillRect(x + 2, y + 2, fill, 7, TFT_BLACK);
+#endif
+}
+
 static void header(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  // Blossom icon at top-left, then device name — no tab title in the bar
+  // Blossom icon at top-left; date + battery gauge at right — no device name
   drawBlossomIcon(MARGIN, 8);
-  epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(st.device_name, MARGIN + 30, 12, GFXFF);
   String right = "";
   if (c.header_date.length()) right = c.header_date + "  ";
   right += String(st.battery_pct) + "%";
+  epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(right, W - MARGIN, 12, GFXFF);
+  epaper.drawString(right, W - MARGIN - 26, 12, GFXFF);
+  drawBatteryIcon(W - MARGIN - 23, 11, st.battery_pct);
   // brutalist hairline + 1px double-rule for density
   epaper.drawFastHLine(MARGIN, 42, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 44, W - 2 * MARGIN, TFT_BLACK);
@@ -416,7 +426,7 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
     epaper.setTextDatum(MC_DATUM);
     epaper.drawString("No forecast", W / 2, 198, GFXFF);
     epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.drawString("Weather syncs with dash — plug USB: tools/dash_sync.py", W / 2, 236, GFXFF);
+    epaper.drawString("Weather syncs with usage — plug USB: tools/dash_sync.py", W / 2, 236, GFXFF);
     epaper.drawString("or push weather via content.push  weather.segments[]", W / 2, 258, GFXFF);
     epaper.drawRoundRect(W/2 - 90, 284, 180, 28, 4, TFT_BLACK);
     epaper.drawString("KEY1 USAGE  •  KEY3 AGENDA", W/2, 298, GFXFF);
@@ -625,9 +635,10 @@ static constexpr uint8_t SPLASH_COLS = 40;
 
 static void renderSplash() {
 #ifdef EPAPER_ENABLE
-  const int16_t cell_w = 15, cell_h = 23;
+  const int16_t cell_w = 15, cell_h = 21;
+  const int16_t footer_h = 42; // gap + unlock pill
   const int16_t x0 = (W - SPLASH_COLS * cell_w) / 2;
-  const int16_t y0 = (H - SPLASH_ROWS * cell_h) / 2;
+  const int16_t y0 = (H - SPLASH_ROWS * cell_h - footer_h) / 2;
   epaper.setFreeFont(&FreeMono12pt7b);
   for (uint8_t r = 0; r < SPLASH_ROWS; r++) {
     const char* line = kSplashArt[r];
@@ -639,20 +650,34 @@ static void renderSplash() {
       epaper.drawString(glyph, x0 + c * cell_w + (cell_w - gw) / 2, y0 + r * cell_h, GFXFF);
     }
   }
+  const int16_t pill_y = y0 + SPLASH_ROWS * cell_h + 12;
+  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setTextDatum(MC_DATUM);
+  epaper.drawRoundRect(W / 2 - 130, pill_y, 260, 30, 4, TFT_BLACK);
+  epaper.drawString("PRESS ANY BUTTON TO UNLOCK", W / 2, pill_y + 15, GFXFF);
 #endif
 }
 
 static void renderDash(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  drawBlossomIcon(MARGIN, 6);
-  epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(st.device_name, MARGIN + 30, 10, GFXFF);
-  String dashRight = "";
-  if (c.header_date.length()) dashRight = c.header_date + "  ";
-  dashRight += String(st.battery_pct) + "%";
-  epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(dashRight, W - MARGIN, 10, GFXFF);
+  if (!contentHasDash(c)) {
+    header(c, st);
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.setTextDatum(TL_DATUM);
+    epaper.drawString("USAGE", MARGIN, 86, GFXFF);
+    epaper.drawFastHLine(MARGIN, 108, 48, TFT_BLACK);
+    epaper.setFreeFont(&FreeSans18pt7b);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("No usage yet", W / 2, 198, GFXFF);
+    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.drawString("Usage syncs over USB — plug in: the web-emulator page or tools/dash_sync.py", W / 2, 236, GFXFF);
+    epaper.drawString("or push content via content.push  dash.name + metrics", W / 2, 258, GFXFF);
+    epaper.drawRoundRect(W/2 - 110, 284, 220, 32, 4, TFT_BLACK);
+    epaper.drawString("KEY2 WEATHER  •  KEY3 AGENDA", W/2, 300, GFXFF);
+    pageTabs("dash");
+    return;
+  }
+  header(c, st);
 
   const int16_t avatar_cx = MARGIN + 40;
   const int16_t avatar_cy = 100;
@@ -754,7 +779,7 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   else if (card == "agenda") renderAgenda(content, status);
   // quote killed — mapped to agenda for back-compat
   else if (card == "quote") renderAgenda(content, status);
-  else if (card == "dash" && contentHasDash(content)) renderDash(content, status);
+  else if (card == "dash") renderDash(content, status);
   else if (contentHasDash(content)) renderDash(content, status);
   else renderAgenda(content, status);
   epaper.update();

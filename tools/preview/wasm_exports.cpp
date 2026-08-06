@@ -48,7 +48,7 @@ extern "C" int emu_pin(int pin, int down, uint32_t ms) {
   ButtonEvent ev = buttonsPoll();
   if (ev == ButtonEvent::NONE) return 0;
   if (ev == ButtonEvent::B1) {
-    g_card = contentHasDash(g_content) ? "dash" : "agenda";
+    g_card = "dash";
   } else if (ev == ButtonEvent::B2) {
     g_card = "weather";
   } else if (ev == ButtonEvent::B3) {

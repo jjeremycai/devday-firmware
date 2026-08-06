@@ -13,8 +13,8 @@ unit eFuse MAC from `factory.check.serial`.
 
 ## 2. Cold boot (no Wi-Fi configured)
 
-- [ ] Very first boot shows the ASCII OpenAI blossom splash; any button
-      press moves to the pages below
+- [ ] Very first boot shows the ASCII OpenAI blossom splash with a
+      "PRESS ANY BUTTON TO UNLOCK" pill; any button press moves to the pages below
 - [ ] Useful screen within **8 seconds** of USB power: Build/Brief card with
       `READY`, firmware version/hash, battery voltage, connection `Offline`
 - [ ] Full refresh is clean: no ghosting, no torn regions, borders aligned
@@ -24,7 +24,7 @@ unit eFuse MAC from `factory.check.serial`.
 
 Press-and-release; hold length must not change the result.
 
-- [ ] **1 (D1)** → Usage card (Agenda until a dash payload has been pushed)
+- [ ] **1 (D1)** → Usage card (empty state until a dash payload has been pushed)
 - [ ] **2 (D2)** → Weather card (forecast once a payload has been pushed,
       otherwise the "No forecast yet" empty state)
 - [ ] **3 (D3)** → Brief card ("Teach it a job"); no false triggers during

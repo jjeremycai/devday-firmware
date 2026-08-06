@@ -140,10 +140,6 @@ static bool hookCardPreview(const String& card, String& err_code) {
     err_code = "bad_params";
     return false;
   }
-  if (card == "dash" && !contentHasDash(content)) {
-    err_code = "bad_params";
-    return false;
-  }
   current_card = card;
   refreshStatus();
   renderCard(current_card, content, st);
@@ -164,7 +160,6 @@ static bool hookContentPush(const String& payload, const String& show_card, Stri
   cacheWriteContent(payload, "");
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
-  if (card == "dash" && !contentHasDash(content)) card = "agenda";
   if (card == "quote" || card == "brief") card = "agenda";
   if (card != "build" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
     err_code = "bad_params";
@@ -258,7 +253,7 @@ static void goToSleep() {
 static String wakeCard() {
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return "";
   uint64_t status = esp_sleep_get_ext1_wakeup_status();
-  if (status & (1ULL << PIN_BUTTON_D1)) return contentHasDash(content) ? "dash" : "agenda";
+  if (status & (1ULL << PIN_BUTTON_D1)) return "dash";
   if (status & (1ULL << PIN_BUTTON_D2)) return "weather";
   if (status & (1ULL << PIN_BUTTON_D4)) return "agenda";
   return "";
@@ -329,7 +324,7 @@ void loop() {
   if (ev != ButtonEvent::NONE) {
     last_activity_ms = millis();
     if (ev == ButtonEvent::B1) {
-      current_card = contentHasDash(content) ? "dash" : "agenda";
+      current_card = "dash";
     } else if (ev == ButtonEvent::B2) {
       current_card = "weather";
     } else if (ev == ButtonEvent::B3) {
@@ -350,16 +345,10 @@ void loop() {
   }
 
   if (Serial.available()) last_activity_ms = millis();
-  // Stay awake when USB is plugged for power (VBUS). Serial alone is DTR-only,
-  // so also check TinyUSB VBUS state via weak symbols if available.
-  bool usbStayAwake = (bool)Serial;
-  {
-    // tud_connected/tud_mounted are weak in TinyUSB — check via dlsym-style weak refs
-    extern bool tud_connected(void) __attribute__((weak));
-    extern bool tud_mounted(void) __attribute__((weak));
-    if (tud_connected && tud_connected()) usbStayAwake = true;
-    if (tud_mounted && tud_mounted()) usbStayAwake = true;
-  }
+  // Stay awake while USB is attached to a live host (SOF present), even when
+  // no program has the serial port open. isPlugged() wraps the IDF
+  // usb_serial_jtag_is_connected() SOF check; (bool)Serial covers host-open.
+  bool usbStayAwake = Serial.isPlugged() || (bool)Serial;
 
   if (reboot_pending) {
     delay(200);

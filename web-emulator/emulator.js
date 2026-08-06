@@ -136,7 +136,7 @@ function applyJson(text) {
   if (Array.isArray(w.hours)) api.emu_set_wx_hours_csv(w.hours.join(","));
   if (w.hour_now != null) api.emu_set("wx_hour_now", String(w.hour_now));
 
-  render(api.emu_has_dash() ? "dash" : "brief");
+  render("dash");
 }
 
 function initEmu() {
