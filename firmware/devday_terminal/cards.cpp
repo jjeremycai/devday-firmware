@@ -13,6 +13,30 @@
 static EPaper epaper = EPaper();
 #endif
 
+// 16×16 Blossom (OpenAI) — 1-bit, 6 petals around center, small white core
+static void drawBlossomIcon(int16_t x0, int16_t y0, int16_t sz = 16) {
+#ifdef EPAPER_ENABLE
+  int16_t cx = x0 + sz/2;
+  int16_t cy = y0 + sz/2;
+  int16_t pr = sz * 5 / 16; // petal radius
+  int16_t cr = sz * 3 / 16; // center inner radius
+  int16_t dist = sz * 6 / 16; // petal distance from center
+  // 6 petals at 60° increments, precomputed for r≈6
+  const int8_t dx[6] = { 0,  5,  5,  0, -5, -5 };
+  const int8_t dy[6] = {-6, -3,  3,  6,  3, -3 };
+  // scale dx/dy if sz !=16
+  for (uint8_t i=0;i<6;i++) {
+    int16_t px = cx + (dx[i] * dist) / 6;
+    int16_t py = cy + (dy[i] * dist) / 6;
+    int16_t rad = pr * (dx[i]==0 ? 10 : 9) / 10; // slight vertical elongation
+    epaper.fillCircle(px, py, rad, TFT_BLACK);
+  }
+  epaper.fillCircle(cx, cy, cr + 2, TFT_WHITE);
+  epaper.fillCircle(cx, cy, cr, TFT_BLACK);
+  epaper.fillCircle(cx, cy, 1, TFT_WHITE);
+#endif
+}
+
 static constexpr int16_t W = 800;
 static constexpr int16_t H = 480;
 static constexpr int16_t MARGIN = 28;
@@ -21,7 +45,7 @@ static constexpr int16_t MARGIN = 28;
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
   static const char* kIds[3] = {"dash", "weather", "agenda"};
-  static const char* kLabels[3] = {"1  DASH", "2 WEATHER", "3 AGENDA"};
+  static const char* kLabels[3] = {"1  CODEX", "2 WEATHER", "3 AGENDA"};
   const int16_t tw = 210, th = 28, gap = 14;
   const int16_t total = 3 * tw + 2 * gap;
   int16_t x = (W - total) / 2;
@@ -46,9 +70,11 @@ static void pageTabs(const char* current) {
 
 static void header(const CardContent& c, const RenderStatus& st, const char* card_label) {
 #ifdef EPAPER_ENABLE
+  // Blossom icon at top-left, then device name
+  drawBlossomIcon(MARGIN, 10, 16);
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(st.device_name, MARGIN, 20, GFXFF);
+  epaper.drawString(st.device_name, MARGIN + 22, 20, GFXFF);
   if (card_label) {
     String lab = card_label; lab.toUpperCase();
     epaper.setTextDatum(TC_DATUM);
@@ -559,10 +585,10 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
 
 static void renderDash(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  // Quiet masthead — consistent with other cards: date + battery on right, connection subtle later.
+  drawBlossomIcon(MARGIN, 8, 16);
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(st.device_name, MARGIN, 18, GFXFF);
+  epaper.drawString(st.device_name, MARGIN + 22, 18, GFXFF);
   String dashRight = "";
   if (c.header_date.length()) dashRight = c.header_date + "  ";
   dashRight += String(st.battery_pct) + "%";
