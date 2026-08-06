@@ -40,6 +40,14 @@
 
 ### Fixed
 
+- The terminal could deep-sleep while still plugged in. `isPlugged()` is a
+  recency check on USB SOF packets and the sleep path believed a single
+  sample, so a host suspending an idle port — or the re-enumeration after the
+  DTR pulse macOS sends on open — could strand the device for a full refresh
+  interval. USB presence is now latched: sleep only after 60 s of continuous
+  absence. `status` gained `usb_plugged` and `usb_seen_s_ago` to tell a real
+  unplug from a dropped SOF.
+
 - Boot factory reset (**D1+D4**) did nothing: it ran before `storageBegin()`,
   so `prefs.clear()` hit an unopened Preferences handle and the cache clear hit
   an unmounted filesystem.

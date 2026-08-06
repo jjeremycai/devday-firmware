@@ -43,8 +43,14 @@ Live device state.
 
 `data`: `fw`, `fw_hash` (sketch MD5), `name`, `startup_card`, `wifi_ssid`,
 `content_url`, `refresh_minutes`, `card`, `battery_v`, `battery_pct`,
-`connection`, `usb`, `uptime_s`, `boots`, `ap` (`active`, plus `ssid`, `ip`,
-`remaining_s` while the portal is up).
+`connection`, `usb`, `usb_plugged`, `usb_seen_s_ago`, `uptime_s`, `boots`,
+`ap` (`active`, plus `ssid`, `ip`, `remaining_s` while the portal is up).
+
+`usb` is whether a host has the serial port open; `usb_plugged` is the raw USB
+SOF check; `usb_seen_s_ago` is how long ago USB was last seen (`-1` if never
+this boot). The device stays awake until USB has been absent for 60 s, so
+`usb_seen_s_ago` above zero while `usb_plugged` is true means the host is
+dropping SOF on an idle port rather than the cable being at fault.
 
 ### `config.write`
 
