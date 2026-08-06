@@ -17,19 +17,19 @@ static constexpr int16_t W = 800;
 static constexpr int16_t H = 480;
 static constexpr int16_t MARGIN = 36;
 
-// Page-tab strip shared by every card: the four page buttons, current one
-// inverted. Buttons are numbered 1-4 (D1/D2/D3/D4) left to right.
+// Page-tab strip shared by every card: the three page buttons, current one
+// inverted. Buttons are numbered 1-3 (KEY1/KEY2/KEY3) left to right. Quote killed.
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
-  static const char* kIds[4] = {"dash", "weather", "agenda", "quote"};
-  static const char* kLabels[4] = {"1  DASH", "2  WEATHER", "3  AGENDA", "4  QUOTE"};
-  const int16_t tw = 156, th = 32, gap = 12;
-  const int16_t total = 4 * tw + 3 * gap;
+  static const char* kIds[3] = {"dash", "weather", "agenda"};
+  static const char* kLabels[3] = {"1  DASH", "2  WEATHER", "3  AGENDA"};
+  const int16_t tw = 200, th = 32, gap = 16;
+  const int16_t total = 3 * tw + 2 * gap;
   int16_t x = (W - total) / 2;
   const int16_t y = H - 12 - th;
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(MC_DATUM);
-  for (uint8_t i = 0; i < 4; i++) {
+  for (uint8_t i = 0; i < 3; i++) {
     bool active = current != nullptr && strcmp(current, kIds[i]) == 0;
     if (active) {
       epaper.fillRoundRect(x, y, tw, th, 6, TFT_BLACK);
@@ -159,8 +159,8 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
   epaper.drawString(c.agenda_date, MARGIN, 70, GFXFF);
   epaper.drawFastHLine(MARGIN, 94, W - 2 * MARGIN, TFT_BLACK);
 
-  const int16_t row_h = 78;
-  const int16_t gap = 10;
+  const int16_t row_h = 68;
+  const int16_t gap = 8;
   int16_t y = 108;
   for (size_t i = 0; i < c.agenda_count && i < CardContent::AGENDA_MAX; i++) {
     int16_t ry = y + (int16_t)i * (row_h + gap);
@@ -633,7 +633,8 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   else if (card == "brief") renderBrief(content, status);
   else if (card == "weather") renderWeather(content, status);
   else if (card == "agenda") renderAgenda(content, status);
-  else if (card == "quote") renderQuote(content, status);
+  // quote killed — mapped to agenda for back-compat
+  else if (card == "quote") renderAgenda(content, status);
   else if (card == "dash" && contentHasDash(content)) renderDash(content, status);
   else if (contentHasDash(content)) renderDash(content, status);
   else renderAgenda(content, status);

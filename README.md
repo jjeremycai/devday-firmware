@@ -4,10 +4,11 @@ Mass-production firmware RC for the 7.5" (OG) DIY Kit: XIAO ESP32-S3
 Plus driving an 800×480 UC8179 e-paper, Arduino framework. Boots usefully
 without Wi-Fi and invites the attendee to **teach it a job**.
 
-**Dash · Weather · Agenda · Quote** — four pages on four buttons, numbered 1-4
-(D1 / D2 / D3 / D4) left to right. Press and release to switch; hold length
-doesn't matter. D3 shares GPIO4 with the display BUSY line, so it doesn't
-wake the device from sleep and is ignored for a moment after each refresh.
+**Dash · Weather · Agenda** — three pages on three buttons, numbered 1-3
+(KEY1 / KEY2 / KEY3) left to right. Press and release to switch; hold length
+doesn't matter. KEY3 (D3) shares GPIO4 with the display BUSY line, so it
+doesn't wake the device from sleep and is ignored for ~1.2s after each
+refresh. Quote killed — 3 pages matches 3-key hardware (no KEY4).
 
 - **1 → Dash** — Codex profile, weather, token chart (pushed over USB from
   the companion page the moment you plug in — no native install, `--offline`
@@ -18,10 +19,8 @@ wake the device from sleep and is ignored for a moment after each refresh.
   the dash payload; shows "No forecast yet" placeholder until first sync).
 - **3 → Agenda** — today's agenda: time + title + detail rows (pre-installed
   example app, push your calendar via `content.push`).
-- **4 → Quote** — quote of the day with author/source (pre-installed
-  example app, push via `content.push`).
 
-The on-screen tab strip shows all four pages with the current one inverted.
+The on-screen tab strip shows all three pages with the current one inverted.
 The factory **Build** diagnostics page is still renderable via
 `card.preview` over USB (used by the line test).
 

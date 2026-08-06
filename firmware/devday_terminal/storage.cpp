@@ -40,8 +40,7 @@ DeviceConfig configLoad() {
   cfg.refresh_minutes = prefs.getUShort("refresh", DEFAULT_REFRESH_MINUTES);
   cfg.wifi_configured = prefs.getBool("wifi_cfg", cfg.wifi_ssid.length() > 0);
   if (cfg.startup_card != "build" && cfg.startup_card != "brief" && cfg.startup_card != "yours" &&
-      cfg.startup_card != "dash" && cfg.startup_card != "weather" && cfg.startup_card != "agenda" &&
-      cfg.startup_card != "quote") {
+      cfg.startup_card != "dash" && cfg.startup_card != "weather" && cfg.startup_card != "agenda") {
     cfg.startup_card = "agenda";
   }
   if (cfg.refresh_minutes == 0) cfg.refresh_minutes = DEFAULT_REFRESH_MINUTES;

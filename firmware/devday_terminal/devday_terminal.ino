@@ -136,7 +136,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
 }
 
 static bool hookCardPreview(const String& card, String& err_code) {
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda" && card != "quote") {
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
     err_code = "bad_params";
     return false;
   }
@@ -165,7 +165,8 @@ static bool hookContentPush(const String& payload, const String& show_card, Stri
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
   if (card == "dash" && !contentHasDash(content)) card = "agenda";
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda" && card != "quote") {
+  if (card == "quote") card = "agenda";
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
     err_code = "bad_params";
     return false;
   }
@@ -259,7 +260,7 @@ static String wakeCard() {
   uint64_t status = esp_sleep_get_ext1_wakeup_status();
   if (status & (1ULL << PIN_BUTTON_D1)) return contentHasDash(content) ? "dash" : "agenda";
   if (status & (1ULL << PIN_BUTTON_D2)) return "weather";
-  if (status & (1ULL << PIN_BUTTON_D4)) return "quote";
+  if (status & (1ULL << PIN_BUTTON_D4)) return "agenda";
   return "";
 }
 
@@ -333,7 +334,8 @@ void loop() {
     } else if (ev == ButtonEvent::B3) {
       current_card = "agenda";
     } else {
-      current_card = "quote";
+      // B4 / quote killed — map to agenda for back-compat
+      current_card = "agenda";
     }
     refreshStatus();
     renderCard(current_card, content, st);
