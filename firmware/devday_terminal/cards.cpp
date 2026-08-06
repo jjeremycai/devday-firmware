@@ -45,7 +45,7 @@ static constexpr int16_t MARGIN = 28;
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
   static const char* kIds[3] = {"dash", "weather", "agenda"};
-  static const char* kLabels[3] = {"1  CODEX", "2 WEATHER", "3 AGENDA"};
+  static const char* kLabels[3] = {"1  DASH", "2 WEATHER", "3 AGENDA"};
   const int16_t tw = 210, th = 28, gap = 14;
   const int16_t total = 3 * tw + 2 * gap;
   int16_t x = (W - total) / 2;
