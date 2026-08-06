@@ -13,6 +13,11 @@ void netBegin(const DeviceConfig& cfg);
 void netConnectBackground();
 // Pump state; call from loop().
 void netPoll();
+// Re-run a content fetch on an already-configured device, reconnecting first if
+// the link dropped. Boot only fetches once, so without this a terminal left on
+// USB — which now never sleeps — would show its boot payload forever. No-op
+// without credentials or while a cycle is still in flight.
+void netRefresh();
 NetState netGetState();
 String netDescribe(); // human-readable connection line for the Build card footer
 

@@ -696,6 +696,44 @@ def verify_terminal(fd: int, expected_serial: str = "") -> str:
     return serial
 
 
+def write_config(port: str, settings: Dict[str, Any], expected_serial: str = "") -> None:
+    """Persist Wi-Fi / content-URL settings on the terminal and report back."""
+    fd = open_serial(port)
+    try:
+        verify_terminal(fd, expected_serial)
+        serial_request(fd, "set-config", "config.write", settings, timeout_s=10)
+        status = serial_request(fd, "post-config", "status", timeout_s=10)
+    finally:
+        os.close(fd)
+    shown = {k: ("***" if "password" in k else v) for k, v in settings.items()}
+    print(f"✓ config written: {shown}", file=sys.stderr)
+    print(f"  connection: {status.get('connection')}", file=sys.stderr)
+    print(
+        f"  refresh every {status.get('refresh_minutes')} min"
+        f" · content_url {status.get('content_url') or '(none)'}",
+        file=sys.stderr,
+    )
+    if settings.get("wifi_ssid"):
+        print(
+            "  Wi-Fi is joined in the background after a reboot; run with "
+            "--reboot to apply now.",
+            file=sys.stderr,
+        )
+
+
+def reboot_device(port: str, expected_serial: str = "") -> None:
+    fd = open_serial(port)
+    try:
+        verify_terminal(fd, expected_serial)
+        try:
+            serial_request(fd, "reboot", "reboot", timeout_s=5)
+        except TimeoutError:
+            pass  # the device may reset before the reply drains
+    finally:
+        os.close(fd)
+    print("✓ rebooting", file=sys.stderr)
+
+
 def push_to_device(port: str, payload: Dict[str, Any], expected_serial: str = "") -> None:
     fd = open_serial(port)
     try:
@@ -1038,6 +1076,19 @@ def main() -> int:
     ap.add_argument(
         "--no-pet", action="store_true", help="use the profile photo instead of a pet"
     )
+    wifi = ap.add_argument_group("terminal Wi-Fi (writes to the device, then exits)")
+    wifi.add_argument("--wifi", metavar="SSID", help="2.4 GHz network name")
+    wifi.add_argument("--wifi-password", metavar="PASS", help="8-63 characters")
+    wifi.add_argument(
+        "--content-url",
+        metavar="URL",
+        help="https:// endpoint the terminal polls for a schema-1 document "
+        '(pass "" to clear)',
+    )
+    wifi.add_argument(
+        "--refresh-minutes", type=int, metavar="N", help="poll interval, 5-1440"
+    )
+    wifi.add_argument("--reboot", action="store_true", help="reboot after writing")
     ap.add_argument("--lat", type=float, default=None, help="override latitude (else IP geolocate)")
     ap.add_argument("--lon", type=float, default=None, help="override longitude (else IP geolocate)")
     args = ap.parse_args()
@@ -1056,6 +1107,28 @@ def main() -> int:
             path = uninstall_auto_sync()
             print(f"automatic sync removed: {path}", file=sys.stderr)
             return 0
+        # Device configuration is its own errand: write, confirm, exit. It does
+        # not need Codex, weather, or a payload.
+        settings: Dict[str, Any] = {}
+        if args.wifi is not None:
+            settings["wifi_ssid"] = args.wifi
+        if args.wifi_password is not None:
+            settings["wifi_password"] = args.wifi_password
+        if args.content_url is not None:
+            settings["content_url"] = args.content_url
+        if args.refresh_minutes is not None:
+            if not 5 <= args.refresh_minutes <= 1440:
+                raise AppServerError("--refresh-minutes must be between 5 and 1440")
+            settings["refresh_minutes"] = args.refresh_minutes
+        if settings or args.reboot:
+            serial_id = normalize_terminal_serial(args.terminal_serial)
+            port = resolve_port(args.port)
+            if settings:
+                write_config(port, settings, serial_id)
+            if args.reboot:
+                reboot_device(port, serial_id)
+            return 0
+
         if args.watch:
             return run_watch(args)
         return run_once(args)

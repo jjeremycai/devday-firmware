@@ -117,6 +117,18 @@ void netPoll() {
   }
 }
 
+void netRefresh() {
+  if (cfg_.wifi_ssid.length() == 0) return;
+  if (!netCycleComplete()) return; // a connect or fetch is already running
+  if (WiFi.status() == WL_CONNECTED) {
+    state_ = NetState::FETCHING;
+    fetchContent();
+  } else {
+    // Link dropped since boot; netPoll() fetches once it is back.
+    netConnectBackground();
+  }
+}
+
 NetState netGetState() { return state_; }
 String netDescribe() { return describe_; }
 

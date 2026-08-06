@@ -44,6 +44,8 @@ static constexpr uint32_t MIN_AWAKE_MS = 10000;   // never sleep before this
 static constexpr uint32_t USB_ABSENT_GRACE_MS = 60000;
 static uint32_t last_usb_seen_ms = 0;
 static bool usb_ever_seen = false;
+// Boot counts as the first fetch, so the next one is a full interval away.
+static uint32_t last_fetch_ms = 0;
 
 // ---------------------------------------------------------------------------
 // Status / hooks
@@ -373,6 +375,14 @@ void loop() {
     }
     refreshStatus();
     renderCard(current_card, content, st);
+  }
+
+  // On battery the refresh interval is served by the deep-sleep timer: the
+  // device wakes, boots, fetches. A terminal on USB never sleeps, so without
+  // this it would sit on its boot payload indefinitely.
+  if (millis() - last_fetch_ms > (uint32_t)cfg.refresh_minutes * 60000UL) {
+    last_fetch_ms = millis();
+    netRefresh();
   }
 
   // Merge a fetched payload into live content the same way content.push does,

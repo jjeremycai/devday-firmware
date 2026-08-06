@@ -288,40 +288,52 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
   epaper.drawString(String(c.agenda_count) + " EVENTS", W - MARGIN, 68, GFXFF);
   epaper.drawFastHLine(MARGIN, 88, W - 2 * MARGIN, TFT_BLACK);
 
-  // Timeline spine
-  const int16_t spineX = MARGIN + 14;
-  epaper.drawFastVLine(spineX, 106, 312, TFT_BLACK);
-
   const int16_t row_h = 68;
   const int16_t gap = 8;
-  int16_t y = 102;
-  for (size_t i = 0; i < c.agenda_count && i < CardContent::AGENDA_MAX; i++) {
-    int16_t ry = y + (int16_t)i * (row_h + gap);
-    // Card: sharper radius, denser
+  const int16_t y0 = 102;
+  const size_t rows =
+      c.agenda_count < CardContent::AGENDA_MAX ? c.agenda_count : CardContent::AGENDA_MAX;
+
+  // Timeline spine, drawn between the first and last marker rather than to a
+  // fixed height — a short day used to leave it dangling past the last event.
+  const int16_t spineX = MARGIN + 14;
+  const int16_t first_dot = y0 + row_h / 2;
+  const int16_t last_dot = y0 + (int16_t)(rows - 1) * (row_h + gap) + row_h / 2;
+  if (rows > 1) {
+    epaper.drawFastVLine(spineX, first_dot, last_dot - first_dot, TFT_BLACK);
+  }
+
+  for (size_t i = 0; i < rows; i++) {
+    int16_t ry = y0 + (int16_t)i * (row_h + gap);
     epaper.drawRoundRect(MARGIN + 28, ry, W - 2 * MARGIN - 28, row_h, 4, TFT_BLACK);
-    // Timeline dot (filled for next event, hollow otherwise) + connector
-    bool isNext = (i == 0);
-    if (isNext) epaper.fillCircle(spineX, ry + row_h/2, 7, TFT_BLACK);
-    else { epaper.drawCircle(spineX, ry + row_h/2, 5, TFT_BLACK); epaper.fillCircle(spineX, ry + row_h/2, 2, TFT_BLACK); }
-    // Keep a fixed time column so event names align cleanly to its right.
-    String time = formatAgendaTime(c.agenda_time[i]);
+
+    // Filled marker for what is next, hollow for the rest.
+    if (i == 0) {
+      epaper.fillCircle(spineX, ry + row_h / 2, 7, TFT_BLACK);
+    } else {
+      epaper.drawCircle(spineX, ry + row_h / 2, 5, TFT_BLACK);
+    }
+
+    // Time and title share a baseline; the detail hangs under the title. A
+    // fixed time column keeps event names aligned down the page.
     const int16_t time_x = MARGIN + 38;
-    const int16_t title_x = MARGIN + 180;
+    // Wide enough that a two-digit hour ("11:30 AM") still clears the title.
+    const int16_t title_x = MARGIN + 200;
+    const int16_t text_w = (W - MARGIN - 16) - title_x;
+    const int16_t baseline = ry + 32;
+
     epaper.setFreeFont(&FreeSans18pt7b);
-    epaper.setTextDatum(ML_DATUM);
-    epaper.drawString(time, time_x, ry + row_h / 2, GFXFF);
-    // title + detail — clearer hierarchy; stop short of the chevron column
-    const int16_t text_w = (W - MARGIN - 40) - title_x;
+    epaper.setTextDatum(BL_DATUM);
+    epaper.drawString(formatAgendaTime(c.agenda_time[i]), time_x, baseline, GFXFF);
+
     epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.setTextDatum(TL_DATUM);
-    epaper.drawString(fit(c.agenda_title[i], text_w), title_x, ry + 14, GFXFF);
+    epaper.drawString(fit(c.agenda_title[i], text_w), title_x, baseline, GFXFF);
+
+    // Sentence case: these are room names and people, and shouting them made
+    // the detail harder to read than the title it sits under.
     epaper.setFreeFont(&FreeSans9pt7b);
-    String det = c.agenda_detail[i]; det.toUpperCase();
-    epaper.drawString(fit(det, text_w), title_x, ry + 38, GFXFF);
-    // right chevron hint
-    epaper.drawFastHLine(W - MARGIN - 28, ry + row_h/2, 10, TFT_BLACK);
-    epaper.drawFastHLine(W - MARGIN - 22, ry + row_h/2 - 3, 6, TFT_BLACK);
-    epaper.drawFastHLine(W - MARGIN - 22, ry + row_h/2 + 3, 6, TFT_BLACK);
+    epaper.setTextDatum(TL_DATUM);
+    epaper.drawString(fit(c.agenda_detail[i], text_w), title_x, ry + 40, GFXFF);
   }
 
   apHint(st);

@@ -157,6 +157,34 @@ arbitrary host code when it is plugged in. `--install` is the one-time local
 bridge that makes subsequent plug-ins automatic without asking the user to
 sign in or grant permissions again.
 
+### Wi-Fi and periodic fetch
+
+USB sync covers pet and usage. Wi-Fi is for the terminal pulling its own
+content on a timer — an agenda from your own endpoint, say — with no laptop
+attached:
+
+```sh
+tools/dash_sync.py --wifi "MyNetwork" --wifi-password "hunter2" \
+                   --content-url https://example.com/terminal.json \
+                   --refresh-minutes 30 --reboot
+```
+
+Requirements worth knowing before debugging a connection:
+
+- **2.4 GHz only.** The ESP32-S3 has no 5 GHz radio; a band-steering router
+  that hides the 2.4 GHz SSID will never connect.
+- **HTTPS only**, verified against the embedded Mozilla CA bundle. A plain
+  `http://` URL is rejected outright.
+- The response **must carry `Content-Length`** — chunked encoding is not
+  supported — and stay under 12 KB. It must match the schema in
+  [PROTOCOL.md](docs/PROTOCOL.md); the device merges it section by section, so
+  a document with only `agenda` leaves everything else intact.
+- Anything that fails leaves the last good card up. Check `connection` in
+  `status` to tell a bad password from a bad URL.
+
+The interval is served two ways: on battery the device deep-sleeps and wakes to
+fetch, and on USB — where it never sleeps — it re-fetches in place.
+
 ## Behavior summary
 
 - Cold boot renders the configured startup card from bundled/cached content

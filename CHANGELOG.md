@@ -40,6 +40,22 @@
 
 ### Fixed
 
+- A terminal on USB never re-fetched over Wi-Fi. `netConnectBackground()` runs
+  once in `setup()`, and the refresh interval was served only by the
+  deep-sleep/wake cycle — so a device that never sleeps (now the case whenever
+  it is plugged in) sat on its boot payload indefinitely. `loop()` now calls
+  `netRefresh()` once an interval has elapsed.
+- Agenda rows drew a "chevron" from three *horizontal* rules, which rendered as
+  a stray `≡` at the right edge of every event and implied an interaction that
+  does not exist. Removed.
+- Agenda details were force-uppercased, shouting room names and attendees
+  louder than the event titles above them. Now sentence case.
+- The agenda timeline spine was a fixed 312px regardless of how many events
+  there were, so a short day left it dangling past the last card. It now spans
+  first marker to last.
+- Agenda time and title sat on different vertical anchors, so they never lined
+  up; they now share a baseline, and a two-digit hour no longer crowds the
+  title.
 - The terminal could deep-sleep while still plugged in. `isPlugged()` is a
   recency check on USB SOF packets and the sleep path believed a single
   sample, so a host suspending an idle port — or the re-enumeration after the
