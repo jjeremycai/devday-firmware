@@ -145,10 +145,12 @@ Open-Meteo after IP geolocation (or `--lat`/`--lon` / `DASH_LAT`+`DASH_LON`),
 and selects imperial or metric units from the IP country or host locale. No pip
 dependencies are needed.
 
-The portrait is your Codex pet: a pet you have hatched under `~/.codex/pets`,
-otherwise the built-in `codex` companion. Pets already on disk need no network,
-so `--offline` still shows one. Failing that, it falls back to your profile
-photo.
+The portrait is your Codex pet. It follows `tui.pet` — whichever pet you picked
+in Codex — so a machine with several hatched pets shows the one you actually
+use. Unset, it takes a pet from `~/.codex/pets`, else the built-in `codex`
+companion. Pets already on disk need no network, so `--offline` still shows
+one. Turn pets off in Codex (`tui.pet = "none"`) and it uses your profile photo
+instead.
 
 Modern operating systems intentionally do not let a USB peripheral launch
 arbitrary host code when it is plugged in. `--install` is the one-time local

@@ -52,8 +52,19 @@ BUILTIN_PETS = (
 )
 
 
+# What `tui.pet` can be set to to turn pets off in Codex. Someone who did that
+# does not want one on their desk either.
+DISABLE_WORDS = frozenset(
+    {"disable", "disabled", "hide", "hidden", "off", "none"}
+)
+
+
 class PetError(RuntimeError):
     """No pet could be resolved, or its sheet was unusable."""
+
+
+def pet_is_disabled(value: Optional[str]) -> bool:
+    return bool(value) and value.strip().lower() in DISABLE_WORDS
 
 
 def _image_size(data: bytes) -> Tuple[int, int]:

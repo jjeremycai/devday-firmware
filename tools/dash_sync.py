@@ -43,7 +43,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import imaging  # noqa: E402  (path set above so the tool runs from anywhere)
-from pet import PET_H, PET_W, load_pet_bits, resolve_pet  # noqa: E402
+from pet import PET_H, PET_W, load_pet_bits, pet_is_disabled, resolve_pet  # noqa: E402
 
 BAUD = 115200
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -215,13 +215,25 @@ class AppServerClient:
                 future.set_result(message.get("result", {}))
 
 
-async def fetch_codex_usage() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+async def fetch_codex_usage() -> Tuple[Dict[str, Any], Dict[str, Any], Optional[str]]:
     client = AppServerClient()
     await client.start()
     try:
         account = await client.request("account/read", {"refreshToken": False})
         usage = await client.request("account/usage/read", {})
-        return account, usage
+        # `tui.pet` is the pet the owner actually chose in Codex. Read the
+        # resolved config rather than parsing config.toml, so profiles and
+        # layering are already applied. Absent on older CLIs, hence the guard.
+        pet: Optional[str] = None
+        try:
+            cfg = await client.request("config/read", {})
+            tui = ((cfg.get("config") or {}).get("tui") or {})
+            value = tui.get("pet")
+            if isinstance(value, str) and value.strip():
+                pet = value.strip()
+        except Exception:
+            pass
+        return account, usage, pet
     finally:
         await client.stop()
 
@@ -720,7 +732,7 @@ def push_to_device(port: str, payload: Dict[str, Any], expected_serial: str = ""
 async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
     offline = bool(getattr(args, "offline", False))
     print("→ Codex app-server: usage…", file=sys.stderr)
-    account, usage = await fetch_codex_usage()
+    account, usage, configured_pet = await fetch_codex_usage()
     summary = (usage.get("summary") or {})
     print(
         f"  lifetime={format_tokens(summary.get('lifetimeTokens'))}  "
@@ -748,12 +760,22 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
     # The pet comes first: it is what Codex shows you, it survives with no
     # network once hatched or cached, and it reads far better than a
     # thresholded photograph. The profile picture is the fallback.
-    if not args.no_pet:
+    # --pet wins, then whatever they picked in Codex, then discovery. Someone
+    # who turned pets off in the TUI gets their photo instead.
+    want_pet = args.pet or configured_pet
+    if pet_is_disabled(want_pet):
+        want_pet, skip_pet = None, True
+    else:
+        skip_pet = False
+
+    if not args.no_pet and not skip_pet:
         print("→ Codex pet…", file=sys.stderr)
         try:
-            label, bits = load_pet_bits(args.pet, allow_download=not offline)
+            label, bits = load_pet_bits(want_pet, allow_download=not offline)
             avatar_hex = bits.hex()
-            print(f"  {label} at {PET_W}×{PET_H} ({len(bits)} bytes)", file=sys.stderr)
+            chose = "configured" if (configured_pet and not args.pet) else "selected"
+            note = f" ({chose})" if want_pet else " (default)"
+            print(f"  {label}{note} at {PET_W}×{PET_H} ({len(bits)} bytes)", file=sys.stderr)
         except Exception as exc:
             print(f"  pet skipped: {exc}", file=sys.stderr)
 

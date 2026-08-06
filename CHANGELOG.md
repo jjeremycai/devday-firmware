@@ -4,11 +4,13 @@
 
 ### Added
 
-- The Usage card shows your **Codex pet** where the profile photo used to be —
-  a pet hatched under `~/.codex/pets`, else the built-in `codex` companion,
-  else your photo. Pushed over USB in the existing `avatar_hex` field, so no
-  protocol change. `tools/dash_sync.py --pet <id>` picks one, `--no-pet` opts
-  out.
+- The Usage card shows your **Codex pet** where the profile photo used to be.
+  It follows `tui.pet` — the pet you actually picked in Codex, read from the
+  resolved config over `codex app-server` — then a pet hatched under
+  `~/.codex/pets`, then the built-in `codex` companion, then your photo.
+  `tui.pet = "none"` (pets off in Codex) uses the photo. Pushed over USB in the
+  existing `avatar_hex` field, so no protocol change. `--pet <id>` overrides,
+  `--no-pet` opts out.
 - Every unit ships with a bundled default pet, so the card is never faceless
   before the first sync.
 - `tools/gen_pet.py` and `tools/gen_splash.py` generate the two shipped

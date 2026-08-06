@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import plistlib
@@ -100,6 +101,56 @@ class DashSyncTests(unittest.TestCase):
         self.assertIn("/dev/cu.usbmodem1101", command)
         self.assertIn("39.74", command)
         self.assertIn("-104.99", command)
+
+    def test_pet_selection_prefers_explicit_then_the_one_chosen_in_codex(self) -> None:
+        seen: list[object] = []
+
+        def fake_load(want, allow_download=True):
+            seen.append(want)
+            return (str(want or "codex"), bytearray(sync.PET_W * sync.PET_H // 8))
+
+        def collect(pet_arg, configured):
+            seen.clear()
+            args = SimpleNamespace(
+                offline=True, no_weather=True, no_avatar=True,
+                no_pet=False, pet=pet_arg, lat=None, lon=None,
+            )
+            with patch.object(sync, "fetch_codex_usage",
+                              return_value=({}, {"summary": {}}, configured)), \
+                 patch.object(sync, "load_pet_bits", side_effect=fake_load):
+                asyncio.run(sync.collect_payload(args))
+            return seen[0] if seen else None
+
+        # --pet overrides the configured pet.
+        self.assertEqual(collect("dewey", "rocky"), "dewey")
+        # Otherwise honour tui.pet, so someone with several hatched pets gets
+        # the one they actually use.
+        self.assertEqual(collect(None, "rocky"), "rocky")
+        # Unset falls through to discovery.
+        self.assertIsNone(collect(None, None))
+
+    def test_pets_disabled_in_codex_fall_back_to_the_photo(self) -> None:
+        for value in ("none", "off", "Disabled", " hidden "):
+            self.assertTrue(sync.pet_is_disabled(value), value)
+        for value in (None, "", "dewey", "codex"):
+            self.assertFalse(sync.pet_is_disabled(value), value)
+
+        called = False
+
+        def fake_load(want, allow_download=True):
+            nonlocal called
+            called = True
+            return ("x", bytearray(8))
+
+        args = SimpleNamespace(
+            offline=True, no_weather=True, no_avatar=True,
+            no_pet=False, pet=None, lat=None, lon=None,
+        )
+        with patch.object(sync, "fetch_codex_usage",
+                          return_value=({}, {"summary": {}}, "none")), \
+             patch.object(sync, "load_pet_bits", side_effect=fake_load):
+            asyncio.run(sync.collect_payload(args))
+        self.assertFalse(called, "a disabled pet must not be pushed")
 
     def test_launchd_service_runs_the_watch_mode(self) -> None:
         plist = plistlib.loads(

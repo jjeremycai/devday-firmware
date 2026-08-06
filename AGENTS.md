@@ -51,12 +51,16 @@ Three pages on the first three keys: Usage, Weather, Agenda. Content arrives as
 one JSON document over USB (`content.push`) — see `docs/PROTOCOL.md` for the
 schema, and `tools/dash_sync.py` for a working sender.
 
-To put a different pet on it:
+The pet follows `tui.pet` in `~/.codex/config.toml` — whichever one the owner
+picked in Codex. To override it for the terminal only:
 
 ```sh
 tools/dash_sync.py --pet dewey        # a built-in
 tools/dash_sync.py --pet ~/.codex/pets/mypet
 ```
+
+Built-ins: `codex`, `dewey`, `fireball`, `rocky`, `seedy`, `stacky`, `bsod`,
+`null-signal`. With `tui.pet = "none"` the terminal shows the profile photo.
 
 ## Rebuilding the firmware
 
