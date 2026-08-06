@@ -4,7 +4,7 @@ Mass-production firmware RC for the 7.5" (OG) DIY Kit: XIAO ESP32-S3
 Plus driving an 800×480 UC8179 e-paper, Arduino framework. Boots usefully
 without Wi-Fi and invites the attendee to **teach it a job**.
 
-**Dash · Brief · Build · Yours** — four pages on four buttons, numbered 1-4
+**Dash · Weather · Brief · Yours** — four pages on four buttons, numbered 1-4
 (D1 / D2 / D3 / D4) left to right. Press and release to switch; hold length
 doesn't matter. D3 shares GPIO4 with the display BUSY line, so it doesn't
 wake the device from sleep and is ignored for a moment after each refresh.
@@ -12,13 +12,16 @@ wake the device from sleep and is ignored for a moment after each refresh.
 - **1 → Dash** — Codex profile, weather, token chart (pushed over USB from
   the companion page the moment you plug in — no native install). Falls back
   to **Brief** until a dash payload arrives.
-- **2 → Brief** — "teach it a job" setup guide.
-- **3 → Build** — `READY`, firmware version/hash, battery, display,
-  connection diagnostics.
+- **2 → Weather** — today's forecast: current conditions, morning /
+  afternoon / evening cards, and a 24-hour temperature strip (synced with
+  the dash payload).
+- **3 → Brief** — "teach it a job" setup guide.
 - **4 → Yours** — "This terminal is open" plus a fixed QR to this hardware
   recipe.
 
 The on-screen tab strip shows all four pages with the current one inverted.
+The factory **Build** diagnostics page is still renderable via
+`card.preview` over USB (used by the line test).
 
 ## Layout
 

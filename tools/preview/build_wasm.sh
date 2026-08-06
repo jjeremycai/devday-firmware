@@ -21,7 +21,7 @@ em++ -std=c++17 -O2 \
   -s WASM=1 \
   -s ENVIRONMENT=web \
   -s ALLOW_MEMORY_GROWTH=1 \
-  -s EXPORTED_FUNCTIONS='["_emu_begin","_emu_render","_emu_card","_emu_pin","_emu_has_dash","_emu_set","_emu_set_days_csv","_emu_set_avatar_hex"]' \
+  -s EXPORTED_FUNCTIONS='["_emu_begin","_emu_render","_emu_card","_emu_pin","_emu_has_dash","_emu_set","_emu_set_days_csv","_emu_set_wx_hours_csv","_emu_set_avatar_hex"]' \
   -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
   -o "$OUT/emu.js"
 

@@ -43,6 +43,24 @@ struct CardContent {
   uint8_t dash_avatar[AVATAR_BYTES];
   bool dash_avatar_present;
 
+  // Weather page (full today forecast)
+  String weather_location;
+  String weather_date;
+  String weather_now_temp;   // "74°"
+  String weather_now_cond;   // "Clear"
+  String weather_now_hilo;   // "H100° L66°"
+  static constexpr size_t WX_SEGS = 3;  // morning / afternoon / evening
+  String wx_label[WX_SEGS];
+  String wx_temp[WX_SEGS];
+  String wx_cond[WX_SEGS];
+  String wx_wind[WX_SEGS];
+  String wx_precip[WX_SEGS];
+  size_t wx_seg_count;
+  static constexpr size_t WX_HOURS = 24;
+  uint8_t wx_hours[WX_HOURS]; // 0–255 relative temps, midnight-first local
+  size_t wx_hour_count;
+  uint8_t wx_hour_now;        // index into wx_hours for "now"; 255 = unknown
+
   // Seconds the device should wait before refreshing (clamped to >= 300).
   uint32_t refresh_after_s;
 };
@@ -52,3 +70,5 @@ void contentDefaults(CardContent& c, const String& device_name);
 bool contentParse(const String& payload, CardContent& c);
 // True when the dash card has enough identity to show.
 inline bool contentHasDash(const CardContent& c) { return c.dash_present && c.dash_name.length() > 0; }
+// True when a forecast has been pushed.
+inline bool contentHasWeather(const CardContent& c) { return c.weather_now_temp.length() > 0; }

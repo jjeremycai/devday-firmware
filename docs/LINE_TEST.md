@@ -23,11 +23,13 @@ unit eFuse MAC from `factory.check.serial`.
 Press-and-release; hold length must not change the result.
 
 - [ ] **1 (D1)** → Dash card (Brief until a dash payload has been pushed)
-- [ ] **2 (D2)** → Brief card ("Teach it a job")
-- [ ] **3 (D3)** → Build card (`READY` diagnostics); no false triggers during
+- [ ] **2 (D2)** → Weather card (forecast once a payload has been pushed,
+      otherwise the "No forecast yet" empty state)
+- [ ] **3 (D3)** → Brief card ("Teach it a job"); no false triggers during
       or right after a screen refresh (shared BUSY line)
 - [ ] **4 (D4)** → Yours card ("This terminal is open" + QR, scan once per
       batch to confirm it resolves)
+- [ ] `card.preview` `"build"` over USB → Build card (`READY` diagnostics)
 - [ ] Tab strip at the bottom highlights the active page
 - [ ] `ap.start` over USB → setup AP starts; screen shows SSID `DevDay-XXXX`,
       password, and `192.168.4.1`

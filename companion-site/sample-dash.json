@@ -5,7 +5,7 @@
     "name": "Jeremy Cai",
     "handle": "@permanentunderclass",
     "plan": "Pro",
-    "weather_temp": "74\u00b0",
+    "weather_temp": "73\u00b0",
     "weather_detail": "Clear \u00b7 H100\u00b0 L66\u00b0",
     "lifetime": "48.8B",
     "peak": "2.7B",
@@ -13,7 +13,7 @@
     "streak": "38 days",
     "best_streak": "64 days",
     "insight_left": "Codex \u00b7 local sync",
-    "insight_right": "Thu 12:50 AM",
+    "insight_right": "Thu 1:16 AM",
     "days": [
       246,
       242,
@@ -41,5 +41,62 @@
       "Uses your Codex login"
     ],
     "footer": "@permanentunderclass"
+  },
+  "weather": {
+    "location": "Salt Lake City, UT",
+    "date": "Thursday, August 6",
+    "now_temp": "73\u00b0",
+    "now_cond": "Clear",
+    "now_hilo": "H100\u00b0 L66\u00b0",
+    "segments": [
+      {
+        "label": "Morning",
+        "temp": "78\u00b0",
+        "cond": "Clear",
+        "wind": "S 5 mph",
+        "precip": "rain 0%"
+      },
+      {
+        "label": "Afternoon",
+        "temp": "99\u00b0",
+        "cond": "Clear",
+        "wind": "NW 8 mph",
+        "precip": "rain 0%"
+      },
+      {
+        "label": "Evening",
+        "temp": "90\u00b0",
+        "cond": "Clear",
+        "wind": "S 6 mph",
+        "precip": "rain 0%"
+      }
+    ],
+    "hours": [
+      65,
+      58,
+      40,
+      15,
+      0,
+      4,
+      10,
+      18,
+      35,
+      108,
+      169,
+      203,
+      227,
+      244,
+      251,
+      254,
+      255,
+      253,
+      246,
+      234,
+      206,
+      149,
+      134,
+      115
+    ],
+    "hour_now": 1
   }
 }

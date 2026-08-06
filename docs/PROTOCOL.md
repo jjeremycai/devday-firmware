@@ -180,4 +180,26 @@ Response schema:
 All fields optional except `schema`. `refresh_after_s` is clamped to ≥300.
 Unknown `build.state` values are ignored (keep last known). Page buttons
 (release-triggered): **1** Dash (Brief until a dash payload arrives),
-**2** Brief, **3** Build, **4** Yours.
+**2** Weather, **3** Brief, **4** Yours.
+
+An optional `weather` object powers the Weather page:
+
+```json
+"weather": {
+  "location": "Salt Lake City, UT",
+  "date": "Thursday, August 6",
+  "now_temp": "74°",
+  "now_cond": "Clear",
+  "now_hilo": "H100° L66°",
+  "segments": [
+    {"label": "Morning",   "temp": "68°", "cond": "Mainly clear",  "wind": "NE 8 mph",  "precip": "rain 0%"},
+    {"label": "Afternoon", "temp": "96°", "cond": "Clear",         "wind": "SE 13 mph", "precip": "rain 0%"},
+    {"label": "Evening",   "temp": "81°", "cond": "Partly cloudy", "wind": "S 7 mph",   "precip": "rain 10%"}
+  ],
+  "hours": [90, 80, 70],
+  "hour_now": 14
+}
+```
+
+`hours` is up to 24 relative temperatures (0–255, midnight-first local);
+`hour_now` marks the current hour with a solid bar.

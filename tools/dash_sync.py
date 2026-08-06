@@ -428,56 +428,112 @@ def resolve_location(
     raise AppServerError("could not resolve location; pass --lat/--lon (" + "; ".join(errors) + ")")
 
 
+WMO_TEXT = {
+    0: "Clear",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Rime fog",
+    51: "Drizzle",
+    61: "Light rain",
+    63: "Rain",
+    65: "Heavy rain",
+    71: "Light snow",
+    73: "Snow",
+    75: "Heavy snow",
+    80: "Showers",
+    81: "Showers",
+    82: "Heavy showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm",
+    99: "Thunderstorm",
+}
+
+COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+
+
+def _compass(deg: float) -> str:
+    return COMPASS[int((deg + 22.5) // 45) % 8]
+
+
 def fetch_weather(
     lat: Optional[float], lon: Optional[float]
-) -> Tuple[str, str, str]:
-    """Return (temp, detail, location_label)."""
+) -> Tuple[str, str, str, Dict[str, Any]]:
+    """Return (temp, detail, location_label, weather_section)."""
     la, lo, label = resolve_location(lat, lon)
     qs = urllib.parse.urlencode(
         {
             "latitude": la,
             "longitude": lo,
             "current": "temperature_2m,weather_code",
+            "hourly": "temperature_2m,weather_code,precipitation_probability,"
+                      "wind_speed_10m,wind_direction_10m",
             "daily": "temperature_2m_max,temperature_2m_min",
             "temperature_unit": "fahrenheit",
+            "wind_speed_unit": "mph",
             "timezone": "auto",
             "forecast_days": 1,
         }
     )
     url = f"https://api.open-meteo.com/v1/forecast?{qs}"
     data = http_json(url, {"User-Agent": "devday-dash-sync/0.1"})
-    wmo = {
-        0: "Clear",
-        1: "Mainly clear",
-        2: "Partly cloudy",
-        3: "Overcast",
-        45: "Fog",
-        48: "Rime fog",
-        51: "Drizzle",
-        61: "Light rain",
-        63: "Rain",
-        65: "Heavy rain",
-        71: "Light snow",
-        73: "Snow",
-        75: "Heavy snow",
-        80: "Showers",
-        81: "Showers",
-        82: "Heavy showers",
-        95: "Thunderstorm",
-        96: "Thunderstorm",
-        99: "Thunderstorm",
-    }
     cur = data["current"]
     daily = data["daily"]
+    hourly = data["hourly"]
+
     temp = f"{round(cur['temperature_2m'])}°"
-    condition = wmo.get(cur["weather_code"], "Weather")
+    condition = WMO_TEXT.get(cur["weather_code"], "Weather")
+    hi = round(daily["temperature_2m_max"][0])
+    lo_t = round(daily["temperature_2m_min"][0])
     # Short detail: the dash shows it next to the name/handle row.
-    detail = (
-        f"{condition} · "
-        f"H{round(daily['temperature_2m_max'][0])}° "
-        f"L{round(daily['temperature_2m_min'][0])}°"
-    )
-    return temp, detail, label
+    detail = f"{condition} · H{hi}° L{lo_t}°"
+
+    temps = hourly["temperature_2m"][:24]
+    codes = hourly["weather_code"][:24]
+    pops = hourly.get("precipitation_probability") or [None] * 24
+    winds = hourly.get("wind_speed_10m") or [0] * 24
+    dirs = hourly.get("wind_direction_10m") or [0] * 24
+
+    # Day parts: morning 6-12, afternoon 12-18, evening 18-24 (local).
+    segments = []
+    for seg_label, a, b in (("Morning", 6, 12), ("Afternoon", 12, 18), ("Evening", 18, 24)):
+        seg_t = [t for t in temps[a:b] if t is not None]
+        seg_c = [c for c in codes[a:b] if c is not None]
+        seg_w = [w for w in winds[a:b] if w is not None]
+        seg_d = [d for d in dirs[a:b] if d is not None]
+        seg_p = [p for p in pops[a:b] if p is not None]
+        if not seg_t:
+            continue
+        cond_code = max(set(seg_c), key=seg_c.count) if seg_c else None
+        wind_avg = sum(seg_w) / len(seg_w) if seg_w else 0
+        dir_avg = sum(seg_d) / len(seg_d) if seg_d else 0
+        segments.append(
+            {
+                "label": seg_label,
+                "temp": f"{round(sum(seg_t) / len(seg_t))}°",
+                "cond": WMO_TEXT.get(cond_code, ""),
+                "wind": f"{_compass(dir_avg)} {round(wind_avg)} mph",
+                "precip": f"rain {max(seg_p)}%" if seg_p else "",
+            }
+        )
+
+    tmin = min(t for t in temps if t is not None)
+    tmax = max(t for t in temps if t is not None)
+    span = (tmax - tmin) or 1
+    hours = [round((t - tmin) * 255 / span) if t is not None else 0 for t in temps]
+
+    weather = {
+        "location": label,
+        "date": datetime.now().strftime("%A, %B %-d"),
+        "now_temp": temp,
+        "now_cond": condition,
+        "now_hilo": f"H{hi}° L{lo_t}°",
+        "segments": segments,
+        "hours": hours,
+        "hour_now": datetime.now().hour,
+    }
+    return temp, detail, label, weather
 
 
 def build_payload(
@@ -487,6 +543,7 @@ def build_payload(
     avatar_hex: str,
     weather_temp: str,
     weather_detail: str,
+    weather: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     summary = usage.get("summary") or {}
     acct = (account.get("account") or {}) if account else {}
@@ -496,7 +553,7 @@ def build_payload(
     name = profile.get("display_name") or "Codex"
     streak = summary.get("currentStreakDays")
     best = summary.get("longestStreakDays")
-    return {
+    payload = {
         "schema": 1,
         "refresh_after_s": 1800,
         "dash": {
@@ -526,6 +583,9 @@ def build_payload(
             "footer": handle or name,
         },
     }
+    if weather:
+        payload["weather"] = weather
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -666,18 +726,18 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             print(f"  avatar skipped: {exc}", file=sys.stderr)
 
     if args.no_weather:
-        weather_temp, weather_detail = "", ""
+        weather_temp, weather_detail, weather = "", "", None
     else:
         print("→ weather…", file=sys.stderr)
         try:
-            weather_temp, weather_detail, where = fetch_weather(args.lat, args.lon)
+            weather_temp, weather_detail, where, weather = fetch_weather(args.lat, args.lon)
             print(f"  {where}: {weather_temp} {weather_detail}", file=sys.stderr)
         except Exception as exc:
-            weather_temp, weather_detail = "—", "weather unavailable"
+            weather_temp, weather_detail, weather = "—", "weather unavailable", None
             print(f"  weather skipped: {exc}", file=sys.stderr)
 
     return build_payload(
-        account, usage, profile, avatar_hex, weather_temp, weather_detail
+        account, usage, profile, avatar_hex, weather_temp, weather_detail, weather
     )
 
 

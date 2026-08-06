@@ -88,7 +88,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
   }
   if (obj["startup_card"].is<const char*>()) {
     String v = obj["startup_card"].as<String>();
-    if (v != "build" && v != "brief" && v != "yours" && v != "dash") {
+    if (v != "build" && v != "brief" && v != "yours" && v != "dash" && v != "weather") {
       err_code = "bad_params";
       return false;
     }
@@ -136,7 +136,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
 }
 
 static bool hookCardPreview(const String& card, String& err_code) {
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash") {
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather") {
     err_code = "bad_params";
     return false;
   }
@@ -165,7 +165,7 @@ static bool hookContentPush(const String& payload, const String& show_card, Stri
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
   if (card == "dash" && !contentHasDash(content)) card = "brief";
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash") {
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather") {
     err_code = "bad_params";
     return false;
   }
@@ -258,7 +258,7 @@ static String wakeCard() {
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return "";
   uint64_t status = esp_sleep_get_ext1_wakeup_status();
   if (status & (1ULL << PIN_BUTTON_D1)) return contentHasDash(content) ? "dash" : "brief";
-  if (status & (1ULL << PIN_BUTTON_D2)) return "brief";
+  if (status & (1ULL << PIN_BUTTON_D2)) return "weather";
   if (status & (1ULL << PIN_BUTTON_D4)) return "yours";
   return "";
 }
@@ -329,9 +329,9 @@ void loop() {
     if (ev == ButtonEvent::B1) {
       current_card = contentHasDash(content) ? "dash" : "brief";
     } else if (ev == ButtonEvent::B2) {
-      current_card = "brief";
+      current_card = "weather";
     } else if (ev == ButtonEvent::B3) {
-      current_card = "build";
+      current_card = "brief";
     } else {
       current_card = "yours";
     }

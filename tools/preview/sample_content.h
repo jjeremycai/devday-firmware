@@ -49,6 +49,33 @@ inline CardContent sampleContent() {
     }
   }
   c.dash_avatar_present = true;
+
+  c.weather_location = "Salt Lake City, UT";
+  c.weather_date = "Thursday, August 6";
+  c.weather_now_temp = "74°";
+  c.weather_now_cond = "Clear";
+  c.weather_now_hilo = "H100° L66°";
+  const char* wl[3] = {"Morning", "Afternoon", "Evening"};
+  const char* wt[3] = {"68°", "96°", "81°"};
+  const char* wc[3] = {"Mainly clear", "Clear", "Partly cloudy"};
+  const char* ww[3] = {"NE 8 mph", "SE 13 mph", "S 7 mph"};
+  const char* wp[3] = {"rain 0%", "rain 0%", "rain 10%"};
+  for (size_t i = 0; i < 3; i++) {
+    c.wx_label[i] = wl[i];
+    c.wx_temp[i] = wt[i];
+    c.wx_cond[i] = wc[i];
+    c.wx_wind[i] = ww[i];
+    c.wx_precip[i] = wp[i];
+  }
+  c.wx_seg_count = 3;
+  static const uint8_t hrs[CardContent::WX_HOURS] = {90, 80, 70, 60, 55, 50,
+                                                     55, 70, 90, 115, 140, 165,
+                                                     190, 210, 230, 245, 255, 250,
+                                                     235, 215, 190, 165, 145, 120};
+  memcpy(c.wx_hours, hrs, sizeof hrs);
+  c.wx_hour_count = CardContent::WX_HOURS;
+  c.wx_hour_now = 14;
+
   c.refresh_after_s = 1800;
   return c;
 }

@@ -56,6 +56,23 @@ void contentDefaults(CardContent& c, const String& device_name) {
   memset(c.dash_avatar, 0, sizeof(c.dash_avatar));
   c.dash_avatar_present = false;
 
+  c.weather_location = "";
+  c.weather_date = "";
+  c.weather_now_temp = "";
+  c.weather_now_cond = "";
+  c.weather_now_hilo = "";
+  c.wx_seg_count = 0;
+  for (size_t i = 0; i < CardContent::WX_SEGS; i++) {
+    c.wx_label[i] = "";
+    c.wx_temp[i] = "";
+    c.wx_cond[i] = "";
+    c.wx_wind[i] = "";
+    c.wx_precip[i] = "";
+  }
+  c.wx_hour_count = 0;
+  c.wx_hour_now = 255;
+  memset(c.wx_hours, 0, sizeof(c.wx_hours));
+
   c.refresh_after_s = DEFAULT_REFRESH_MINUTES * 60UL;
 }
 
@@ -136,6 +153,49 @@ bool contentParse(const String& payload, CardContent& c) {
       if (decodeHexAvatar(hex, len, c.dash_avatar, CardContent::AVATAR_BYTES)) {
         c.dash_avatar_present = true;
       }
+    }
+  }
+
+  JsonObject wx = doc["weather"].as<JsonObject>();
+  if (!wx.isNull()) {
+    if (wx["location"].is<const char*>()) c.weather_location = wx["location"].as<String>();
+    if (wx["date"].is<const char*>()) c.weather_date = wx["date"].as<String>();
+    if (wx["now_temp"].is<const char*>()) c.weather_now_temp = wx["now_temp"].as<String>();
+    if (wx["now_cond"].is<const char*>()) c.weather_now_cond = wx["now_cond"].as<String>();
+    if (wx["now_hilo"].is<const char*>()) c.weather_now_hilo = wx["now_hilo"].as<String>();
+
+    JsonArray segs = wx["segments"].as<JsonArray>();
+    if (!segs.isNull()) {
+      size_t n = 0;
+      for (JsonVariant v : segs) {
+        if (n >= CardContent::WX_SEGS) break;
+        JsonObject s = v.as<JsonObject>();
+        if (s.isNull()) continue;
+        c.wx_label[n] = s["label"] | "";
+        c.wx_temp[n] = s["temp"] | "";
+        c.wx_cond[n] = s["cond"] | "";
+        c.wx_wind[n] = s["wind"] | "";
+        c.wx_precip[n] = s["precip"] | "";
+        n++;
+      }
+      c.wx_seg_count = n;
+    }
+
+    JsonArray hours = wx["hours"].as<JsonArray>();
+    if (!hours.isNull()) {
+      size_t n = 0;
+      for (JsonVariant v : hours) {
+        if (n >= CardContent::WX_HOURS) break;
+        int t = v.as<int>();
+        if (t < 0) t = 0;
+        if (t > 255) t = 255;
+        c.wx_hours[n++] = (uint8_t)t;
+      }
+      c.wx_hour_count = n;
+    }
+    if (wx["hour_now"].is<int>()) {
+      int hn = wx["hour_now"].as<int>();
+      c.wx_hour_now = (hn >= 0 && hn < (int)CardContent::WX_HOURS) ? (uint8_t)hn : 255;
     }
   }
 

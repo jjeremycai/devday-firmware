@@ -121,6 +121,18 @@ function applyJson(text) {
   if (d.avatar_hex) {
     if (!api.emu_set_avatar_hex(d.avatar_hex)) showStatus("avatar_hex rejected");
   }
+
+  const w = payload.weather || {};
+  const wxKeys = ["location", "date", "now_temp", "now_cond", "now_hilo"];
+  for (const k of wxKeys) if (w[k] != null) api.emu_set("weather_" + k, String(w[k]));
+  if (Array.isArray(w.segments)) {
+    w.segments.slice(0, 3).forEach((s, i) => {
+      api.emu_set("wx_seg_" + i, [s.label, s.temp, s.cond, s.wind, s.precip].join("|"));
+    });
+  }
+  if (Array.isArray(w.hours)) api.emu_set_wx_hours_csv(w.hours.join(","));
+  if (w.hour_now != null) api.emu_set("wx_hour_now", String(w.hour_now));
+
   render(api.emu_has_dash() ? "dash" : "brief");
 }
 
@@ -134,6 +146,7 @@ function initEmu() {
     hasDash: c("has_dash", "number", []),
     set: c("set", null, ["string", "string"]),
     setDays: c("set_days_csv", null, ["string"]),
+    setWxHours: c("set_wx_hours_csv", null, ["string"]),
     setAvatar: c("set_avatar_hex", "number", ["string"]),
   };
   api.emu_render = api.render;
@@ -141,6 +154,7 @@ function initEmu() {
   api.emu_has_dash = api.hasDash;
   api.emu_set = api.set;
   api.emu_set_days_csv = api.setDays;
+  api.emu_set_wx_hours_csv = api.setWxHours;
   api.emu_set_avatar_hex = api.setAvatar;
   api.emu_pin = api.pin;
 

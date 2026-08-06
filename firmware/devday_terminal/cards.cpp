@@ -21,8 +21,8 @@ static constexpr int16_t MARGIN = 36;
 // inverted. Buttons are numbered 1-4 (D1/D2/D3/D4) left to right.
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
-  static const char* kIds[4] = {"dash", "brief", "build", "yours"};
-  static const char* kLabels[4] = {"1  DASH", "2  BRIEF", "3  BUILD", "4  YOURS"};
+  static const char* kIds[4] = {"dash", "weather", "brief", "yours"};
+  static const char* kLabels[4] = {"1  DASH", "2  WEATHER", "3  BRIEF", "4  YOURS"};
   const int16_t tw = 156, th = 32, gap = 12;
   const int16_t total = 4 * tw + 3 * gap;
   int16_t x = (W - total) / 2;
@@ -171,6 +171,136 @@ static void renderYours(const CardContent&, const RenderStatus& st) {
 
   apHint(st);
   pageTabs("yours");
+#endif
+}
+
+static void drawSegmentCard(const CardContent& c, size_t i, int16_t x, int16_t y, int16_t w, int16_t h) {
+#ifdef EPAPER_ENABLE
+  epaper.drawRoundRect(x, y, w, h, 6, TFT_BLACK);
+  int16_t cx = x + 16;
+  String label = c.wx_label[i];
+  label.toUpperCase();
+  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString(label, cx, y + 12, GFXFF);
+  epaper.drawFastHLine(x + 10, y + 34, w - 20, TFT_BLACK);
+
+  epaper.setFreeFont(&FreeSans18pt7b);
+  epaper.drawString(c.wx_temp[i], cx, y + 44, GFXFF);
+
+  epaper.setFreeFont(&FreeSans12pt7b);
+  epaper.drawString(c.wx_cond[i], cx, y + 84, GFXFF);
+
+  epaper.setFreeFont(&FreeSans9pt7b);
+  String sub = c.wx_wind[i];
+  if (c.wx_precip[i].length() > 0) {
+    if (sub.length() > 0) sub += "  ";
+    sub += c.wx_precip[i];
+  }
+  epaper.drawString(sub, cx, y + h - 22, GFXFF);
+#endif
+}
+
+static void drawHourStrip(const CardContent& c, int16_t x, int16_t y, int16_t w, int16_t h) {
+#ifdef EPAPER_ENABLE
+  size_t n = c.wx_hour_count;
+  if (n == 0) return;
+  const int16_t gap = 2;
+  int16_t bar_w = (w - (int16_t)(n - 1) * gap) / (int16_t)n;
+  if (bar_w < 3) bar_w = 3;
+
+  uint8_t lo = 255, hi = 0;
+  for (size_t i = 0; i < n; i++) {
+    if (c.wx_hours[i] < lo) lo = c.wx_hours[i];
+    if (c.wx_hours[i] > hi) hi = c.wx_hours[i];
+  }
+  uint8_t span = hi > lo ? hi - lo : 1;
+
+  for (size_t i = 0; i < n; i++) {
+    int16_t bh = 4 + (int16_t)((uint32_t)(c.wx_hours[i] - lo) * (uint32_t)(h - 8) / span);
+    int16_t bx = x + (int16_t)i * (bar_w + gap);
+    int16_t by = y + h - bh;
+    if (i == (size_t)c.wx_hour_now) {
+      epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK); // now: solid
+    } else {
+      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK);
+    }
+  }
+#endif
+}
+
+static void renderWeather(const CardContent& c, const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  header(st, "WEATHER");
+
+  if (!contentHasWeather(c)) {
+    epaper.setFreeFont(&FreeSans18pt7b);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("No forecast yet", W / 2, 200, GFXFF);
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.drawString("Plug in over USB - the forecast syncs with the dash", W / 2, 260, GFXFF);
+    pageTabs("weather");
+    return;
+  }
+
+  // Place + date row.
+  epaper.setFreeFont(&FreeSans18pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString(c.weather_location, MARGIN, 74, GFXFF);
+  epaper.setFreeFont(&FreeSans12pt7b);
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(c.weather_date, W - MARGIN, 80, GFXFF);
+
+  // Hero: current temp + condition, hi/lo on the right.
+  epaper.setFreeFont(&FreeSansBold24pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString(c.weather_now_temp, MARGIN, 116, GFXFF);
+  int16_t tw = epaper.textWidth(c.weather_now_temp, GFXFF);
+  epaper.setFreeFont(&FreeSans18pt7b);
+  epaper.drawString(c.weather_now_cond, MARGIN + tw + 18, 124, GFXFF);
+  epaper.setFreeFont(&FreeSans12pt7b);
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(c.weather_now_hilo, W - MARGIN, 128, GFXFF);
+
+  epaper.drawFastHLine(MARGIN, 178, W - 2 * MARGIN, TFT_BLACK);
+
+  // Three day-part cards.
+  const int16_t seg_y = 196;
+  const int16_t seg_h = 140;
+  const int16_t gap = 14;
+  const int16_t seg_w = (W - 2 * MARGIN - 2 * gap) / 3;
+  size_t n = c.wx_seg_count;
+  for (size_t i = 0; i < CardContent::WX_SEGS; i++) {
+    int16_t sx = MARGIN + (int16_t)i * (seg_w + gap);
+    if (i < n) {
+      drawSegmentCard(c, i, sx, seg_y, seg_w, seg_h);
+    } else {
+      epaper.drawRoundRect(sx, seg_y, seg_w, seg_h, 6, TFT_BLACK);
+    }
+  }
+
+  // 24-hour temperature skyline.
+  epaper.setFreeFont(&FreeSans12pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString("Next 24 hours", MARGIN, 346, GFXFF);
+
+  drawHourStrip(c, MARGIN, 372, W - 2 * MARGIN, 36);
+
+  static const char* kHourMarks[4] = {"12a", "6a", "12p", "6p"};
+  epaper.setFreeFont(&FreeSans9pt7b);
+  const int16_t strip_w = W - 2 * MARGIN;
+  for (uint8_t i = 0; i < 4; i++) {
+    int16_t hx = MARGIN + (int16_t)i * 6 * strip_w / 24;
+    if (i == 0) {
+      epaper.setTextDatum(TL_DATUM);
+      epaper.drawString(kHourMarks[i], hx, 412, GFXFF);
+    } else {
+      epaper.setTextDatum(TC_DATUM);
+      epaper.drawString(kHourMarks[i], hx, 412, GFXFF);
+    }
+  }
+
+  pageTabs("weather");
 #endif
 }
 
@@ -383,6 +513,7 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   epaper.fillScreen(TFT_WHITE);
   if (card == "build") renderBuild(content, status);
   else if (card == "yours") renderYours(content, status);
+  else if (card == "weather") renderWeather(content, status);
   else if (card == "dash" && contentHasDash(content)) renderDash(content, status);
   else renderBrief(content, status);
   epaper.update();

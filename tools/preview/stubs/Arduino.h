@@ -42,6 +42,8 @@ public:
   String operator+(const String& o) const { return String(s_ + o.s_); }
   String operator+(const char* o) const { return String(s_ + (o ? o : "")); }
   friend String operator+(const char* a, const String& b) { return String(std::string(a ? a : "") + b.s_); }
+  String& operator+=(const String& o) { s_ += o.s_; return *this; }
+  String& operator+=(const char* o) { s_ += (o ? o : ""); return *this; }
   bool operator==(const String& o) const { return s_ == o.s_; }
   bool operator!=(const String& o) const { return s_ != o.s_; }
 

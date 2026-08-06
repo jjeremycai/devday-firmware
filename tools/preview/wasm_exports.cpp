@@ -102,6 +102,32 @@ extern "C" void emu_set(const char* key, const char* value) {
   else if (k == "device_name") g_status.device_name = v;
   else if (k == "connection") g_status.connection = v;
   else if (k == "ap_hint") g_status.ap_hint = v;
+  else if (k == "weather_location") g_content.weather_location = v;
+  else if (k == "weather_date") g_content.weather_date = v;
+  else if (k == "weather_now_temp") g_content.weather_now_temp = v;
+  else if (k == "weather_now_cond") g_content.weather_now_cond = v;
+  else if (k == "weather_now_hilo") g_content.weather_now_hilo = v;
+  else if (k == "wx_hour_now") g_content.wx_hour_now = (uint8_t)atoi(v.c_str());
+  else if (k.startsWith("wx_seg_")) {
+    // "label|temp|cond|wind|precip"
+    size_t idx = (size_t)(k.charAt(7) - '0');
+    if (idx < CardContent::WX_SEGS) {
+      String parts[5];
+      size_t n = 0, start = 0;
+      for (size_t i = 0; i <= v.length() && n < 5; i++) {
+        if (i == v.length() || v.charAt(i) == '|') {
+          parts[n++] = v.substring(start, i);
+          start = i + 1;
+        }
+      }
+      if (n > 0) g_content.wx_label[idx] = parts[0];
+      if (n > 1) g_content.wx_temp[idx] = parts[1];
+      if (n > 2) g_content.wx_cond[idx] = parts[2];
+      if (n > 3) g_content.wx_wind[idx] = parts[3];
+      if (n > 4) g_content.wx_precip[idx] = parts[4];
+      if (idx + 1 > g_content.wx_seg_count) g_content.wx_seg_count = idx + 1;
+    }
+  }
 }
 
 extern "C" void emu_set_days_csv(const char* csv) {
@@ -115,6 +141,19 @@ extern "C" void emu_set_days_csv(const char* csv) {
     while (*p && (*p < '0' || *p > '9')) p++;
   }
   g_content.dash_day_count = n;
+}
+
+extern "C" void emu_set_wx_hours_csv(const char* csv) {
+  size_t n = 0;
+  const char* p = csv;
+  while (n < CardContent::WX_HOURS && p && *p) {
+    int v = (int)strtol(p, (char**)&p, 10);
+    if (v < 0) v = 0;
+    if (v > 255) v = 255;
+    g_content.wx_hours[n++] = (uint8_t)v;
+    while (*p && (*p < '0' || *p > '9')) p++;
+  }
+  g_content.wx_hour_count = n;
 }
 
 static int hexNibble(char c) {
