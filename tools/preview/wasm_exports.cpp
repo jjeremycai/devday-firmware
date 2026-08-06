@@ -48,13 +48,13 @@ extern "C" int emu_pin(int pin, int down, uint32_t ms) {
   ButtonEvent ev = buttonsPoll();
   if (ev == ButtonEvent::NONE) return 0;
   if (ev == ButtonEvent::B1) {
-    g_card = contentHasDash(g_content) ? "dash" : "brief";
+    g_card = contentHasDash(g_content) ? "dash" : "agenda";
   } else if (ev == ButtonEvent::B2) {
-    g_card = "brief";
+    g_card = "weather";
   } else if (ev == ButtonEvent::B3) {
-    g_card = "build";
+    g_card = "agenda";
   } else {
-    g_card = "yours";
+    g_card = "quote";
   }
   renderCard(g_card, g_content, g_status);
   return (int)ev;
@@ -107,6 +107,21 @@ extern "C" void emu_set(const char* key, const char* value) {
   else if (k == "weather_now_temp") g_content.weather_now_temp = v;
   else if (k == "weather_now_cond") g_content.weather_now_cond = v;
   else if (k == "weather_now_hilo") g_content.weather_now_hilo = v;
+  else if (k == "agenda_date") g_content.agenda_date = v;
+  else if (k == "quote_text") g_content.quote_text = v;
+  else if (k == "quote_author") g_content.quote_author = v;
+  else if (k == "quote_source") g_content.quote_source = v;
+  else if (k.startsWith("agenda_")) {
+    size_t idx = (size_t)(k.charAt(7) - '0');
+    if (idx < CardContent::AGENDA_MAX) {
+      String parts[3]; size_t n=0, start=0;
+      for (size_t i=0;i<=v.length()&&n<3;i++) if(i==v.length()||v.charAt(i)=='|'){parts[n++]=v.substring(start,i); start=i+1;}
+      if(n>0) g_content.agenda_time[idx]=parts[0];
+      if(n>1) g_content.agenda_title[idx]=parts[1];
+      if(n>2) g_content.agenda_detail[idx]=parts[2];
+      if(idx+1>g_content.agenda_count) g_content.agenda_count=idx+1;
+    }
+  }
   else if (k == "wx_hour_now") g_content.wx_hour_now = (uint8_t)atoi(v.c_str());
   else if (k.startsWith("wx_seg_")) {
     // "label|temp|cond|wind|precip"

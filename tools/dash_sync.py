@@ -3,16 +3,20 @@
 
 Uses the signed-in local Codex install:
   - `codex app-server` → account/usage/read (lifetime, streaks, daily buckets)
+    — available offline (no Wi-Fi) via local daemon.
   - ~/.codex/auth.json → ChatGPT token for profiles/me (name, @handle, photo)
+    — requires network; skipped with --offline or on failure.
 
 Then dithers the avatar and sends `content.push` over the USB serial port.
 
 Examples:
-  tools/dash_sync.py                  # once, auto-detect port
+  tools/dash_sync.py                  # once, auto-detect port (online: profile+weather)
+  tools/dash_sync.py --offline --json # offline preview: local usage only, no Wi-Fi
   tools/dash_sync.py --watch          # re-push whenever the terminal is plugged in
   tools/dash_sync.py --port /dev/cu.usbmodem1101
   tools/dash_sync.py --json           # print payload only (no USB)
-  tools/dash_sync.py --no-weather
+  tools/dash_sync.py --no-weather     # Codex only, no forecast
+  tools/dash_sync.py --offline        # no Wi-Fi: local usage only (monogram, no avatar/weather)
 """
 
 from __future__ import annotations
@@ -696,6 +700,7 @@ def push_to_device(port: str, payload: Dict[str, Any]) -> None:
 # Main
 # ---------------------------------------------------------------------------
 async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
+    offline = bool(getattr(args, "offline", False))
     print("→ Codex app-server: usage…", file=sys.stderr)
     account, usage = await fetch_codex_usage()
     summary = (usage.get("summary") or {})
@@ -706,26 +711,36 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
         file=sys.stderr,
     )
 
-    print("→ Codex profile (local auth)…", file=sys.stderr)
-    profile = fetch_codex_profile()
-    print(
-        f"  {profile.get('display_name')} @{profile.get('username')}",
-        file=sys.stderr,
-    )
-
+    profile: Dict[str, Any] = {}
     avatar_hex = ""
-    pic = profile.get("profile_picture_url") or ""
-    if pic and not args.no_avatar:
-        print("→ profile photo…", file=sys.stderr)
-        headers = load_auth_headers()
+    if offline:
+        print("→ offline: skipping profile + avatar (no Wi-Fi)", file=sys.stderr)
+    else:
+        print("→ Codex profile (local auth)…", file=sys.stderr)
         try:
-            image_bytes = http_bytes(pic, headers)
-            avatar_hex = dither_image_bytes(image_bytes)
-            print(f"  dithered {AVATAR}×{AVATAR} ({len(avatar_hex)//2} bytes)", file=sys.stderr)
+            profile = fetch_codex_profile()
+            print(
+                f"  {profile.get('display_name')} @{profile.get('username')}",
+                file=sys.stderr,
+            )
         except Exception as exc:
-            print(f"  avatar skipped: {exc}", file=sys.stderr)
+            print(f"  profile skipped (offline?): {exc}", file=sys.stderr)
+            profile = {}
 
-    if args.no_weather:
+        pic = profile.get("profile_picture_url") or ""
+        if pic and not args.no_avatar:
+            print("→ profile photo…", file=sys.stderr)
+            headers = load_auth_headers()
+            try:
+                image_bytes = http_bytes(pic, headers)
+                avatar_hex = dither_image_bytes(image_bytes)
+                print(f"  dithered {AVATAR}×{AVATAR} ({len(avatar_hex)//2} bytes)", file=sys.stderr)
+            except Exception as exc:
+                print(f"  avatar skipped: {exc}", file=sys.stderr)
+
+    if args.no_weather or offline:
+        if offline:
+            print("→ offline: skipping weather (no Wi-Fi)", file=sys.stderr)
         weather_temp, weather_detail, weather = "", "", None
     else:
         print("→ weather…", file=sys.stderr)
@@ -797,6 +812,7 @@ def main() -> int:
     ap.add_argument("--watch", action="store_true", help="re-sync on every plug-in")
     ap.add_argument("--push-existing", action="store_true", help="with --watch, also sync ports already connected")
     ap.add_argument("--json", action="store_true", help="print payload JSON only")
+    ap.add_argument("--offline", action="store_true", help="no Wi-Fi: skip profile/avatar/weather, local usage only")
     ap.add_argument("--no-weather", action="store_true", help="skip Open-Meteo")
     ap.add_argument("--no-avatar", action="store_true")
     ap.add_argument("--lat", type=float, default=None, help="override latitude (else IP geolocate)")

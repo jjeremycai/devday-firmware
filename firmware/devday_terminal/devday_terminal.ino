@@ -25,7 +25,7 @@
 static DeviceConfig cfg;
 static CardContent content;
 static RenderStatus st;
-static String current_card = "brief";
+static String current_card = "agenda";
 static uint32_t boots = 0;
 static uint32_t last_activity_ms = 0;
 static bool reboot_pending = false;
@@ -136,7 +136,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
 }
 
 static bool hookCardPreview(const String& card, String& err_code) {
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather") {
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda" && card != "quote") {
     err_code = "bad_params";
     return false;
   }
@@ -164,8 +164,8 @@ static bool hookContentPush(const String& payload, const String& show_card, Stri
   cacheWriteContent(payload, "");
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
-  if (card == "dash" && !contentHasDash(content)) card = "brief";
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather") {
+  if (card == "dash" && !contentHasDash(content)) card = "agenda";
+  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda" && card != "quote") {
     err_code = "bad_params";
     return false;
   }
@@ -327,13 +327,13 @@ void loop() {
   if (ev != ButtonEvent::NONE) {
     last_activity_ms = millis();
     if (ev == ButtonEvent::B1) {
-      current_card = contentHasDash(content) ? "dash" : "brief";
+      current_card = contentHasDash(content) ? "dash" : "agenda";
     } else if (ev == ButtonEvent::B2) {
       current_card = "weather";
     } else if (ev == ButtonEvent::B3) {
-      current_card = "brief";
+      current_card = "agenda";
     } else {
-      current_card = "yours";
+      current_card = "quote";
     }
     refreshStatus();
     renderCard(current_card, content, st);

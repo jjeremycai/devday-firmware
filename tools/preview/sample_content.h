@@ -76,6 +76,16 @@ inline CardContent sampleContent() {
   c.wx_hour_count = CardContent::WX_HOURS;
   c.wx_hour_now = 14;
 
+  c.agenda_date = "Thursday, August 6";
+  c.agenda_time[0] = "09:00"; c.agenda_title[0] = "Standup";        c.agenda_detail[0] = "with design · Room A";
+  c.agenda_time[1] = "11:30"; c.agenda_title[1] = "Lunch with team"; c.agenda_detail[1] = "Downtown · 1h";
+  c.agenda_time[2] = "14:00"; c.agenda_title[2] = "Deep work";       c.agenda_detail[2] = "Terminal demo prep";
+  c.agenda_time[3] = "16:30"; c.agenda_title[3] = "Demo";            c.agenda_detail[3] = "Hall B · 30m";
+  c.agenda_count = 4;
+  c.quote_text = "The best way to predict the future is to invent it.";
+  c.quote_author = "Alan Kay";
+  c.quote_source = "1971";
+
   c.refresh_after_s = 1800;
   return c;
 }

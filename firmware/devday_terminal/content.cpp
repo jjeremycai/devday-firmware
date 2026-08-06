@@ -23,6 +23,25 @@ static bool decodeHexAvatar(const char* hex, size_t len, uint8_t* out, size_t ou
   return true;
 }
 
+struct BundledQuote { const char* text; const char* author; const char* source; };
+static const BundledQuote kBundledQuotes[] = {
+  {"The best way to predict the future is to invent it.", "Alan Kay", "1971"},
+  {"Stay hungry, stay foolish.", "Steve Jobs", "2005"},
+  {"Nothing in life is to be feared, it is only to be understood.", "Marie Curie", "—"},
+  {"Imagination is more important than knowledge.", "Albert Einstein", "1929"},
+  {"Whether you think you can, or you think you can't — you're right.", "Henry Ford", "—"},
+  {"Our greatest weakness lies in giving up.", "Thomas Edison", "—"},
+  {"You will face many defeats in life, but never let yourself be defeated.", "Maya Angelou", "—"},
+  {"Be yourself; everyone else is already taken.", "Oscar Wilde", "—"},
+};
+static constexpr size_t kBundledQuoteCount = sizeof(kBundledQuotes)/sizeof(kBundledQuotes[0]);
+
+static uint32_t hashStr(const String& s) {
+  uint32_t h = 2166136261u;
+  for (size_t i = 0; i < s.length(); i++) { h ^= (uint8_t)s.charAt(i); h *= 16777619u; }
+  return h;
+}
+
 void contentDefaults(CardContent& c, const String& device_name) {
   c.build_state = "ready";
   c.build_title = "Factory firmware " FW_VERSION;
@@ -72,6 +91,24 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.wx_hour_count = 0;
   c.wx_hour_now = 255;
   memset(c.wx_hours, 0, sizeof(c.wx_hours));
+
+  c.agenda_date = "Thursday, August 6";
+  c.agenda_time[0] = "09:00"; c.agenda_title[0] = "Standup";        c.agenda_detail[0] = "with design · Room A";
+  c.agenda_time[1] = "11:30"; c.agenda_title[1] = "Lunch with team"; c.agenda_detail[1] = "Downtown · 1h";
+  c.agenda_time[2] = "14:00"; c.agenda_title[2] = "Deep work";       c.agenda_detail[2] = "Terminal demo prep";
+  c.agenda_time[3] = "16:30"; c.agenda_title[3] = "Demo";            c.agenda_detail[3] = "Hall B · 30m";
+  c.agenda_count = 4;
+
+  // pick a bundled quote deterministically from device_name so each terminal shows something but rotates with push
+  {
+    uint32_t h = hashStr(device_name);
+    size_t idx = h % kBundledQuoteCount;
+    c.quote_text = kBundledQuotes[idx].text;
+    c.quote_author = kBundledQuotes[idx].author;
+    c.quote_source = kBundledQuotes[idx].source;
+  }
+
+  c.header_date = "Thursday, August 6";
 
   c.refresh_after_s = DEFAULT_REFRESH_MINUTES * 60UL;
 }
@@ -197,6 +234,49 @@ bool contentParse(const String& payload, CardContent& c) {
       int hn = wx["hour_now"].as<int>();
       c.wx_hour_now = (hn >= 0 && hn < (int)CardContent::WX_HOURS) ? (uint8_t)hn : 255;
     }
+  }
+
+  JsonObject agenda = doc["agenda"].as<JsonObject>();
+  if (!agenda.isNull()) {
+    if (agenda["date"].is<const char*>()) c.agenda_date = agenda["date"].as<String>();
+    JsonArray events = agenda["events"].as<JsonArray>();
+    if (!events.isNull()) {
+      size_t n = 0;
+      for (JsonVariant v : events) {
+        if (n >= CardContent::AGENDA_MAX) break;
+        JsonObject e = v.as<JsonObject>();
+        if (e.isNull()) continue;
+        c.agenda_time[n] = e["time"] | "";
+        c.agenda_title[n] = e["title"] | "";
+        c.agenda_detail[n] = e["detail"] | "";
+        n++;
+      }
+      c.agenda_count = n;
+    }
+  }
+
+  JsonObject quote = doc["quote"].as<JsonObject>();
+  if (!quote.isNull()) {
+    if (quote["text"].is<const char*>()) c.quote_text = quote["text"].as<String>();
+    if (quote["author"].is<const char*>()) c.quote_author = quote["author"].as<String>();
+    if (quote["source"].is<const char*>()) c.quote_source = quote["source"].as<String>();
+  }
+
+  // header date — top-level "date" or "header_date", consistent across all 4 pages; agenda/weather fall back
+  if (doc["header_date"].is<const char*>()) c.header_date = doc["header_date"].as<String>();
+  else if (doc["date"].is<const char*>()) c.header_date = doc["date"].as<String>();
+  else if (!agenda.isNull() && agenda["date"].is<const char*>()) c.header_date = agenda["date"].as<String>();
+  else {
+    JsonObject wx2 = doc["weather"].as<JsonObject>();
+    if (!wx2.isNull() && wx2["date"].is<const char*>()) c.header_date = wx2["date"].as<String>();
+  }
+  // if no header_date supplied but quote came from bundled pool, rotate quote by header_date hash
+  if (quote.isNull() && c.header_date.length()) {
+    uint32_t h = hashStr(c.header_date);
+    size_t idx = h % kBundledQuoteCount;
+    c.quote_text = kBundledQuotes[idx].text;
+    c.quote_author = kBundledQuotes[idx].author;
+    c.quote_source = kBundledQuotes[idx].source;
   }
 
   return true;

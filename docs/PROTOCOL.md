@@ -173,14 +173,27 @@ Response schema:
     "insight_right": "Wed 11:04 PM",
     "days": [40, 55, 90, 120, 80, 70, 95],
     "avatar_hex": "<72×72 1-bit MSB-first row-major, hex-encoded>"
+  },
+  "agenda": {
+    "date": "Thursday, August 6",
+    "events": [
+      {"time": "09:00", "title": "Standup", "detail": "with design · Room A"},
+      {"time": "11:30", "title": "Lunch with team", "detail": "Downtown · 1h"}
+    ]
+  },
+  "quote": {
+    "text": "The best way to predict the future is to invent it.",
+    "author": "Alan Kay",
+    "source": "1971"
   }
 }
 ```
 
 All fields optional except `schema`. `refresh_after_s` is clamped to ≥300.
 Unknown `build.state` values are ignored (keep last known). Page buttons
-(release-triggered): **1** Dash (Brief until a dash payload arrives),
-**2** Weather, **3** Brief, **4** Yours.
+(release-triggered): **1** Dash (Agenda until a dash payload arrives),
+**2** Weather, **3** Agenda, **4** Quote. `brief`/`yours` remain accepted for
+backwards compatibility but are no longer shown on tabs.
 
 An optional `weather` object powers the Weather page:
 

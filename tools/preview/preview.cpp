@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
   CardContent content = sampleContent();
 
   displayBegin();
-  const char* pages[] = {"dash", "weather", "brief", "build", "yours"};
+  const char* pages[] = {"dash", "weather", "agenda", "quote", "brief", "build", "yours"};
   for (const char* p : pages) {
     renderCard(p, content, st);
     char path[256];

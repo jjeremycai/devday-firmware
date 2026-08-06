@@ -21,8 +21,8 @@ static constexpr int16_t MARGIN = 36;
 // inverted. Buttons are numbered 1-4 (D1/D2/D3/D4) left to right.
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
-  static const char* kIds[4] = {"dash", "weather", "brief", "yours"};
-  static const char* kLabels[4] = {"1  DASH", "2  WEATHER", "3  BRIEF", "4  YOURS"};
+  static const char* kIds[4] = {"dash", "weather", "agenda", "quote"};
+  static const char* kLabels[4] = {"1  DASH", "2  WEATHER", "3  AGENDA", "4  QUOTE"};
   const int16_t tw = 156, th = 32, gap = 12;
   const int16_t total = 4 * tw + 3 * gap;
   int16_t x = (W - total) / 2;
@@ -45,18 +45,23 @@ static void pageTabs(const char* current) {
 #endif
 }
 
-static void header(const RenderStatus& st, const char* card_label) {
+static void header(const CardContent& c, const RenderStatus& st, const char* card_label) {
 #ifdef EPAPER_ENABLE
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
   epaper.drawString(st.device_name, MARGIN, 22, GFXFF);
-  String right = String(st.fw_hash) + "  " + String(st.battery_v, 2) + "V " + String(st.battery_pct) + "%";
-  epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(right, W - MARGIN, 22, GFXFF);
+  // center: card label
   if (card_label) {
     epaper.setTextDatum(TC_DATUM);
     epaper.drawString(card_label, W / 2, 22, GFXFF);
   }
+  // right: consistent date + battery (date is header_date, same on all 4 pages)
+  String right = "";
+  if (c.header_date.length()) right = c.header_date + "  ";
+  right += String(st.battery_pct) + "%";
+  // keep fw_hash subtle on the far edge only if space; otherwise date + battery is the consistent status
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(right, W - MARGIN, 22, GFXFF);
   epaper.drawFastHLine(MARGIN, 48, W - 2 * MARGIN, TFT_BLACK);
 #endif
 }
@@ -74,7 +79,7 @@ static void apHint(const RenderStatus& st) {
 
 static void renderBuild(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(st, "BUILD");
+  header(c, st, "BUILD");
 
   String state = c.build_state;
   state.toUpperCase();
@@ -108,7 +113,7 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
 
 static void renderBrief(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(st, "BRIEF");
+  header(c, st, "BRIEF");
 
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.setTextDatum(TL_DATUM);
@@ -131,7 +136,116 @@ static void renderBrief(const CardContent& c, const RenderStatus& st) {
   }
 
   apHint(st);
-  pageTabs("brief");
+  pageTabs("agenda");
+#endif
+}
+
+static void renderAgenda(const CardContent& c, const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  header(c, st, "AGENDA");
+
+  if (!contentHasAgenda(c)) {
+    epaper.setFreeFont(&FreeSans18pt7b);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("No events today", W / 2, 200, GFXFF);
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.drawString("Push agenda over USB or set content_url", W / 2, 246, GFXFF);
+    pageTabs("agenda");
+    return;
+  }
+
+  epaper.setFreeFont(&FreeSans12pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString(c.agenda_date, MARGIN, 70, GFXFF);
+  epaper.drawFastHLine(MARGIN, 94, W - 2 * MARGIN, TFT_BLACK);
+
+  const int16_t row_h = 78;
+  const int16_t gap = 10;
+  int16_t y = 108;
+  for (size_t i = 0; i < c.agenda_count && i < CardContent::AGENDA_MAX; i++) {
+    int16_t ry = y + (int16_t)i * (row_h + gap);
+    epaper.drawRoundRect(MARGIN, ry, W - 2 * MARGIN, row_h, 6, TFT_BLACK);
+    // time
+    epaper.setFreeFont(&FreeSansBold24pt7b);
+    epaper.setTextDatum(ML_DATUM);
+    epaper.drawString(c.agenda_time[i], MARGIN + 14, ry + row_h / 2 + 2, GFXFF);
+    int16_t tw = epaper.textWidth(c.agenda_time[i], GFXFF);
+    epaper.drawFastVLine(MARGIN + 118, ry + 12, row_h - 24, TFT_BLACK);
+    // title + detail
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.setTextDatum(TL_DATUM);
+    epaper.drawString(c.agenda_title[i], MARGIN + 134, ry + 14, GFXFF);
+    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.drawString(c.agenda_detail[i], MARGIN + 134, ry + 40, GFXFF);
+    // small right dot
+    epaper.fillCircle(W - MARGIN - 10, ry + row_h / 2, 3, TFT_BLACK);
+  }
+
+  apHint(st);
+  pageTabs("agenda");
+#endif
+}
+
+static void renderQuote(const CardContent& c, const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  header(c, st, "QUOTE");
+
+  if (!contentHasQuote(c)) {
+    epaper.setFreeFont(&FreeSans18pt7b);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("No quote yet", W / 2, 200, GFXFF);
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.drawString("Push a quote over USB or set content_url", W / 2, 246, GFXFF);
+    pageTabs("quote");
+    return;
+  }
+
+  // Large quote, word-wrapped within margins
+  epaper.setFreeFont(&FreeSansBold24pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  String text = "\"" + c.quote_text + "\"";
+  const int16_t maxW = W - 2 * MARGIN;
+  int16_t y = 96;
+  int16_t lineH = 38;
+  String line = "";
+  size_t pos = 0;
+  while (pos < text.length() && y <= 300) {
+    size_t nextSp = text.length();
+    for (size_t k = pos; k < text.length(); k++) if (text.charAt(k) == ' ') { nextSp = k; break; }
+    String word = nextSp < text.length() ? text.substring(pos, nextSp) : text.substring(pos, text.length());
+    String trial = line.length() ? line + " " + word : word;
+    int16_t w = epaper.textWidth(trial, GFXFF);
+    if (w > maxW && line.length()) {
+      epaper.drawString(line, MARGIN, y, GFXFF);
+      y += lineH;
+      line = word;
+    } else {
+      line = trial;
+    }
+    pos = nextSp == text.length() ? text.length() : nextSp + 1;
+  }
+  if (line.length() && y <= 320) {
+    epaper.drawString(line, MARGIN, y, GFXFF);
+    y += lineH;
+  }
+
+  // Author / source bottom-right
+  epaper.drawFastHLine(MARGIN, y + 10, W - 2 * MARGIN, TFT_BLACK);
+  epaper.setFreeFont(&FreeSans12pt7b);
+  String attr = c.quote_author;
+  if (c.quote_source.length()) {
+    if (attr.length()) attr += "  \xC2\xB7  " + c.quote_source;
+    else attr = c.quote_source;
+  }
+  if (attr.length() && attr.charAt(0) != '-' ) {
+    bool hasDash = attr.length() >= 3 && (unsigned char)attr.charAt(0) == 0xE2;
+    if (!hasDash) attr = String("\xE2\x80\x94 ") + attr;
+  }
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(attr, W - MARGIN, y + 28, GFXFF);
+
+  apHint(st);
+  pageTabs("quote");
 #endif
 }
 
@@ -148,9 +262,9 @@ static void drawQr(int16_t x, int16_t y, uint8_t scale) {
 #endif
 }
 
-static void renderYours(const CardContent&, const RenderStatus& st) {
+static void renderYours(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(st, "YOURS");
+  header(c, st, "YOURS");
 
   epaper.setFreeFont(&FreeSansBold24pt7b);
   epaper.setTextDatum(TL_DATUM);
@@ -231,7 +345,7 @@ static void drawHourStrip(const CardContent& c, int16_t x, int16_t y, int16_t w,
 
 static void renderWeather(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(st, "WEATHER");
+  header(c, st, "WEATHER");
 
   if (!contentHasWeather(c)) {
     epaper.setFreeFont(&FreeSans18pt7b);
@@ -416,12 +530,15 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
 
 static void renderDash(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  // Quiet masthead — no card chrome competing with the profile.
+  // Quiet masthead — consistent with other cards: date + battery on right, connection subtle later.
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
   epaper.drawString(st.device_name, MARGIN, 18, GFXFF);
+  String dashRight = "";
+  if (c.header_date.length()) dashRight = c.header_date + "  ";
+  dashRight += String(st.battery_pct) + "%";
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(String(st.battery_pct) + "%  " + st.connection, W - MARGIN, 18, GFXFF);
+  epaper.drawString(dashRight, W - MARGIN, 18, GFXFF);
 
   const int16_t avatar_cx = MARGIN + 40;
   const int16_t avatar_cy = 100;
@@ -513,9 +630,13 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   epaper.fillScreen(TFT_WHITE);
   if (card == "build") renderBuild(content, status);
   else if (card == "yours") renderYours(content, status);
+  else if (card == "brief") renderBrief(content, status);
   else if (card == "weather") renderWeather(content, status);
+  else if (card == "agenda") renderAgenda(content, status);
+  else if (card == "quote") renderQuote(content, status);
   else if (card == "dash" && contentHasDash(content)) renderDash(content, status);
-  else renderBrief(content, status);
+  else if (contentHasDash(content)) renderDash(content, status);
+  else renderAgenda(content, status);
   epaper.update();
   buttonsNoteDisplayUpdate(); // D3 may share the BUSY line
 #endif
