@@ -660,9 +660,8 @@ static void renderSplash() {
   const uint8_t seed = splash_seed++;
   const uint8_t count = SPLASH_FACE_COUNT;
   const int16_t gap = 28;
-  const int16_t footer_h = 62; // gap + unlock pill
   const int16_t avail_w = W - 2 * MARGIN - (count - 1) * gap;
-  const int16_t avail_h = H - footer_h - 2 * MARGIN;
+  const int16_t avail_h = H - 2 * MARGIN;
 
   // Largest whole-pixel scale that fits the row; whole numbers only, since a
   // fractional blit would alias the art.
@@ -676,17 +675,13 @@ static void renderSplash() {
   const int16_t fh = SPLASH_FACE_H * scale;
   const int16_t total = count * fw + (count - 1) * gap;
   const int16_t x0 = (W - total) / 2;
-  const int16_t y0 = (H - fh - footer_h) / 2;
+  const int16_t y0 = (H - fh) / 2;
 
+  // Artwork only — no caption, no wordmark. Any button moves on, and the next
+  // screen explains itself.
   for (uint8_t i = 0; i < count; i++) {
     drawSplashFace((uint8_t)((seed + i) % count), x0 + i * (fw + gap), y0, scale);
   }
-
-  const int16_t pill_y = y0 + fh + 20;
-  epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.setTextDatum(MC_DATUM);
-  epaper.drawRoundRect(W / 2 - 130, pill_y, 260, 30, 4, TFT_BLACK);
-  epaper.drawString("PRESS ANY BUTTON TO UNLOCK", W / 2, pill_y + 15, GFXFF);
 #endif
 }
 
@@ -700,12 +695,21 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.drawFastHLine(MARGIN, 108, 48, TFT_BLACK);
     epaper.setFreeFont(&FreeSans18pt7b);
     epaper.setTextDatum(MC_DATUM);
-    epaper.drawString("No usage yet", W / 2, 198, GFXFF);
+    epaper.drawString("No usage yet", W / 2, 192, GFXFF);
     epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.drawString("Automatic sync reads Codex when you plug in USB.", W / 2, 236, GFXFF);
-    epaper.drawString("Enable once: tools/dash_sync.py --install", W / 2, 258, GFXFF);
-    epaper.drawRoundRect(W/2 - 110, 284, 220, 32, 4, TFT_BLACK);
-    epaper.drawString("KEY2 WEATHER  •  KEY3 AGENDA", W/2, 300, GFXFF);
+    // A shell command here would name a path inside a repo the attendee has
+    // not cloned. Ask for the thing they already have open instead.
+    epaper.drawString("Plug into USB, then ask Codex:", W / 2, 230, GFXFF);
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.drawString("\"set up my Dev Day terminal\"", W / 2, 258, GFXFF);
+
+    // Size the hint to its text: this string is wider than the fixed box it
+    // used to sit in, and drawString does not clip.
+    epaper.setFreeFont(&FreeSans9pt7b);
+    const char* keys = "KEY2 WEATHER  -  KEY3 AGENDA";
+    const int16_t kw = epaper.textWidth(keys, GFXFF) + 36;
+    epaper.drawRoundRect(W / 2 - kw / 2, 300, kw, 32, 4, TFT_BLACK);
+    epaper.drawString(keys, W / 2, 316, GFXFF);
     apHint(st);
     pageTabs("dash");
     return;
