@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 // Pins (XIAO ESP32-S3 Plus / 7.5" OG DIY Kit, driver board v1.0)
 // ---------------------------------------------------------------------------
-static constexpr int PIN_BUTTON_D1 = D1; // GPIO2 - page 1 (Dash)
+static constexpr int PIN_BUTTON_D1 = D1; // GPIO2 - page 1 (Usage)
 static constexpr int PIN_BUTTON_D2 = D2; // GPIO3 - page 2 (Weather)
 static constexpr int PIN_BUTTON_D3 = D3; // GPIO4 - page 3 (Agenda); shared with display BUSY
 static constexpr int PIN_BUTTON_D4 = D4; // GPIO5 - page 4 (Quote)

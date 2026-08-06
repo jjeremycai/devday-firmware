@@ -1,4 +1,4 @@
-// Exported API for the browser emulator (see companion-site/emulator.js).
+// Exported API for the browser emulator (see web-emulator/emulator.js).
 // Drives the real firmware renderers + the real button debounce logic.
 #include "TFT_eSPI.h"
 

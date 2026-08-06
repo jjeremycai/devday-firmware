@@ -10,7 +10,10 @@ const screen_ = document.getElementById("screen");
 const ctx = screen_.getContext("2d");
 
 window.EMU = {
-  _font(px, bold) { return (bold ? "700 " : "") + px + "px Arial, Helvetica, sans-serif"; },
+  _font(px, bold, mono) {
+    const family = mono ? 'Menlo, Consolas, "Courier New", monospace' : "Arial, Helvetica, sans-serif";
+    return (bold ? "700 " : "") + px + "px " + family;
+  },
 
   fillScreen(white) {
     ctx.fillStyle = white ? "#ffffff" : "#000000";
@@ -41,8 +44,8 @@ window.EMU = {
     else { ctx.strokeStyle = white ? "#fff" : "#000"; ctx.lineWidth = 1; ctx.stroke(); }
   },
 
-  _measure(px, bold, s) {
-    ctx.font = this._font(px, bold);
+  _measure(px, bold, mono, s) {
+    ctx.font = this._font(px, bold, mono);
     const m = ctx.measureText(s);
     return {
       w: m.width,
@@ -50,11 +53,11 @@ window.EMU = {
       descent: m.actualBoundingBoxDescent || px * 0.23,
     };
   },
-  textWidth(px, bold, s) { return Math.ceil(this._measure(px, bold, s).w); },
+  textWidth(px, bold, mono, s) { return Math.ceil(this._measure(px, bold, mono, s).w); },
 
-  drawString(px, bold, datum, white, x, y, s) {
+  drawString(px, bold, mono, datum, white, x, y, s) {
     if (!s) return;
-    const { w, ascent, descent } = this._measure(px, bold, s);
+    const { w, ascent, descent } = this._measure(px, bold, mono, s);
     let tx = x, ty = y;
     switch (datum) {
       case TL_DATUM: ty = y + ascent; break;
@@ -67,7 +70,7 @@ window.EMU = {
       case BC_DATUM: tx = x - w / 2; ty = y - descent; break;
       case BR_DATUM: tx = x - w; ty = y - descent; break;
     }
-    ctx.font = this._font(px, bold);
+    ctx.font = this._font(px, bold, mono);
     ctx.fillStyle = white ? "#ffffff" : "#000000";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(s, tx, ty);

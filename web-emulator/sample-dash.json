@@ -19,7 +19,7 @@
   },
   "brief": {
     "eyebrow": "CODEX",
-    "title": "Dash synced locally",
+    "title": "Usage synced locally",
     "lines": ["tools/dash_sync.py --watch", "No browser required", "Uses your Codex login"],
     "footer": "@permanentunderclass"
   },

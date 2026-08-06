@@ -95,9 +95,14 @@ void EPaper::fillCircle(int32_t cx, int32_t cy, int32_t r, uint16_t color) {
 
 // --- CoreText text ----------------------------------------------------------
 
+static CTFontRef makeFont(const GFXfont* f) {
+  CFStringRef name = f->mono ? (f->bold ? CFSTR("Menlo-Bold") : CFSTR("Menlo-Regular"))
+                             : (f->bold ? CFSTR("Arial-BoldMT") : CFSTR("ArialMT"));
+  return CTFontCreateWithName(name, f->px, nullptr);
+}
+
 static void measure(const String& s, const GFXfont* f, double& w, double& ascent, double& descent) {
-  CTFontRef font = CTFontCreateWithName(
-      f->bold ? CFSTR("Arial-BoldMT") : CFSTR("ArialMT"), f->px, nullptr);
+  CTFontRef font = makeFont(f);
   CFStringRef str = CFStringCreateWithCString(nullptr, s.c_str(), kCFStringEncodingUTF8);
   CFStringRef keys[] = {kCTFontAttributeName};
   CFTypeRef vals[] = {font};
@@ -152,8 +157,7 @@ void EPaper::drawString(const String& s, int32_t x, int32_t y, uint8_t) {
   CGContextTranslateCTM(ctx, 0, FB_H);
   CGContextScaleCTM(ctx, 1, -1);
 
-  CTFontRef font = CTFontCreateWithName(
-      g_font->bold ? CFSTR("Arial-BoldMT") : CFSTR("ArialMT"), g_font->px, nullptr);
+  CTFontRef font = makeFont(g_font);
   CFStringRef str = CFStringCreateWithCString(nullptr, s.c_str(), kCFStringEncodingUTF8);
   CFStringRef keys[] = {kCTFontAttributeName};
   CFTypeRef vals[] = {font};

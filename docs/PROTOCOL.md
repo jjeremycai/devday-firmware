@@ -191,7 +191,7 @@ Response schema:
 
 All fields optional except `schema`. `refresh_after_s` is clamped to ≥300.
 Unknown `build.state` values are ignored (keep last known). Page buttons
-(release-triggered): **1** Dash (Agenda until a dash payload arrives),
+(release-triggered): **1** Usage (Agenda until a dash payload arrives),
 **2** Weather, **3** Agenda, **4** Quote. `brief`/`yours` remain accepted for
 backwards compatibility but are no longer shown on tabs.
 

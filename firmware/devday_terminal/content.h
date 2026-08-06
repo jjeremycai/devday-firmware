@@ -20,7 +20,7 @@ struct CardContent {
   size_t brief_line_count;
   String brief_footer;
 
-  // Dash card (Codex profile + weather + usage chart)
+  // Usage card (Codex profile + weather + token chart)
   bool dash_present;
   String dash_name;
   String dash_handle;

@@ -578,7 +578,7 @@ def build_payload(
         },
         "brief": {
             "eyebrow": "CODEX",
-            "title": "Dash synced locally",
+            "title": "Usage synced locally",
             "lines": [
                 "tools/dash_sync.py --watch",
                 "No browser required",
@@ -778,7 +778,7 @@ def run_once(args: argparse.Namespace) -> int:
     port = resolve_port(args.port)
     print(f"→ USB {port}…", file=sys.stderr)
     push_to_device(port, payload)
-    print("✓ dash pushed", file=sys.stderr)
+    print("✓ usage pushed", file=sys.stderr)
     return 0
 
 

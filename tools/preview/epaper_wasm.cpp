@@ -1,5 +1,5 @@
 // EPaper stub that forwards every draw call to the browser canvas.
-// JS implementations live in companion-site/emulator.js (window.EMU).
+// JS implementations live in web-emulator/emulator.js (window.EMU).
 #include "TFT_eSPI.h"
 
 #include <emscripten.h>
@@ -18,11 +18,11 @@ EM_JS(void, js_circle, (int x, int y, int r, int fill, int white), {
   EMU.circle(x, y, r, fill, white);
 });
 EM_JS(void, js_draw_string,
-      (int px, int bold, int datum, int white, int x, int y, const char* s), {
-        EMU.drawString(px, bold, datum, white, x, y, UTF8ToString(s));
+      (int px, int bold, int mono, int datum, int white, int x, int y, const char* s), {
+        EMU.drawString(px, bold, mono, datum, white, x, y, UTF8ToString(s));
       });
-EM_JS(int, js_text_width, (int px, int bold, const char* s), {
-  return EMU.textWidth(px, bold, UTF8ToString(s));
+EM_JS(int, js_text_width, (int px, int bold, int mono, const char* s), {
+  return EMU.textWidth(px, bold, mono, UTF8ToString(s));
 });
 
 static uint16_t g_fg = TFT_BLACK;
@@ -68,9 +68,9 @@ void EPaper::fillCircle(int32_t x, int32_t y, int32_t r, uint16_t color) {
 }
 void EPaper::drawString(const String& s, int32_t x, int32_t y, uint8_t) {
   if (s.length() == 0) return;
-  js_draw_string(g_font->px, g_font->bold ? 1 : 0, g_datum, g_fg == TFT_WHITE ? 1 : 0, x, y,
-                 s.c_str());
+  js_draw_string(g_font->px, g_font->bold ? 1 : 0, g_font->mono ? 1 : 0, g_datum,
+                 g_fg == TFT_WHITE ? 1 : 0, x, y, s.c_str());
 }
 int16_t EPaper::textWidth(const String& s, uint8_t) {
-  return (int16_t)js_text_width(g_font->px, g_font->bold ? 1 : 0, s.c_str());
+  return (int16_t)js_text_width(g_font->px, g_font->bold ? 1 : 0, g_font->mono ? 1 : 0, s.c_str());
 }

@@ -4,13 +4,13 @@ Mass-production firmware RC for the 7.5" (OG) DIY Kit: XIAO ESP32-S3
 Plus driving an 800×480 UC8179 e-paper, Arduino framework. Boots usefully
 without Wi-Fi and invites the attendee to **teach it a job**.
 
-**Dash · Weather · Agenda** — three pages on three buttons, numbered 1-3
+**Usage · Weather · Agenda** — three pages on three buttons, numbered 1-3
 (KEY1 / KEY2 / KEY3) left to right. Press and release to switch; hold length
 doesn't matter. KEY3 (D3) shares GPIO4 with the display BUSY line, so it
 doesn't wake the device from sleep and is ignored for ~1.2s after each
 refresh. Quote killed — 3 pages matches 3-key hardware (no KEY4).
 
-- **1 → Dash** — Codex profile, weather, token chart (pushed over USB from
+- **1 → Usage** — Codex profile, weather, token chart (pushed over USB from
   the companion page the moment you plug in — no native install, `--offline`
   works with no Wi-Fi: local usage only, monogram instead of avatar). Falls
   back to **Agenda** until a dash payload arrives.
@@ -21,16 +21,17 @@ refresh. Quote killed — 3 pages matches 3-key hardware (no KEY4).
   example app, push your calendar via `content.push`).
 
 The on-screen tab strip shows all three pages with the current one inverted.
-The factory **Build** diagnostics page is still renderable via
-`card.preview` over USB (used by the line test).
+The very first boot after factory flash shows an ASCII OpenAI blossom splash;
+any button press moves on. The factory **Build** diagnostics page is still
+renderable via `card.preview` over USB (used by the line test).
 
 ## Layout
 
 ```
 firmware/devday_terminal/   Arduino sketch (the whole firmware)
 partitions.csv              16 MB map: factory + ota_0/ota_1 (3 MB each) + LittleFS
-companion-site/             assembly & setup site (Web Serial + AP fallback)
-companion-site/emulator.html  browser emulator: real cards.cpp/buttons.cpp via WASM
+web-emulator/               assembly & setup site (Web Serial + AP fallback)
+web-emulator/emulator.html  browser emulator: real cards.cpp/buttons.cpp via WASM
 tools/                      build.sh, package_release.sh, generators
 tools/preview/              host-side card renderer (no device needed)
 docs/                       PROTOCOL.md · FLASHING.md · LINE_TEST.md
@@ -73,13 +74,13 @@ Regenerable inputs: `tools/gen_qr.py` (Yours-card QR),
 
 ```sh
 tools/preview/build.sh        # renders every page to tools/preview/out/*.png
-tools/preview/build_wasm.sh   # rebuilds companion-site/emu/ (needs emscripten)
+tools/preview/build_wasm.sh   # rebuilds web-emulator/emu/ (needs emscripten)
 ```
 
 Both compile the real `cards.cpp` (the WASM build also the real `buttons.cpp`)
 against stub headers, so what you see is what the device draws. Serve the
 browser emulator with any static server, e.g.
-`cd companion-site && python3 -m http.server` → `/emulator.html`. Buttons 1-4
+`cd web-emulator && python3 -m http.server` → `/emulator.html`. Buttons 1-4
 (click or keys) drive the actual debounce logic; paste a
 `dash_sync.py --json` payload to preview real content.
 

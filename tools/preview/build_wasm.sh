@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Browser emulator: compiles the real cards.cpp + buttons.cpp to WebAssembly.
-# Output lands in companion-site/emu/ and is committed so the page is static.
+# Output lands in web-emulator/emu/ and is committed so the page is static.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT="$ROOT/companion-site/emu"
+OUT="$ROOT/web-emulator/emu"
 mkdir -p "$OUT"
 
 em++ -std=c++17 -O2 \

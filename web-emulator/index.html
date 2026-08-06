@@ -137,9 +137,9 @@
   <div class="panel" id="setup-card">
     <div class="hero-row">
       <button id="connect">Connect terminal once</button>
-      <button class="ghost" id="push-now" disabled>Refresh dash now</button>
+      <button class="ghost" id="push-now" disabled>Refresh usage now</button>
       <span id="conn-pill" class="pill off">disconnected</span>
-      <span id="dash-pill" class="pill off">dash idle</span>
+      <span id="dash-pill" class="pill off">usage idle</span>
     </div>
     <p id="serial-note" class="hint"></p>
 
@@ -243,7 +243,7 @@
     <label>Device name</label><input id="c-name" maxlength="32">
     <label>Startup card</label>
     <select id="c-card">
-      <option value="dash">Dash</option>
+      <option value="dash">Usage</option>
       <option value="build">Build</option>
       <option value="brief">Brief</option>
       <option value="yours">Yours</option>
@@ -255,7 +255,7 @@
     <div class="hero-row">
       <button id="save">Save to terminal</button>
       <button class="ghost" id="preview-build">Preview Build</button>
-      <button class="ghost" id="preview-dash">Preview Dash</button>
+      <button class="ghost" id="preview-dash">Preview Usage</button>
       <button class="ghost" id="preview-yours">Preview Yours</button>
       <button class="ghost" id="ap-start">Start setup AP</button>
       <button class="ghost" id="reboot">Reboot</button>
@@ -275,7 +275,7 @@
       <li>Set the display jumper to <b>24Pin–GND</b>.</li>
       <li>Connect the battery to the JST header (red = +, black = −).</li>
       <li>Plug the XIAO ESP32-S3 Plus into the driver board and connect USB-C.</li>
-      <li>Press <b>Connect terminal once</b> above. After that, plugging in auto-refreshes the dash.</li>
+      <li>Press <b>Connect terminal once</b> above. After that, plugging in auto-refreshes usage.</li>
     </ol>
   </div>
 
@@ -590,9 +590,9 @@ function buildPayload() {
     },
     brief: {
       eyebrow: "DEV DAY",
-      title: "Your dash is live",
+      title: "Your usage is live",
       lines: ["Plug in USB to refresh", "Weather + Codex profile", "No install required"],
-      footer: $("p-handle").value.trim() || "dash",
+      footer: $("p-handle").value.trim() || "usage",
     },
   };
 }
@@ -747,7 +747,7 @@ async function readLoop() {
     finally { reader.releaseLock(); }
   }
   setConn(false, "disconnected");
-  setDash(false, "dash idle");
+  setDash(false, "usage idle");
   port = null;
 }
 
@@ -803,7 +803,7 @@ async function pushDash() {
       $("c-card").value = "dash";
     } catch { /* optional */ }
     $("s-push").textContent = new Date().toLocaleTimeString();
-    setDash(true, "dash live");
+    setDash(true, "usage live");
     refreshStatus();
   } catch (e) {
     setDash(false, "push failed");
@@ -841,7 +841,7 @@ if (!("serial" in navigator)) {
   $("serial-note").textContent = "This browser cannot talk USB serial. Use Chrome/Edge, or the AP fallback.";
 } else {
   $("serial-note").textContent =
-    "Authorize once. After that, keep this tab open — plugging USB auto-connects and refreshes the dash. Nothing is installed.";
+      "Authorize once. After that, keep this tab open — plugging USB auto-connects and refreshes usage. Nothing is installed.";
   navigator.serial.addEventListener("connect", async (event) => {
     log("USB device connected");
     try { await openPort(event.target); }
@@ -850,7 +850,7 @@ if (!("serial" in navigator)) {
   navigator.serial.addEventListener("disconnect", () => {
     log("USB device disconnected");
     setConn(false, "disconnected");
-    setDash(false, "dash idle");
+    setDash(false, "usage idle");
     port = null;
   });
 }

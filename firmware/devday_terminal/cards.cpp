@@ -13,27 +13,44 @@
 static EPaper epaper = EPaper();
 #endif
 
-// 16×16 Blossom (OpenAI) — 1-bit, 6 petals around center, small white core
-static void drawBlossomIcon(int16_t x0, int16_t y0, int16_t sz = 16) {
+// 24×24 OpenAI blossom — 1-bit, rasterized from the official openai-blossom.svg
+static const uint8_t kBlossom24[72] = {
+  0x00, 0x00, 0x00,
+  0x00, 0xFC, 0x00,
+  0x03, 0x8F, 0xC0,
+  0x03, 0x0F, 0xF0,
+  0x06, 0x3C, 0x38,
+  0x0C, 0x70, 0x18,
+  0x3C, 0xC3, 0x8C,
+  0x34, 0xCF, 0xEC,
+  0x64, 0xFC, 0x7C,
+  0x44, 0xFF, 0x1C,
+  0x44, 0xC3, 0x8E,
+  0x46, 0xC3, 0xE6,
+  0x67, 0xC3, 0x62,
+  0x71, 0xC3, 0x22,
+  0x38, 0xFF, 0x22,
+  0x3E, 0x3F, 0x26,
+  0x37, 0xF3, 0x2C,
+  0x31, 0xC3, 0x3C,
+  0x18, 0x0E, 0x30,
+  0x1C, 0x3C, 0x60,
+  0x0F, 0xF0, 0xC0,
+  0x03, 0xF1, 0xC0,
+  0x00, 0x3F, 0x00,
+  0x00, 0x00, 0x00,
+};
+
+static void drawBlossomIcon(int16_t x0, int16_t y0) {
 #ifdef EPAPER_ENABLE
-  int16_t cx = x0 + sz/2;
-  int16_t cy = y0 + sz/2;
-  int16_t pr = sz * 5 / 16; // petal radius
-  int16_t cr = sz * 3 / 16; // center inner radius
-  int16_t dist = sz * 6 / 16; // petal distance from center
-  // 6 petals at 60° increments, precomputed for r≈6
-  const int8_t dx[6] = { 0,  5,  5,  0, -5, -5 };
-  const int8_t dy[6] = {-6, -3,  3,  6,  3, -3 };
-  // scale dx/dy if sz !=16
-  for (uint8_t i=0;i<6;i++) {
-    int16_t px = cx + (dx[i] * dist) / 6;
-    int16_t py = cy + (dy[i] * dist) / 6;
-    int16_t rad = pr * (dx[i]==0 ? 10 : 9) / 10; // slight vertical elongation
-    epaper.fillCircle(px, py, rad, TFT_BLACK);
+  for (int16_t y = 0; y < 24; y++) {
+    for (int16_t x = 0; x < 24; x++) {
+      size_t bit = (size_t)y * 24 + (size_t)x;
+      if (kBlossom24[bit / 8] & (0x80 >> (bit % 8))) {
+        epaper.drawPixel(x0 + x, y0 + y, TFT_BLACK);
+      }
+    }
   }
-  epaper.fillCircle(cx, cy, cr + 2, TFT_WHITE);
-  epaper.fillCircle(cx, cy, cr, TFT_BLACK);
-  epaper.fillCircle(cx, cy, 1, TFT_WHITE);
 #endif
 }
 
@@ -45,7 +62,7 @@ static constexpr int16_t MARGIN = 28;
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
   static const char* kIds[3] = {"dash", "weather", "agenda"};
-  static const char* kLabels[3] = {"1  DASH", "2 WEATHER", "3 AGENDA"};
+  static const char* kLabels[3] = {"1  USAGE", "2 WEATHER", "3 AGENDA"};
   const int16_t tw = 210, th = 28, gap = 14;
   const int16_t total = 3 * tw + 2 * gap;
   int16_t x = (W - total) / 2;
@@ -68,23 +85,18 @@ static void pageTabs(const char* current) {
 #endif
 }
 
-static void header(const CardContent& c, const RenderStatus& st, const char* card_label) {
+static void header(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  // Blossom icon at top-left, then device name
-  drawBlossomIcon(MARGIN, 10, 16);
+  // Blossom icon at top-left, then device name — no tab title in the bar
+  drawBlossomIcon(MARGIN, 8);
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(st.device_name, MARGIN + 22, 20, GFXFF);
-  if (card_label) {
-    String lab = card_label; lab.toUpperCase();
-    epaper.setTextDatum(TC_DATUM);
-    epaper.drawString(lab, W / 2, 20, GFXFF);
-  }
+  epaper.drawString(st.device_name, MARGIN + 30, 12, GFXFF);
   String right = "";
   if (c.header_date.length()) right = c.header_date + "  ";
   right += String(st.battery_pct) + "%";
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(right, W - MARGIN, 20, GFXFF);
+  epaper.drawString(right, W - MARGIN, 12, GFXFF);
   // brutalist hairline + 1px double-rule for density
   epaper.drawFastHLine(MARGIN, 42, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 44, W - 2 * MARGIN, TFT_BLACK);
@@ -104,7 +116,7 @@ static void apHint(const RenderStatus& st) {
 
 static void renderBuild(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st, "BUILD");
+  header(c, st);
 
   String state = c.build_state;
   state.toUpperCase();
@@ -138,7 +150,7 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
 
 static void renderBrief(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st, "BRIEF");
+  header(c, st);
 
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.setTextDatum(TL_DATUM);
@@ -167,7 +179,7 @@ static void renderBrief(const CardContent& c, const RenderStatus& st) {
 
 static void renderAgenda(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st, "AGENDA");
+  header(c, st);
 
   if (!contentHasAgenda(c)) {
     // Brutalist empty state teaches the interface
@@ -183,7 +195,7 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
     epaper.drawString("or set content_url → agenda.date + events", W / 2, 258, GFXFF);
     epaper.drawRoundRect(W/2 - 110, 284, 220, 32, 4, TFT_BLACK);
     epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.drawString("KEY1 DASH  •  KEY2 WEATHER", W/2, 300, GFXFF);
+    epaper.drawString("KEY1 USAGE  •  KEY2 WEATHER", W/2, 300, GFXFF);
     pageTabs("agenda");
     return;
   }
@@ -236,7 +248,7 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
 
 static void renderQuote(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st, "QUOTE");
+  header(c, st);
 
   if (!contentHasQuote(c)) {
     epaper.setFreeFont(&FreeSans18pt7b);
@@ -312,7 +324,7 @@ static void drawQr(int16_t x, int16_t y, uint8_t scale) {
 
 static void renderYours(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st, "YOURS");
+  header(c, st);
 
   epaper.setFreeFont(&FreeSansBold24pt7b);
   epaper.setTextDatum(TL_DATUM);
@@ -393,7 +405,7 @@ static void drawHourStrip(const CardContent& c, int16_t x, int16_t y, int16_t w,
 
 static void renderWeather(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st, "WEATHER");
+  header(c, st);
 
   if (!contentHasWeather(c)) {
     epaper.setFreeFont(&FreeSans12pt7b);
@@ -407,7 +419,7 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
     epaper.drawString("Weather syncs with dash — plug USB: tools/dash_sync.py", W / 2, 236, GFXFF);
     epaper.drawString("or push weather via content.push  weather.segments[]", W / 2, 258, GFXFF);
     epaper.drawRoundRect(W/2 - 90, 284, 180, 28, 4, TFT_BLACK);
-    epaper.drawString("KEY1 DASH  •  KEY3 AGENDA", W/2, 298, GFXFF);
+    epaper.drawString("KEY1 USAGE  •  KEY3 AGENDA", W/2, 298, GFXFF);
     pageTabs("weather");
     return;
   }
@@ -583,17 +595,64 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
 #endif
 }
 
+// First-boot splash: the OpenAI blossom as ASCII art (generated from the
+// official openai-blossom.svg). Drawn glyph-by-glyph on a fixed cell grid so
+// no monospace font is required.
+static const char* const kSplashArt[] = {
+  "            :+*%%@%#*=:                 ",
+  "          +%%*=;:::;=#%%=++++=;.        ",
+  "        :%%+       .=#%%*+==+*#@%+.     ",
+  "       :%@;     :+%@#+:        .=%%=    ",
+  "    =*%@@*   :*%%*=.    .==.     .#@*   ",
+  "  +%%+:*@=   #@+     ;+%@##@%+;   .@@:  ",
+  " #@*   *@=   #@= .=#@@#;.  .;*%%#=.@@;  ",
+  "+@#    *@=   #@##@#++#@%+;     :+#@@@:  ",
+  "%@;    *@=   #@#=.    .;*@%#=.    .+%%; ",
+  "#@+    *@*.  #@=        ;@@=#@%+:   .%@:",
+  ":%%:   :+%@#=%@=        ;@@  .*@#    =@#",
+  " :%%+.    :=#@@#;      ;*@@   =@#    :@%",
+  "  .@@@#+:     ;+%%#==*%%#@@   =@#    +@*",
+  "  :@@;=#@%*;    :#@@#+: ;@@   =@#    =@%",
+  "  .@@:   ;+%%#*%%*=.    =@@   =@#.=#@*. ",
+  "   +@#.     :=+:     ;+%@#=   =@@@#+.   ",
+  "    =%%=         .=*@%*;.    .%@;       ",
+  "     .+%%#+====+#@#+:       ;%@=        ",
+  "        .;++**++%@*=:...:;+%%*.         ",
+  "                 :=*#%@%%#+;            ",
+};
+static constexpr uint8_t SPLASH_ROWS = 20;
+static constexpr uint8_t SPLASH_COLS = 40;
+
+static void renderSplash() {
+#ifdef EPAPER_ENABLE
+  const int16_t cell_w = 15, cell_h = 23;
+  const int16_t x0 = (W - SPLASH_COLS * cell_w) / 2;
+  const int16_t y0 = (H - SPLASH_ROWS * cell_h) / 2;
+  epaper.setFreeFont(&FreeMono12pt7b);
+  for (uint8_t r = 0; r < SPLASH_ROWS; r++) {
+    const char* line = kSplashArt[r];
+    for (uint8_t c = 0; c < SPLASH_COLS && line[c]; c++) {
+      if (line[c] == ' ') continue;
+      char glyph[2] = {line[c], 0};
+      int16_t gw = epaper.textWidth(glyph, GFXFF);
+      epaper.setTextDatum(TL_DATUM);
+      epaper.drawString(glyph, x0 + c * cell_w + (cell_w - gw) / 2, y0 + r * cell_h, GFXFF);
+    }
+  }
+#endif
+}
+
 static void renderDash(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  drawBlossomIcon(MARGIN, 8, 16);
+  drawBlossomIcon(MARGIN, 6);
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(st.device_name, MARGIN + 22, 18, GFXFF);
+  epaper.drawString(st.device_name, MARGIN + 30, 10, GFXFF);
   String dashRight = "";
   if (c.header_date.length()) dashRight = c.header_date + "  ";
   dashRight += String(st.battery_pct) + "%";
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(dashRight, W - MARGIN, 18, GFXFF);
+  epaper.drawString(dashRight, W - MARGIN, 10, GFXFF);
 
   const int16_t avatar_cx = MARGIN + 40;
   const int16_t avatar_cy = 100;
@@ -686,7 +745,8 @@ bool displayBegin() {
 void renderCard(const String& card, const CardContent& content, const RenderStatus& status) {
 #ifdef EPAPER_ENABLE
   epaper.fillScreen(TFT_WHITE);
-  if (card == "build") renderBuild(content, status);
+  if (card == "splash") renderSplash();
+  else if (card == "build") renderBuild(content, status);
   else if (card == "yours") renderYours(content, status);
   // brief (teach it a job) killed — vestigial, map to agenda
   else if (card == "brief") renderAgenda(content, status);

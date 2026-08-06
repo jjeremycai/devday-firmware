@@ -294,6 +294,7 @@ void setup() {
 
   current_card = wakeCard();
   if (current_card.length() == 0) current_card = cfg.startup_card;
+  if (boots == 1) current_card = "splash"; // factory first boot: ASCII blossom
 
   displayBegin();
   refreshStatus();
