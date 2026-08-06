@@ -11,14 +11,11 @@ inline CardContent sampleContent() {
   c.build_detail = "Flashed at the Seeed line. Connect over USB to teach it a job.";
   c.build_updated_at = "";
 
-  c.brief_eyebrow = "DEV DAY";
-  c.brief_title = "Teach it a job";
-  c.brief_lines[0] = "1. Connect this terminal over USB";
-  c.brief_lines[1] = "2. Open the setup guide in Chrome";
-  c.brief_lines[2] = "3. Give it Wi-Fi and a content URL";
-  c.brief_lines[3] = "4. Build your own app with Codex";
-  c.brief_line_count = 4;
-  c.brief_footer = "devday-terminal";
+  // brief killed — vestigial
+  c.brief_eyebrow = "";
+  c.brief_title = "";
+  c.brief_line_count = 0;
+  c.brief_footer = "";
 
   c.dash_present = true;
   c.dash_name = "Jeremy Cai";

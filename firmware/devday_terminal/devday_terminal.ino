@@ -136,7 +136,7 @@ static bool hookConfigWrite(JsonObjectConst obj, String& err_code) {
 }
 
 static bool hookCardPreview(const String& card, String& err_code) {
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
+  if (card != "build" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
     err_code = "bad_params";
     return false;
   }
@@ -165,8 +165,8 @@ static bool hookContentPush(const String& payload, const String& show_card, Stri
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
   if (card == "dash" && !contentHasDash(content)) card = "agenda";
-  if (card == "quote") card = "agenda";
-  if (card != "build" && card != "brief" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
+  if (card == "quote" || card == "brief") card = "agenda";
+  if (card != "build" && card != "yours" && card != "dash" && card != "weather" && card != "agenda") {
     err_code = "bad_params";
     return false;
   }

@@ -15,27 +15,26 @@ static EPaper epaper = EPaper();
 
 static constexpr int16_t W = 800;
 static constexpr int16_t H = 480;
-static constexpr int16_t MARGIN = 36;
+static constexpr int16_t MARGIN = 28;
 
-// Page-tab strip shared by every card: the three page buttons, current one
-// inverted. Buttons are numbered 1-3 (KEY1/KEY2/KEY3) left to right. Quote killed.
+// Brutalist tab strip: heavy inversion, tight type, no decoration
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
   static const char* kIds[3] = {"dash", "weather", "agenda"};
-  static const char* kLabels[3] = {"1  DASH", "2  WEATHER", "3  AGENDA"};
-  const int16_t tw = 200, th = 32, gap = 16;
+  static const char* kLabels[3] = {"1  DASH", "2 WEATHER", "3 AGENDA"};
+  const int16_t tw = 210, th = 28, gap = 14;
   const int16_t total = 3 * tw + 2 * gap;
   int16_t x = (W - total) / 2;
-  const int16_t y = H - 12 - th;
+  const int16_t y = H - 10 - th;
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(MC_DATUM);
   for (uint8_t i = 0; i < 3; i++) {
     bool active = current != nullptr && strcmp(current, kIds[i]) == 0;
     if (active) {
-      epaper.fillRoundRect(x, y, tw, th, 6, TFT_BLACK);
+      epaper.fillRoundRect(x, y, tw, th, 4, TFT_BLACK);
       epaper.setTextColor(TFT_WHITE, TFT_BLACK);
     } else {
-      epaper.drawRoundRect(x, y, tw, th, 6, TFT_BLACK);
+      epaper.drawRoundRect(x, y, tw, th, 4, TFT_BLACK);
       epaper.setTextColor(TFT_BLACK, TFT_WHITE);
     }
     epaper.drawString(kLabels[i], x + tw / 2, y + th / 2 + 1, GFXFF);
@@ -49,20 +48,20 @@ static void header(const CardContent& c, const RenderStatus& st, const char* car
 #ifdef EPAPER_ENABLE
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(st.device_name, MARGIN, 22, GFXFF);
-  // center: card label
+  epaper.drawString(st.device_name, MARGIN, 20, GFXFF);
   if (card_label) {
+    String lab = card_label; lab.toUpperCase();
     epaper.setTextDatum(TC_DATUM);
-    epaper.drawString(card_label, W / 2, 22, GFXFF);
+    epaper.drawString(lab, W / 2, 20, GFXFF);
   }
-  // right: consistent date + battery (date is header_date, same on all 4 pages)
   String right = "";
   if (c.header_date.length()) right = c.header_date + "  ";
   right += String(st.battery_pct) + "%";
-  // keep fw_hash subtle on the far edge only if space; otherwise date + battery is the consistent status
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(right, W - MARGIN, 22, GFXFF);
-  epaper.drawFastHLine(MARGIN, 48, W - 2 * MARGIN, TFT_BLACK);
+  epaper.drawString(right, W - MARGIN, 20, GFXFF);
+  // brutalist hairline + 1px double-rule for density
+  epaper.drawFastHLine(MARGIN, 42, W - 2 * MARGIN, TFT_BLACK);
+  epaper.drawFastHLine(MARGIN, 44, W - 2 * MARGIN, TFT_BLACK);
 #endif
 }
 
@@ -145,40 +144,63 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
   header(c, st, "AGENDA");
 
   if (!contentHasAgenda(c)) {
+    // Brutalist empty state teaches the interface
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.setTextDatum(TL_DATUM);
+    epaper.drawString("TODAY", MARGIN, 86, GFXFF);
+    epaper.drawFastHLine(MARGIN, 108, 48, TFT_BLACK);
     epaper.setFreeFont(&FreeSans18pt7b);
     epaper.setTextDatum(MC_DATUM);
-    epaper.drawString("No events today", W / 2, 200, GFXFF);
-    epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.drawString("Push agenda over USB or set content_url", W / 2, 246, GFXFF);
+    epaper.drawString("No events", W / 2, 198, GFXFF);
+    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.drawString("Agenda is empty — push via USB:  content.push  agenda.events[]", W / 2, 236, GFXFF);
+    epaper.drawString("or set content_url → agenda.date + events", W / 2, 258, GFXFF);
+    epaper.drawRoundRect(W/2 - 110, 284, 220, 32, 4, TFT_BLACK);
+    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.drawString("KEY1 DASH  •  KEY2 WEATHER", W/2, 300, GFXFF);
     pageTabs("agenda");
     return;
   }
 
-  epaper.setFreeFont(&FreeSans12pt7b);
+  // Date row: tight, uppercase label + hairline
+  epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(c.agenda_date, MARGIN, 70, GFXFF);
-  epaper.drawFastHLine(MARGIN, 94, W - 2 * MARGIN, TFT_BLACK);
+  String adate = c.agenda_date; adate.toUpperCase();
+  epaper.drawString(adate, MARGIN, 68, GFXFF);
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(String(c.agenda_count) + " EVENTS", W - MARGIN, 68, GFXFF);
+  epaper.drawFastHLine(MARGIN, 88, W - 2 * MARGIN, TFT_BLACK);
+
+  // Timeline spine
+  const int16_t spineX = MARGIN + 14;
+  epaper.drawFastVLine(spineX, 106, 312, TFT_BLACK);
 
   const int16_t row_h = 68;
   const int16_t gap = 8;
-  int16_t y = 108;
+  int16_t y = 102;
   for (size_t i = 0; i < c.agenda_count && i < CardContent::AGENDA_MAX; i++) {
     int16_t ry = y + (int16_t)i * (row_h + gap);
-    epaper.drawRoundRect(MARGIN, ry, W - 2 * MARGIN, row_h, 6, TFT_BLACK);
-    // time
+    // Card: sharper radius, denser
+    epaper.drawRoundRect(MARGIN + 28, ry, W - 2 * MARGIN - 28, row_h, 4, TFT_BLACK);
+    // Timeline dot (filled for next event, hollow otherwise) + connector
+    bool isNext = (i == 0);
+    if (isNext) epaper.fillCircle(spineX, ry + row_h/2, 7, TFT_BLACK);
+    else { epaper.drawCircle(spineX, ry + row_h/2, 5, TFT_BLACK); epaper.fillCircle(spineX, ry + row_h/2, 2, TFT_BLACK); }
+    // time — brutalist tabular, tight
     epaper.setFreeFont(&FreeSansBold24pt7b);
     epaper.setTextDatum(ML_DATUM);
-    epaper.drawString(c.agenda_time[i], MARGIN + 14, ry + row_h / 2 + 2, GFXFF);
-    int16_t tw = epaper.textWidth(c.agenda_time[i], GFXFF);
-    epaper.drawFastVLine(MARGIN + 118, ry + 12, row_h - 24, TFT_BLACK);
-    // title + detail
+    epaper.drawString(c.agenda_time[i], MARGIN + 38, ry + 22, GFXFF);
+    // title + detail — clearer hierarchy
     epaper.setFreeFont(&FreeSans12pt7b);
     epaper.setTextDatum(TL_DATUM);
-    epaper.drawString(c.agenda_title[i], MARGIN + 134, ry + 14, GFXFF);
+    epaper.drawString(c.agenda_title[i], MARGIN + 132, ry + 14, GFXFF);
     epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.drawString(c.agenda_detail[i], MARGIN + 134, ry + 40, GFXFF);
-    // small right dot
-    epaper.fillCircle(W - MARGIN - 10, ry + row_h / 2, 3, TFT_BLACK);
+    String det = c.agenda_detail[i]; det.toUpperCase();
+    epaper.drawString(det, MARGIN + 132, ry + 38, GFXFF);
+    // right chevron hint
+    epaper.drawFastHLine(W - MARGIN - 28, ry + row_h/2, 10, TFT_BLACK);
+    epaper.drawFastHLine(W - MARGIN - 22, ry + row_h/2 - 3, 6, TFT_BLACK);
+    epaper.drawFastHLine(W - MARGIN - 22, ry + row_h/2 + 3, 6, TFT_BLACK);
   }
 
   apHint(st);
@@ -290,7 +312,7 @@ static void renderYours(const CardContent& c, const RenderStatus& st) {
 
 static void drawSegmentCard(const CardContent& c, size_t i, int16_t x, int16_t y, int16_t w, int16_t h) {
 #ifdef EPAPER_ENABLE
-  epaper.drawRoundRect(x, y, w, h, 6, TFT_BLACK);
+  epaper.drawRoundRect(x, y, w, h, 4, TFT_BLACK);
   int16_t cx = x + 16;
   String label = c.wx_label[i];
   label.toUpperCase();
@@ -348,11 +370,18 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
   header(c, st, "WEATHER");
 
   if (!contentHasWeather(c)) {
+    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.setTextDatum(TL_DATUM);
+    epaper.drawString("TODAY", MARGIN, 86, GFXFF);
+    epaper.drawFastHLine(MARGIN, 108, 48, TFT_BLACK);
     epaper.setFreeFont(&FreeSans18pt7b);
     epaper.setTextDatum(MC_DATUM);
-    epaper.drawString("No forecast yet", W / 2, 200, GFXFF);
-    epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.drawString("Plug in over USB - the forecast syncs with the dash", W / 2, 260, GFXFF);
+    epaper.drawString("No forecast", W / 2, 198, GFXFF);
+    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.drawString("Weather syncs with dash — plug USB: tools/dash_sync.py", W / 2, 236, GFXFF);
+    epaper.drawString("or push weather via content.push  weather.segments[]", W / 2, 258, GFXFF);
+    epaper.drawRoundRect(W/2 - 90, 284, 180, 28, 4, TFT_BLACK);
+    epaper.drawString("KEY1 DASH  •  KEY3 AGENDA", W/2, 298, GFXFF);
     pageTabs("weather");
     return;
   }
@@ -575,10 +604,12 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.drawString(c.dash_weather_detail, wx, 118, GFXFF);
   }
 
+  // Double hairline — brutalist separation
+  epaper.drawFastHLine(MARGIN, 158, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 160, W - 2 * MARGIN, TFT_BLACK);
 
-  // Five metrics across — same rhythm as the Codex profile card.
-  const int16_t metric_y = 180;
+  // Five metrics — tighter, with top tick for peak
+  const int16_t metric_y = 176;
   const int16_t col = (W - 2 * MARGIN) / 5;
   drawMetric(MARGIN + 0 * col, metric_y, c.dash_lifetime, "lifetime");
   drawMetric(MARGIN + 1 * col, metric_y, c.dash_peak, "peak day");
@@ -586,7 +617,8 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
   drawMetric(MARGIN + 3 * col, metric_y, c.dash_streak, "streak");
   drawMetric(MARGIN + 4 * col, metric_y, c.dash_best_streak, "best streak");
 
-  epaper.drawFastHLine(MARGIN, 252, W - 2 * MARGIN, TFT_BLACK);
+  epaper.drawFastHLine(MARGIN, 248, W - 2 * MARGIN, TFT_BLACK);
+  epaper.drawFastHLine(MARGIN, 250, W - 2 * MARGIN, TFT_BLACK);
 
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.setTextDatum(TL_DATUM);
@@ -630,7 +662,8 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   epaper.fillScreen(TFT_WHITE);
   if (card == "build") renderBuild(content, status);
   else if (card == "yours") renderYours(content, status);
-  else if (card == "brief") renderBrief(content, status);
+  // brief (teach it a job) killed — vestigial, map to agenda
+  else if (card == "brief") renderAgenda(content, status);
   else if (card == "weather") renderWeather(content, status);
   else if (card == "agenda") renderAgenda(content, status);
   // quote killed — mapped to agenda for back-compat
