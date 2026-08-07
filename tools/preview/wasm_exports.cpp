@@ -76,7 +76,6 @@ extern "C" void emu_set(const char* key, const char* value) {
   else if (k == "dash_peak") g_content.dash_peak = v;
   else if (k == "dash_longest") g_content.dash_longest = v;
   else if (k == "dash_streak") g_content.dash_streak = v;
-  else if (k == "dash_best_streak") g_content.dash_best_streak = v;
   else if (k == "dash_insight_left") g_content.dash_insight_left = v;
   else if (k == "dash_insight_right") g_content.dash_insight_right = v;
   else if (k == "device_name") g_status.device_name = v;
@@ -155,8 +154,7 @@ static int hexNibble(char c) {
   return -1;
 }
 
-// Accepts either size the firmware does: the pet rectangle, or the square an
-// older sync script sends.
+// One valid size, same as the firmware: the 96x104 pet rectangle.
 extern "C" int emu_set_avatar_hex(const char* hex) {
   if (strlen(hex) != CardContent::PET_BYTES * 2) return 0;
   for (size_t i = 0; i < CardContent::PET_BYTES; i++) {

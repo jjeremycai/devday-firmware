@@ -75,16 +75,17 @@ must stay under 12 KB — `push.py` checks both before sending. Full schema in
 `docs/PROTOCOL.md`.
 
 **For their real calendar** — the answer to *"put my calendar on my
-terminal"* — prefer the built-in reader over writing your own:
+terminal"* — on macOS just run the sync: it reads the local calendar store
+automatically (`tools/localcal.py`, stdlib sqlite, no install). If macOS
+denies the read, or on Linux, point it at a feed instead:
 
 ```sh
 tools/dash_sync.py --ics "<their calendar's private iCal URL>"
 ```
 
 Google Calendar exposes this as *"Secret address in iCal format"* under a
-calendar's settings; iCloud as a public calendar link. Do not try to read the
-local macOS calendar — AppleScript enumeration takes minutes and the Calendar
-store is TCC-protected.
+calendar's settings; iCloud as a public calendar link. Do not reach for
+AppleScript — enumeration takes minutes on a large calendar.
 
 The pet follows `tui.pet` in `~/.codex/config.toml` — whichever one the owner
 picked in Codex. To override it for the terminal only:

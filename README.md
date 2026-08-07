@@ -164,18 +164,21 @@ sign in or grant permissions again.
 
 ### Your calendar on the Agenda page
 
-Point the sync at a calendar feed — Google's *"Secret address in iCal format"*,
-an iCloud share link, or a local `.ics` file:
+On macOS this is automatic: every sync reads today's events straight out of
+the system calendar store — every account Calendar.app shows, recurring
+events already expanded — using nothing but the standard library. No exported
+feed, no pip install, no AppleScript (which enumerates for minutes). The one
+gate is macOS privacy: the first read may raise a system permission prompt
+for the app hosting the sync; denied, the sync carries on and the Agenda page
+is simply left alone. `--no-calendar` opts out entirely.
+
+To use a specific feed instead — Google's *"Secret address in iCal format"*,
+an iCloud share link, or a local `.ics` file (also the path for Linux):
 
 ```sh
 tools/dash_sync.py --ics "https://calendar.google.com/calendar/ical/…/basic.ics"
 export DASH_ICS="https://…"     # or set it once; --install remembers it
 ```
-
-Reading the local macOS calendar is deliberately not supported: AppleScript
-enumeration takes minutes, the Calendar store is TCC-protected, and EventKit
-needs a pip install this toolchain avoids. An ICS URL is faster, works on Linux
-too, and is the same feed the Wi-Fi worker below consumes.
 
 Today's events only, four at most, all-day first. Recurring events resolve for
 `DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY` with `BYDAY`, `INTERVAL`, `UNTIL` and

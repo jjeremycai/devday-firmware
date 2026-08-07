@@ -21,7 +21,6 @@ struct CardContent {
   String dash_peak;
   String dash_longest;
   String dash_streak;
-  String dash_best_streak;
   String dash_insight_left;
   String dash_insight_right;
   static constexpr size_t DASH_DAYS = 14;

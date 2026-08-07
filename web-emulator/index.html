@@ -213,10 +213,6 @@
         <input id="p-streak" placeholder="38 days">
       </div>
       <div>
-        <label>Longest streak</label>
-        <input id="p-best" placeholder="64 days">
-      </div>
-      <div>
         <label>Insight line</label>
         <input id="p-insight" placeholder="Most used reasoning · Extra High · 41%">
       </div>
@@ -366,7 +362,6 @@ function saveProfile(extra = {}) {
     peak: $("p-peak").value.trim(),
     longest: $("p-longest").value.trim(),
     streak: $("p-streak").value.trim(),
-    best: $("p-best").value.trim(),
     insight: $("p-insight").value.trim(),
     usageJson: $("p-usage-json").value.trim(),
     avatarDataUrl: extra.avatarDataUrl || (loadProfile()?.avatarDataUrl || ""),
@@ -386,7 +381,6 @@ function applyProfile(p) {
   $("p-peak").value = p.peak || "";
   $("p-longest").value = p.longest || "";
   $("p-streak").value = p.streak || "";
-  $("p-best").value = p.best || "";
   $("p-insight").value = p.insight || "";
   $("p-usage-json").value = p.usageJson || "";
   if (p.avatarDataUrl) {
@@ -403,7 +397,6 @@ function loadDemo() {
   $("p-peak").value = "2.7B";
   $("p-longest").value = "34h 46m";
   $("p-streak").value = "38 days";
-  $("p-best").value = "64 days";
   $("p-insight").value = "Most used reasoning · Extra High · 41%";
   $("p-usage-json").value = "";
   saveProfile({ days: demoDays() });
@@ -457,7 +450,6 @@ function applyUsagePaste() {
   if (u.peak) $("p-peak").value = u.peak;
   if (u.longest) $("p-longest").value = u.longest;
   if (u.streak) $("p-streak").value = u.streak;
-  if (u.best) $("p-best").value = u.best;
   saveProfile({ days: u.days });
   paintPreview();
 }
@@ -721,7 +713,6 @@ function buildPayload() {
       peak: $("p-peak").value.trim(),
       longest: $("p-longest").value.trim(),
       streak: $("p-streak").value.trim(),
-      best_streak: $("p-best").value.trim(),
       insight_left: $("p-insight").value.trim(),
       insight_right: new Date().toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }),
       days,
@@ -740,7 +731,6 @@ function applyUsagePasteQuiet() {
   if (u.peak) $("p-peak").value = u.peak;
   if (u.longest) $("p-longest").value = u.longest;
   if (u.streak) $("p-streak").value = u.streak;
-  if (u.best) $("p-best").value = u.best;
   if (u.days?.length) saveProfile({ days: u.days });
 }
 
@@ -786,10 +776,9 @@ function paintPreview() {
     [p.peak, "peak tokens"],
     [p.longest, "longest chat"],
     [p.streak, "current streak"],
-    [p.best_streak, "longest streak"],
   ];
   metrics.forEach(([v, label], i) => {
-    const x = 36 + i * 145;
+    const x = 36 + i * 182;
     ctx.font = "650 22px Figtree, sans-serif";
     ctx.fillText(v || "—", x, 200);
     ctx.font = "400 13px Figtree, sans-serif";
@@ -1009,7 +998,7 @@ $("p-avatar-url").addEventListener("change", async () => {
   paintPreview();
 });
 
-["p-name","p-handle","p-plan","p-lifetime","p-peak","p-longest","p-streak","p-best","p-insight"]
+["p-name","p-handle","p-plan","p-lifetime","p-peak","p-longest","p-streak","p-insight"]
   .forEach((id) => $(id).addEventListener("input", paintPreview));
 
 $("save").onclick = async () => {

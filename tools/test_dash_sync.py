@@ -113,7 +113,7 @@ class DashSyncTests(unittest.TestCase):
             seen.clear()
             args = SimpleNamespace(
                 offline=True, no_weather=True, no_avatar=True,
-                no_pet=False, pet=pet_arg, lat=None, lon=None, ics=None,
+                no_pet=False, pet=pet_arg, lat=None, lon=None, ics=None, no_calendar=True,
             )
             with patch.object(sync, "fetch_codex_usage",
                               return_value=({}, {"summary": {}}, configured)), \
@@ -144,7 +144,7 @@ class DashSyncTests(unittest.TestCase):
 
         args = SimpleNamespace(
             offline=True, no_weather=True, no_avatar=True,
-            no_pet=False, pet=None, lat=None, lon=None, ics=None,
+            no_pet=False, pet=None, lat=None, lon=None, ics=None, no_calendar=True,
         )
         with patch.object(sync, "fetch_codex_usage",
                           return_value=({}, {"summary": {}}, "none")), \

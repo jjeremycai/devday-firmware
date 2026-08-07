@@ -31,6 +31,11 @@ public:
   char charAt(size_t i) const { return i < s_.size() ? s_[i] : '\0'; }
   const char* c_str() const { return s_.c_str(); }
   void toUpperCase() { for (auto& c : s_) c = (char)toupper((unsigned char)c); }
+  void toLowerCase() { for (auto& c : s_) c = (char)tolower((unsigned char)c); }
+  int indexOf(const char* p) const {
+    auto i = s_.find(p);
+    return i == std::string::npos ? -1 : (int)i;
+  }
   bool startsWith(const char* p) const { return s_.rfind(p, 0) == 0; }
   void trim() {
     size_t a = s_.find_first_not_of(" \t\r\n");

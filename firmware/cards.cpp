@@ -66,7 +66,7 @@ static constexpr int16_t MARGIN = 28;
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
   static const char* kIds[3] = {"dash", "weather", "agenda"};
-  static const char* kLabels[3] = {"1  USAGE", "2 WEATHER", "3 AGENDA"};
+  static const char* kLabels[3] = {"1 USAGE", "2 WEATHER", "3 AGENDA"};
   const int16_t tw = 210, th = 28, gap = 14;
   const int16_t total = 3 * tw + 2 * gap;
   int16_t x = (W - total) / 2;
@@ -100,6 +100,133 @@ static void drawBatteryIcon(int16_t x, int16_t y, uint8_t pct) {
 #endif
 }
 
+// ---------------------------------------------------------------------------
+// Weather condition icons
+//
+// Solid silhouettes: at 20-36px on 1-bit e-paper a stroked glyph turns to
+// noise, a filled shape stays legible from across a desk. (x, y) is the top
+// left of an s-by-s box; the glyph centres itself inside it.
+// ---------------------------------------------------------------------------
+enum class WxIcon : uint8_t { NONE, SUN, PARTLY, CLOUD, RAIN, SNOW, STORM, FOG };
+
+static WxIcon wxIconFor(const String& cond) {
+  String s = cond;
+  s.toLowerCase();
+  if (s.indexOf("thunder") >= 0 || s.indexOf("storm") >= 0) return WxIcon::STORM;
+  if (s.indexOf("snow") >= 0 || s.indexOf("sleet") >= 0) return WxIcon::SNOW;
+  if (s.indexOf("rain") >= 0 || s.indexOf("drizzle") >= 0 || s.indexOf("shower") >= 0)
+    return WxIcon::RAIN;
+  if (s.indexOf("fog") >= 0 || s.indexOf("mist") >= 0 || s.indexOf("haze") >= 0)
+    return WxIcon::FOG;
+  if (s.indexOf("partly") >= 0 || s.indexOf("mainly") >= 0) return WxIcon::PARTLY;
+  if (s.indexOf("cloud") >= 0 || s.indexOf("overcast") >= 0) return WxIcon::CLOUD;
+  if (s.indexOf("clear") >= 0 || s.indexOf("sun") >= 0) return WxIcon::SUN;
+  return WxIcon::NONE;
+}
+
+#ifdef EPAPER_ENABLE
+static void wxSunDisc(int16_t cx, int16_t cy, int16_t s, uint16_t color) {
+  const int16_t r = s * 22 / 100;
+  const int16_t gap = r + s * 6 / 100; // where rays start
+  const int16_t len = s * 14 / 100;    // ray length
+  const int16_t th = s >= 30 ? 3 : 2;  // ray thickness
+  epaper.fillCircle(cx, cy, r, color);
+  epaper.fillRect(cx - th / 2, cy - gap - len, th, len, color); // N
+  epaper.fillRect(cx - th / 2, cy + gap, th, len, color);       // S
+  epaper.fillRect(cx - gap - len, cy - th / 2, len, th, color); // W
+  epaper.fillRect(cx + gap, cy - th / 2, len, th, color);       // E
+  // Diagonal rays: thickness-sized squares stepped along the 45° line.
+  const int16_t d0 = (gap * 100 + 70) / 141;
+  const int16_t dn = (len * 100 + 70) / 141;
+  for (int16_t k = 0; k < dn; k++) {
+    for (int8_t sx = -1; sx <= 1; sx += 2) {
+      for (int8_t sy = -1; sy <= 1; sy += 2) {
+        epaper.fillRect(cx + sx * (d0 + k) - th / 2, cy + sy * (d0 + k) - th / 2, th, th, color);
+      }
+    }
+  }
+}
+
+static void wxCloudShape(int16_t cx, int16_t cy, int16_t s, uint16_t color) {
+  // Two lobes over a rounded base; (cx, cy) is the base's centre.
+  const int16_t base_w = s * 76 / 100;
+  const int16_t base_h = s * 26 / 100;
+  epaper.fillCircle(cx - base_w / 2 + base_h / 2 + s * 4 / 100, cy - s * 6 / 100, s * 16 / 100, color);
+  epaper.fillCircle(cx + s * 6 / 100, cy - s * 14 / 100, s * 22 / 100, color);
+  epaper.fillRoundRect(cx - base_w / 2, cy - base_h / 2, base_w, base_h, base_h / 2, color);
+}
+
+static void drawWeatherIcon(int16_t x, int16_t y, int16_t s, const String& cond) {
+  const WxIcon icon = wxIconFor(cond);
+  if (icon == WxIcon::NONE) return;
+  const int16_t cx = x + s / 2;
+  const int16_t cy = y + s / 2;
+  switch (icon) {
+    case WxIcon::SUN:
+      wxSunDisc(cx, cy, s, TFT_BLACK);
+      break;
+    case WxIcon::PARTLY: {
+      // Sun peeking out top-right; an oversized white cloud first, so a
+      // margin of paper separates the two shapes.
+      wxSunDisc(cx + s * 18 / 100, cy - s * 18 / 100, s * 64 / 100, TFT_BLACK);
+      const int16_t ccx = cx - s * 4 / 100;
+      const int16_t ccy = cy + s * 16 / 100;
+      wxCloudShape(ccx, ccy, s * 116 / 100, TFT_WHITE);
+      wxCloudShape(ccx, ccy, s * 88 / 100, TFT_BLACK);
+      break;
+    }
+    case WxIcon::CLOUD:
+      wxCloudShape(cx, cy + s * 6 / 100, s, TFT_BLACK);
+      break;
+    case WxIcon::RAIN: {
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
+      const int16_t drop = s * 16 / 100 < 4 ? 4 : s * 16 / 100;
+      for (int8_t i = 0; i < 3; i++) {
+        const int16_t dx = cx - s * 22 / 100 + i * (s * 22 / 100);
+        const int16_t dy = cy + s * 10 / 100;
+        for (int16_t k = 0; k < drop; k++) {
+          epaper.fillRect(dx - k / 2, dy + k, 2, 2, TFT_BLACK); // slanted drop
+        }
+      }
+      break;
+    }
+    case WxIcon::SNOW: {
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
+      for (int8_t i = 0; i < 3; i++) {
+        const int16_t fx = cx - s * 22 / 100 + i * (s * 22 / 100);
+        const int16_t fy = cy + s * 16 / 100 + (i == 1 ? s * 10 / 100 : 0);
+        epaper.fillCircle(fx, fy, 2, TFT_BLACK);
+      }
+      break;
+    }
+    case WxIcon::STORM: {
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
+      // Bolt: a staircase of slabs stepping down-left, notched out of the
+      // cloud by a white pass so the two shapes never merge into one blob.
+      const int16_t bw = s * 18 / 100 < 4 ? 4 : s * 18 / 100;
+      const int16_t step = s * 10 / 100 < 3 ? 3 : s * 10 / 100;
+      const int16_t bx = cx + s * 2 / 100;
+      const int16_t by = cy - s * 2 / 100;
+      for (int8_t pass = 0; pass < 2; pass++) {
+        const int16_t in = pass == 0 ? 2 : 0;
+        const uint16_t color = pass == 0 ? TFT_WHITE : TFT_BLACK;
+        epaper.fillRect(bx - in, by - in, bw + 2 * in, step + 1 + 2 * in, color);
+        epaper.fillRect(bx - step / 2 - 1 - in, by + step - in, bw + 2 * in, step + 1 + 2 * in, color);
+        epaper.fillRect(bx - step - 2 - in, by + 2 * step - in, bw - 2 + 2 * in, step + 1 + 2 * in, color);
+      }
+      break;
+    }
+    case WxIcon::FOG:
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
+      epaper.fillRect(cx - s * 34 / 100, cy + s * 12 / 100, s * 68 / 100, 2, TFT_BLACK);
+      epaper.fillRect(cx - s * 26 / 100, cy + s * 22 / 100, s * 52 / 100, 2, TFT_BLACK);
+      break;
+    default:
+      break;
+  }
+}
+#endif
+
 static void header(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   // Blossom icon at top-left; date + battery gauge at right — no device name
@@ -110,7 +237,9 @@ static void header(const CardContent& c, const RenderStatus& st) {
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TR_DATUM);
   epaper.drawString(right, W - MARGIN - 26, 12, GFXFF);
-  drawBatteryIcon(W - MARGIN - 23, 11, st.battery_pct);
+  // Icon centred on the text line: 9pt digits span ~12..25, so an 11px-tall
+  // gauge sits at 13 to share their midline.
+  drawBatteryIcon(W - MARGIN - 23, 13, st.battery_pct);
   // brutalist hairline + 1px double-rule for density
   epaper.drawFastHLine(MARGIN, 42, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 44, W - 2 * MARGIN, TFT_BLACK);
@@ -407,6 +536,8 @@ static void drawSegmentCard(const CardContent& c, size_t i, int16_t x, int16_t y
 
   epaper.setFreeFont(&FreeSans18pt7b);
   epaper.drawString(c.wx_temp[i], cx, y + 44, GFXFF);
+  // Condition icon rides beside the temperature, where the card has room.
+  drawWeatherIcon(x + w - 48, y + 42, 30, c.wx_cond[i]);
 
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.drawString(c.wx_cond[i], cx, y + 84, GFXFF);
@@ -467,13 +598,18 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
   epaper.setTextDatum(TL_DATUM);
   epaper.drawString(fit(c.weather_location, W - 2 * MARGIN - date_w - 24), MARGIN, 74, GFXFF);
 
-  // Hero: current temp + condition, hi/lo on the right.
+  // Hero: current temp + condition icon + condition, hi/lo on the right.
   epaper.setFreeFont(&FreeSansBold24pt7b);
   epaper.setTextDatum(TL_DATUM);
   epaper.drawString(c.weather_now_temp, MARGIN, 116, GFXFF);
   int16_t tw = epaper.textWidth(c.weather_now_temp, GFXFF);
+  int16_t cond_x = MARGIN + tw + 20;
+  if (wxIconFor(c.weather_now_cond) != WxIcon::NONE) {
+    drawWeatherIcon(cond_x, 118, 36, c.weather_now_cond);
+    cond_x += 48;
+  }
   epaper.setFreeFont(&FreeSans18pt7b);
-  epaper.drawString(c.weather_now_cond, MARGIN + tw + 18, 124, GFXFF);
+  epaper.drawString(c.weather_now_cond, cond_x, 124, GFXFF);
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.setTextDatum(TR_DATUM);
   epaper.drawString(c.weather_now_hilo, W - MARGIN, 128, GFXFF);
@@ -703,14 +839,13 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
   epaper.drawFastHLine(MARGIN, 158, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 160, W - 2 * MARGIN, TFT_BLACK);
 
-  // Five metrics — tighter, with top tick for peak
+  // Four metrics — tighter, with top tick for peak
   const int16_t metric_y = 176;
-  const int16_t col = (W - 2 * MARGIN) / 5;
+  const int16_t col = (W - 2 * MARGIN) / 4;
   drawMetric(MARGIN + 0 * col, metric_y, c.dash_lifetime, "lifetime");
   drawMetric(MARGIN + 1 * col, metric_y, c.dash_peak, "peak day");
   drawMetric(MARGIN + 2 * col, metric_y, c.dash_longest, "longest chat");
   drawMetric(MARGIN + 3 * col, metric_y, c.dash_streak, "streak");
-  drawMetric(MARGIN + 4 * col, metric_y, c.dash_best_streak, "best streak");
 
   epaper.drawFastHLine(MARGIN, 248, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 250, W - 2 * MARGIN, TFT_BLACK);

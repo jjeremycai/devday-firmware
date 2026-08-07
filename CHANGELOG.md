@@ -4,6 +4,17 @@
 
 ### Added
 
+- **The Agenda page fills itself from the local calendar.** On macOS the sync
+  reads today's events straight from the system calendar store
+  (`tools/localcal.py`) — every account Calendar.app shows, recurring events
+  already expanded, stdlib sqlite only, nothing to install. All-day and
+  still-upcoming events take the four rows first; a feed via `--ics` still
+  wins, `--no-calendar` opts out, and an unreadable store (macOS privacy
+  denial, Linux) just leaves the page alone.
+- **Weather condition icons.** The Weather page draws solid-silhouette
+  glyphs — sun, partly cloudy, cloud, rain, snow, storm, fog — beside the
+  current condition and on each day-part card, keyed off the condition text.
+  Pure geometry in `cards.cpp`; no bitmaps.
 - `tools/push.py` sends any schema-1 document over USB, so putting your own
   content on the screen needs no new tooling. Validates schema and size first,
   and reports when a push rendered but was too large to cache.
@@ -131,6 +142,11 @@
 
 ### Removed
 
+- The **best streak** metric. Four metrics read better across the row than
+  five, and best-streak was the least-glanceable of the set. `best_streak` is
+  dropped from the schema (unknown fields are ignored, as ever) and from the
+  sync service, emulator, and docs. The battery gauge in the header also sits
+  on the text midline now instead of riding 2px high.
 - Dead `quote` and `brief` render paths, bundled quote pool, and their content
   fields — both pages were already mapped to Agenda. Payloads carrying those
   sections are still accepted and ignored.

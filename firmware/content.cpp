@@ -38,7 +38,6 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.dash_peak = "";
   c.dash_longest = "";
   c.dash_streak = "";
-  c.dash_best_streak = "";
   c.dash_insight_left = "";
   c.dash_insight_right = "";
   c.dash_day_count = 0;
@@ -111,7 +110,6 @@ bool contentParse(const String& payload, CardContent& c) {
     if (dash["peak"].is<const char*>()) c.dash_peak = dash["peak"].as<String>();
     if (dash["longest"].is<const char*>()) c.dash_longest = dash["longest"].as<String>();
     if (dash["streak"].is<const char*>()) c.dash_streak = dash["streak"].as<String>();
-    if (dash["best_streak"].is<const char*>()) c.dash_best_streak = dash["best_streak"].as<String>();
     if (dash["insight_left"].is<const char*>()) c.dash_insight_left = dash["insight_left"].as<String>();
     if (dash["insight_right"].is<const char*>()) c.dash_insight_right = dash["insight_right"].as<String>();
 

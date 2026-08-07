@@ -22,7 +22,6 @@ inline CardContent sampleContent() {
   c.dash_peak = "2.7B";
   c.dash_longest = "34h 45m";
   c.dash_streak = "38 days";
-  c.dash_best_streak = "64 days";
   c.dash_insight_left = "Most used reasoning · Extra High · 41%";
   c.dash_insight_right = "Wed 11:04 PM";
   static const uint8_t days[CardContent::DASH_DAYS] = {30, 55, 40, 90, 120, 80, 70,

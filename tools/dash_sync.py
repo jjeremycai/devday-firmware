@@ -43,6 +43,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ics  # noqa: E402
+import localcal  # noqa: E402
 import imaging  # noqa: E402  (path set above so the tool runs from anywhere)
 from pet import PET_H, PET_W, load_pet_bits, pet_is_disabled, resolve_pet  # noqa: E402
 
@@ -530,7 +531,6 @@ def build_payload(
     handle = f"@{username}" if username and not str(username).startswith("@") else str(username)
     name = profile.get("display_name") or "Codex"
     streak = summary.get("currentStreakDays")
-    best = summary.get("longestStreakDays")
     payload = {
         "schema": 1,
         "refresh_after_s": 1800,
@@ -542,7 +542,6 @@ def build_payload(
             "peak": format_tokens(summary.get("peakDailyTokens")),
             "longest": format_duration(summary.get("longestRunningTurnSec")),
             "streak": f"{streak} days" if streak is not None else "",
-            "best_streak": f"{best} days" if best is not None else "",
             "insight_left": "Codex · local sync",
             "insight_right": datetime.now().strftime("%a %-I:%M %p"),
             "days": days_from_usage(usage),
@@ -845,9 +844,9 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             weather_temp, weather_detail, weather = "—", "weather unavailable", None
             print(f"  weather skipped: {exc}", file=sys.stderr)
 
-    # Without a feed the Agenda page keeps its bundled example day, which is
-    # obviously not the reader's — so say what would fix it rather than
-    # silently shipping placeholder events.
+    # Agenda sources, most explicit first: a configured feed, then the local
+    # macOS calendar store (no setup, works offline). Neither readable leaves
+    # the page's bundled example day in place.
     agenda = None
     if args.ics:
         remote = args.ics.startswith(("http://", "https://", "webcal://"))
@@ -862,6 +861,12 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             except Exception as exc:
                 agenda = None
                 print(f"  calendar skipped: {exc}", file=sys.stderr)
+    elif not args.no_calendar:
+        agenda = localcal.agenda_section(AGENDA_MAX)
+        if agenda is not None:
+            print("→ local calendar…", file=sys.stderr)
+            n = len(agenda["events"])
+            print(f"  {n} event{'' if n == 1 else 's'} today", file=sys.stderr)
 
     return build_payload(account, usage, profile, avatar_hex, weather, agenda)
 
@@ -1119,7 +1124,13 @@ def main() -> int:
         default=os.environ.get("DASH_ICS") or None,
         help="calendar feed for the Agenda page — Google's \"secret address in "
         "iCal format\", an iCloud share link, or a local .ics file "
-        "(or set DASH_ICS)",
+        "(or set DASH_ICS). Without it the local macOS calendar is read "
+        "automatically",
+    )
+    ap.add_argument(
+        "--no-calendar",
+        action="store_true",
+        help="leave the Agenda page alone (skip the local calendar read)",
     )
     ap.add_argument("--lat", type=float, default=None, help="override latitude (else IP geolocate)")
     ap.add_argument("--lon", type=float, default=None, help="override longitude (else IP geolocate)")
