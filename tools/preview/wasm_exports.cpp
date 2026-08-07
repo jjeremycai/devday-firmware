@@ -158,22 +158,13 @@ static int hexNibble(char c) {
 // Accepts either size the firmware does: the pet rectangle, or the square an
 // older sync script sends.
 extern "C" int emu_set_avatar_hex(const char* hex) {
-  size_t len = strlen(hex);
-  size_t bytes;
-  if (len == CardContent::PET_BYTES * 2) {
-    bytes = CardContent::PET_BYTES;
-  } else if (len == CardContent::AVATAR_BYTES * 2) {
-    bytes = CardContent::AVATAR_BYTES;
-  } else {
-    return 0;
-  }
-  for (size_t i = 0; i < bytes; i++) {
+  if (strlen(hex) != CardContent::PET_BYTES * 2) return 0;
+  for (size_t i = 0; i < CardContent::PET_BYTES; i++) {
     int hi = hexNibble(hex[i * 2]);
     int lo = hexNibble(hex[i * 2 + 1]);
     if (hi < 0 || lo < 0) return 0;
     g_content.dash_avatar[i] = (uint8_t)((hi << 4) | lo);
   }
   g_content.dash_avatar_present = true;
-  g_content.dash_avatar_square = (bytes == CardContent::AVATAR_BYTES);
   return 1;
 }

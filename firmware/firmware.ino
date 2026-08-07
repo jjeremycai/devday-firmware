@@ -188,7 +188,6 @@ static bool hookContentPush(const String& payload, const String& show_card, Json
   data["cached"] = cached;
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
-  if (card == "quote" || card == "brief") card = "agenda"; // retired names
   // First sync while the first-boot splash is still up: land on a real page.
   // The splash's own instruction was "ask Codex to set this up" — this push is
   // that setup arriving, so staying on the splash would look like a hang.

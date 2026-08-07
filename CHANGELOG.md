@@ -44,9 +44,7 @@
 ### Changed
 
 - The portrait is a 96x104 rectangle, not a 72x72 circle: pets have legs,
-  tails and props that a circular crop amputates. The original square is still
-  accepted and centred in the same space, so an older sync script keeps
-  working.
+  tails and props that a circular crop amputates.
 - First boot shows the **Build Kit card at panel scale** instead of the ASCII
   blossom: the hardware-recipe QR and "OpenAI DevDay [2026]" wordmark over the
   kit's black half-circle face with plus-sign eyes, proportioned from the card
@@ -136,6 +134,14 @@
 - Dead `quote` and `brief` render paths, bundled quote pool, and their content
   fields — both pages were already mapped to Agenda. Payloads carrying those
   sections are still accepted and ignored.
+- The last `brief`/`quote` name remaps in `renderCard` and `content.push`, and
+  the 72×72 square `avatar_hex` fallback. Both existed for "older sync
+  scripts", but nothing has shipped yet — there are no older scripts in the
+  field to stay compatible with. One avatar size, three page names, no
+  aliases.
+- The monogram fallback for a missing bundled pet: `pet_asset.h` is generated,
+  committed, and included unconditionally, so the branch could never compile
+  in.
 
 ## [1.0.0-rc1] - 2026-08-05
 

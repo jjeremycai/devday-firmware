@@ -45,25 +45,6 @@ int main(int argc, char** argv) {
     dump("dash", bundled, st, "dash_bundled_pet");
   }
 
-  // A terminal still paired with an older sync script receives the original
-  // 72x72 square; it must render centred in the pet's box, not garbled.
-  {
-    CardContent square = content;
-    memset(square.dash_avatar, 0, sizeof square.dash_avatar);
-    for (size_t y = 0; y < CardContent::AVATAR_SIZE; y++) {
-      for (size_t x = 0; x < CardContent::AVATAR_SIZE; x++) {
-        int dx = (int)x - 36, dy = (int)y - 36;
-        int r2 = dx * dx + dy * dy;
-        bool on = ((r2 / 90) % 2 == 0) ^ (((x * 7 + y * 13) & 7) < 3);
-        size_t bit = y * CardContent::AVATAR_SIZE + x;
-        if (on) square.dash_avatar[bit / 8] |= 0x80 >> (bit % 8);
-      }
-    }
-    square.dash_avatar_present = true;
-    square.dash_avatar_square = true;
-    dump("dash", square, st, "dash_legacy_square");
-  }
-
   // Overlong payload strings must be clipped, not run into their neighbours.
   {
     CardContent longs = content;

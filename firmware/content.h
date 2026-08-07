@@ -33,14 +33,8 @@ struct CardContent {
   static constexpr size_t PET_W = 96;
   static constexpr size_t PET_H = 104;
   static constexpr size_t PET_BYTES = (PET_W * PET_H + 7) / 8;
-  // Terminals in the field may still be paired with an older sync script that
-  // sends the original 72x72 square, so both sizes stay decodable.
-  static constexpr size_t AVATAR_SIZE = 72;
-  static constexpr size_t AVATAR_BYTES = (AVATAR_SIZE * AVATAR_SIZE + 7) / 8;
   uint8_t dash_avatar[PET_BYTES];
   bool dash_avatar_present;
-  // Which layout dash_avatar currently holds.
-  bool dash_avatar_square;
 
   // Weather page (full today forecast)
   String weather_location;

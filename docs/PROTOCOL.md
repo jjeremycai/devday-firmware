@@ -111,7 +111,9 @@ Caches the payload in LittleFS and renders immediately.
 }
 ```
 
-`show` defaults to `dash`. Payload size is capped at 12 KB. The payload is
+With `show` absent the device decides: Usage once the push has given it an
+identity to draw, otherwise the page already up (the factory splash falls
+forward to the startup card). Payload size is capped at 12 KB. The payload is
 merged into current content and into the LittleFS cache section by section, so
 a weather-only push keeps a previously pushed dash — on screen and after a
 power cycle.
@@ -122,10 +124,9 @@ accumulated sections would exceed the 12 KB cap; the display is current, but a
 power cycle falls back to the last payload that did fit.
 
 `avatar_hex` holds the portrait shown on the Usage card — a Codex pet, or a
-profile photo. Two sizes are accepted: 2496 hex chars for the 96×104 pet
-rectangle, and 1296 for the original 72×72 square, which is centred in the same
-space so older sync scripts keep working. Any other length is ignored, leaving
-the previous portrait in place. Generate one with `tools/gen_pet.py --hex`.
+profile photo: 2496 hex chars for the 96×104 pet rectangle. Any other length
+is ignored, leaving the previous portrait in place. Generate one with
+`tools/gen_pet.py --hex`.
 
 ### `ap.start`
 
@@ -205,8 +206,7 @@ date is used, then the weather date.
 
 Page buttons, release-triggered: **1** Usage (empty state until a dash payload
 arrives), **2** Weather, **3** Agenda. The board's fourth key also shows
-Agenda. Retired `brief` and `quote` sections are ignored rather than rejected,
-and `show: "brief"` / `show: "quote"` fall back to Agenda.
+Agenda. Unknown sections are ignored rather than rejected.
 
 An optional `weather` object powers the Weather page:
 

@@ -45,7 +45,6 @@ void contentDefaults(CardContent& c, const String& device_name) {
   memset(c.dash_day_tokens, 0, sizeof(c.dash_day_tokens));
   memset(c.dash_avatar, 0, sizeof(c.dash_avatar));
   c.dash_avatar_present = false;
-  c.dash_avatar_square = false;
 
   c.weather_location = "";
   c.weather_date = "";
@@ -129,17 +128,12 @@ bool contentParse(const String& payload, CardContent& c) {
       c.dash_day_count = n;
     }
 
-    // Sized by what arrived: the pet rectangle, or the square an older sync
-    // script sends. Anything else is left alone rather than half-decoded.
+    // Exactly one size is valid; anything else is left alone rather than
+    // half-decoded, keeping the previous portrait.
     if (dash["avatar_hex"].is<const char*>()) {
       const char* hex = dash["avatar_hex"];
-      size_t len = strlen(hex);
-      if (decodeHex(hex, len, c.dash_avatar, CardContent::PET_BYTES)) {
+      if (decodeHex(hex, strlen(hex), c.dash_avatar, CardContent::PET_BYTES)) {
         c.dash_avatar_present = true;
-        c.dash_avatar_square = false;
-      } else if (decodeHex(hex, len, c.dash_avatar, CardContent::AVATAR_BYTES)) {
-        c.dash_avatar_present = true;
-        c.dash_avatar_square = true;
       }
     }
   }

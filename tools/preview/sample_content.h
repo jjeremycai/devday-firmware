@@ -34,7 +34,6 @@ inline CardContent sampleContent() {
   // shows the real conversion rather than a synthetic stand-in.
   memcpy(c.dash_avatar, PET_ASSET_BITMAP, CardContent::PET_BYTES);
   c.dash_avatar_present = true;
-  c.dash_avatar_square = false;
 
   c.weather_location = "Salt Lake City, UT";
   c.weather_date = "Thursday, August 6";

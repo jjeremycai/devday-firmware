@@ -532,25 +532,16 @@ static bool packedBit(const uint8_t* bits, int16_t w, int16_t x, int16_t y) {
 static void drawPet(const CardContent& c, int16_t x0, int16_t y0) {
 #ifdef EPAPER_ENABLE
   if (c.dash_avatar_present) {
-    const int16_t w = c.dash_avatar_square ? (int16_t)CardContent::AVATAR_SIZE
-                                           : (int16_t)CardContent::PET_W;
-    const int16_t h = c.dash_avatar_square ? (int16_t)CardContent::AVATAR_SIZE
-                                           : (int16_t)CardContent::PET_H;
-    // Keep a square photo centred in the space the pet would occupy, so the
-    // name block beside it does not shift between the two.
-    const int16_t ox = x0 + ((int16_t)CardContent::PET_W - w) / 2;
-    const int16_t oy = y0 + ((int16_t)CardContent::PET_H - h) / 2;
-    for (int16_t y = 0; y < h; y++) {
-      for (int16_t x = 0; x < w; x++) {
-        if (packedBit(c.dash_avatar, w, x, y)) {
-          epaper.drawPixel(ox + x, oy + y, TFT_BLACK);
+    for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
+      for (int16_t x = 0; x < (int16_t)CardContent::PET_W; x++) {
+        if (packedBit(c.dash_avatar, CardContent::PET_W, x, y)) {
+          epaper.drawPixel(x0 + x, y0 + y, TFT_BLACK);
         }
       }
     }
     return;
   }
 
-#ifdef PET_ASSET_PRESENT
   // Nothing pushed yet: the pet every unit ships with, so the card is never
   // faceless out of the box.
   for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
@@ -562,19 +553,6 @@ static void drawPet(const CardContent& c, int16_t x0, int16_t y0) {
       }
     }
   }
-#else
-  const int16_t r = CardContent::PET_W / 2;
-  const int16_t cx = x0 + r;
-  const int16_t cy = y0 + CardContent::PET_H / 2;
-  epaper.fillCircle(cx, cy, r, TFT_BLACK);
-  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
-  epaper.setFreeFont(&FreeSansBold24pt7b);
-  epaper.setTextDatum(MC_DATUM);
-  char monogram[2] = {'?', 0};
-  if (c.dash_name.length() > 0) monogram[0] = (char)toupper(c.dash_name.charAt(0));
-  epaper.drawString(monogram, cx, cy + 2, GFXFF);
-  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
-#endif
 #endif
 }
 
@@ -795,11 +773,8 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
   else if (card == "build") renderBuild(content, status);
   else if (card == "yours") renderYours(content, status);
   else if (card == "weather") renderWeather(content, status);
-  // "brief" and "quote" were retired pages; old callers land on agenda.
-  else if (card == "agenda" || card == "brief" || card == "quote") renderAgenda(content, status);
-  else if (card == "dash") renderDash(content, status);
-  else if (contentHasDash(content)) renderDash(content, status);
-  else renderAgenda(content, status);
+  else if (card == "agenda") renderAgenda(content, status);
+  else renderDash(content, status); // "dash"; every entry point validates first
   epaper.update();
   buttonsNoteDisplayUpdate(); // D3 may share the BUSY line
 #endif

@@ -95,7 +95,7 @@ static void dispatch(JsonDocument& req) {
 
 void protocolBegin(const ProtoHooks& hooks) {
   hooks_ = hooks;
-  // Large enough for content.push with a 72×72 1-bit avatar hex blob.
+  // Large enough for a max-size content.push (12 KB payload) plus envelope.
   line_.reserve(14000);
 }
 
