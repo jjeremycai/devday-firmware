@@ -11,7 +11,10 @@ static Preferences prefs;
 
 static void defaults(DeviceConfig& cfg) {
   cfg.device_name = "devday-terminal";
-  cfg.startup_card = "agenda";
+  // Usage is the out-of-the-box page: it shows the owner's pet and numbers
+  // once set up, and the one setup instruction until then. Agenda would greet
+  // every unit with the same hardcoded example day.
+  cfg.startup_card = "dash";
   cfg.wifi_ssid = "";
   cfg.wifi_password = "";
   cfg.content_url = "";
@@ -41,7 +44,7 @@ DeviceConfig configLoad() {
   cfg.content_url = prefs.getString("url", "");
   cfg.refresh_minutes = prefs.getUShort("refresh", DEFAULT_REFRESH_MINUTES);
   cfg.wifi_configured = prefs.getBool("wifi_cfg", cfg.wifi_ssid.length() > 0);
-  if (!cardIsStartup(cfg.startup_card)) cfg.startup_card = "agenda";
+  if (!cardIsStartup(cfg.startup_card)) cfg.startup_card = "dash";
   if (cfg.refresh_minutes == 0) cfg.refresh_minutes = DEFAULT_REFRESH_MINUTES;
   return cfg;
 }

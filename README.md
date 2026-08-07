@@ -29,23 +29,28 @@ is the factory reset combo.
   example app, push your calendar via `content.push`).
 
 The on-screen tab strip shows all three pages with the current one inverted.
-The very first boot after factory flash shows a row of Dev Day mascot faces;
-any button press moves on. The factory **Build** diagnostics page is still
-renderable via `card.preview` over USB (used by the line test).
+The very first boot after factory flash shows the Build Kit card at panel
+scale — the recipe QR and DevDay wordmark over the kit's black half-circle
+face. Any key (or the first sync) moves on, and every page that has
+nothing to show yet carries the one instruction that fills it — *ask Codex:
+"set up my Dev Day terminal"* — instead of protocol jargon. The factory
+**Build** diagnostics page is still renderable via `card.preview` over USB
+(used by the line test).
 
 ### Artwork
 
-Two bitmaps ship in the image, both generated — swapping either is one command
-and a rebuild, with no firmware edit and no code review:
+One bitmap ships in the image, generated — swapping it is one command and a
+rebuild, with no firmware edit and no code review:
 
 ```sh
 tools/gen_pet.py                    # bundled default pet  → firmware/pet_asset.h
-tools/gen_splash.py art/face-*.png  # first-boot faces     → firmware/devday_splash.h
 ```
 
 `gen_pet.py` takes a Codex pet package, a spritesheet, or a plain image, and
-defaults to the built-in `codex` pet. `gen_splash.py` with no arguments emits
-placeholder faces, so the build stays green until final artwork lands.
+defaults to the built-in `codex` pet. The first-boot splash ships no asset at
+all: it is the Build Kit card face — black dome, plus-sign eyes, recipe QR —
+drawn as geometry in `cards.cpp`, so it stays sharp at any panel and costs no
+flash.
 
 ## Layout
 
@@ -244,8 +249,9 @@ redirect page fails schema validation and the screen just never updates.
 
 ## Behavior summary
 
-- Cold boot renders the configured startup card from bundled/cached content
-  in one full refresh, then tries 2.4 GHz Wi-Fi **in the background**.
+- Cold boot renders the configured startup card (Usage by default) from
+  bundled/cached content in one full refresh, then tries 2.4 GHz Wi-Fi **in
+  the background**.
 - Content fetch: HTTPS-only against the embedded CA bundle, ETag/304 aware,
   12 KB cap, schema-1 validation; failures keep the cached/bundled card.
   Fetched and pushed payloads merge section by section, so a document that

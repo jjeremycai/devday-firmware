@@ -1,7 +1,8 @@
 # Dev Day Terminal — agent instructions
 
-The device screen tells its owner to ask you: **"set up my Dev Day terminal"**.
-This file is how you answer that.
+The device screen tells its owner to ask you two things: **"set up my Dev Day
+terminal"** (splash, Usage and Weather pages) and **"put my calendar on my
+terminal"** (Agenda page). This file is how you answer both.
 
 ## Setting up the terminal
 
@@ -73,7 +74,8 @@ the owner's pet and usage untouched. Four events max, and the whole document
 must stay under 12 KB — `push.py` checks both before sending. Full schema in
 `docs/PROTOCOL.md`.
 
-**For their real calendar**, prefer the built-in reader over writing your own:
+**For their real calendar** — the answer to *"put my calendar on my
+terminal"* — prefer the built-in reader over writing your own:
 
 ```sh
 tools/dash_sync.py --ics "<their calendar's private iCal URL>"
@@ -108,9 +110,9 @@ See `README.md` for the pinned toolchain and `docs/FLASHING.md`.
 ## Working in this repo
 
 - `firmware/` is the whole Arduino sketch. `cards.cpp` draws every page.
-- `firmware/pet_asset.h` and `firmware/devday_splash.h` are **generated**. Edit
-  the artwork and rerun `tools/gen_pet.py` / `tools/gen_splash.py`; do not hand-
-  edit the headers.
+- `firmware/pet_asset.h` is **generated**. Edit the artwork and rerun
+  `tools/gen_pet.py`; do not hand-edit the header. The first-boot splash is
+  pure geometry in `cards.cpp` — no asset to regenerate.
 - `tools/imaging.py` holds the one implementation of image conversion. Sprite
   art gets an alpha silhouette, photographs get Floyd-Steinberg. Do not add a
   fourth copy of a dithering loop.

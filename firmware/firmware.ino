@@ -25,7 +25,7 @@
 static DeviceConfig cfg;
 static CardContent content;
 static RenderStatus st;
-static String current_card = "agenda";
+static String current_card = "dash";
 static uint32_t boots = 0;
 static uint32_t last_activity_ms = 0;
 static bool reboot_pending = false;
@@ -189,6 +189,10 @@ static bool hookContentPush(const String& payload, const String& show_card, Json
   String card = show_card;
   if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
   if (card == "quote" || card == "brief") card = "agenda"; // retired names
+  // First sync while the first-boot splash is still up: land on a real page.
+  // The splash's own instruction was "ask Codex to set this up" — this push is
+  // that setup arriving, so staying on the splash would look like a hang.
+  if (card == "splash" && show_card.length() == 0) card = cfg.startup_card;
   if (!cardIsRenderable(card)) {
     err_code = "bad_params";
     return false;
@@ -321,7 +325,7 @@ void setup() {
 
   current_card = wakeCard();
   if (current_card.length() == 0) current_card = cfg.startup_card;
-  if (boots == 1) current_card = "splash"; // factory first boot: ASCII blossom
+  if (boots == 1) current_card = "splash"; // factory first boot: the Codex characters
 
   displayBegin();
   refreshStatus();

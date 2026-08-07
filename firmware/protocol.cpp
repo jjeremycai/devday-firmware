@@ -50,7 +50,11 @@ static void dispatch(JsonDocument& req) {
     }
   } else if (cmd == "content.push") {
     String err;
-    String show = params["show"] | "dash";
+    // No default page here: with "show" absent the device decides — Usage once
+    // it has an identity to draw, otherwise whatever page is already up.
+    // Defaulting to "dash" at this layer made every agenda-only push yank the
+    // screen away from the page it was pushed for.
+    String show = params["show"] | "";
     if (params["payload"].isNull()) {
       respond(false, id, JsonObject(), "bad_params", "payload object required");
     } else {

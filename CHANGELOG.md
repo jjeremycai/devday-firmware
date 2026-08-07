@@ -26,8 +26,8 @@
   `--no-pet` opts out.
 - Every unit ships with a bundled default pet, so the card is never faceless
   before the first sync.
-- `tools/gen_pet.py` and `tools/gen_splash.py` generate the two shipped
-  bitmaps. Changing either is one command and a rebuild — no firmware edit.
+- `tools/gen_pet.py` generates the shipped pet bitmap. Changing it is one
+  command and a rebuild — no firmware edit.
 - `tools/imaging.py`, one implementation of the image conversions. Sprite art
   gets an alpha silhouette; photographs keep Floyd-Steinberg. Dithering flat
   sprite fills at this size turned the character into grey noise.
@@ -47,12 +47,34 @@
   tails and props that a circular crop amputates. The original square is still
   accepted and centred in the same space, so an older sync script keeps
   working.
-- First boot shows a row of Dev Day mascot faces instead of the ASCII blossom.
-  Faces are real 1-bit bitmaps, scaled to fit whatever count and size the
-  generator emits. The current set is placeholder art pending OpenAI design.
+- First boot shows the **Build Kit card at panel scale** instead of the ASCII
+  blossom: the hardware-recipe QR and "OpenAI DevDay [2026]" wordmark over the
+  kit's black half-circle face with plus-sign eyes, proportioned from the card
+  art. The pages a key press lands on carry the Codex ask, and the first
+  content push moves off the splash on its own. The face is drawn as geometry
+  in `cards.cpp` matching the box-interior card art, so no splash bitmap
+  ships — `tools/gen_splash.py` and `firmware/devday_splash.h` are gone.
+- Default startup card is Usage, not Agenda. Agenda greeted every unit with
+  the same hardcoded example day; Usage shows the owner's pet and numbers once
+  set up, and the setup instruction until then.
+- The three empty states are one shared layout with one message. Weather and
+  Agenda used to print protocol jargon (`content.push agenda.events[]`,
+  `tools/dash_sync.py --install`) at a consumer who has not cloned the repo;
+  now every empty page says what it will become and the one Codex ask that
+  fills it — "set up my Dev Day terminal", or "put my calendar on my terminal"
+  on Agenda. The KEY-hint boxes are gone too: the tab strip at the foot of
+  every page already numbers the keys.
 
 ### Fixed
 
+- A `content.push` without `show` always yanked the screen to Usage — the
+  protocol layer defaulted the field to `"dash"`, so `push.py agenda.json`
+  switched away from the page it was pushing for, and the device-side "stay on
+  the current card" logic was unreachable. The device now decides: Usage once
+  the push gives it an identity to draw, otherwise the page already up, and a
+  first sync landing on the factory splash moves to the startup card.
+- The Agenda empty state never showed the SoftAP portal credentials; all three
+  empty states now share the layout that does.
 - A terminal on USB never re-fetched over Wi-Fi. `netConnectBackground()` runs
   once in `setup()`, and the refresh interval was served only by the
   deep-sleep/wake cycle — so a device that never sleeps (now the case whenever

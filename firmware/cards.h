@@ -23,6 +23,6 @@ void renderCard(const String& card, const CardContent& content, const RenderStat
 //
 // "dash" | "weather" | "agenda"  the three pages on the tab strip
 // "build" | "yours"              diagnostics / QR, reachable via card.preview
-// "splash"                       first-boot blossom, not selectable as a startup card
+// "splash"                       first-boot characters, not selectable as a startup card
 bool cardIsRenderable(const String& card); // valid for card.preview
 bool cardIsStartup(const String& card);    // valid for config.write startup_card
