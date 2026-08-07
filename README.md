@@ -12,6 +12,55 @@ Plug it into a laptop and ask Codex *"set up my Dev Day terminal"* — it reads
 the Codex install already signed in on your machine and pushes your real pet
 and usage over USB. No account to create, no permission prompt.
 
+## Screens
+
+Every render below is produced by the shipping firmware's actual drawing code
+(`tools/preview/build.sh`), not a mockup. Design language throughout:
+brutalist 1-bit — solid fills, hairline double-rules, FreeSans, uppercase
+micro-labels, no grayscale — with the OpenAI blossom anchoring every header.
+
+### First boot
+
+![First-boot splash](docs/screens/0-splash.png)
+
+The very first screen out of the box, a direct translation of the Build Kit
+interior card to the panel: the hardware-recipe QR (scans to this repo), the
+"OpenAI DevDay [2026]" wordmark, and the kit's black half-circle face with
+plus-sign eyes rising from the bottom edge, carrying the one instruction —
+*plug into a laptop with Codex, then press any key*. The face geometry (eye
+spacing, arm-to-stroke ratio, placement) is measured off the card art and
+drawn procedurally, so it is pixel-crisp with no bitmap asset. It appears once
+per factory-fresh unit; the first key press or first sync moves past it
+permanently.
+
+### 1 · Usage
+
+![Usage page](docs/screens/1-usage.png)
+
+The attendee's Codex identity: their pet (whichever one they picked in Codex,
+drawn from the real sprite atlas with a two-band halftone pass so dark-bodied
+characters keep their features in 1-bit ink), name, handle, plan badge, four
+lifetime metrics, and a 14-day token activity chart. Fills automatically when
+the terminal is plugged into a laptop with Codex signed in.
+
+### 2 · Weather
+
+![Weather page](docs/screens/2-weather.png)
+
+Today's forecast: current conditions with a condition icon, morning /
+afternoon / evening cards, and a 24-hour temperature skyline with "now"
+marked solid. Icons are solid-silhouette glyphs — sun, partly, cloud, rain,
+snow, storm, fog — drawn as geometry, because stroked icons turn to noise at
+this size on e-paper.
+
+### 3 · Agenda
+
+![Agenda page](docs/screens/3-agenda.png)
+
+The attendee's actual day, read automatically from their local calendar on
+sync — all accounts, recurring events resolved, nothing to install. All-day
+and still-upcoming events take priority for the four rows.
+
 **Usage · Weather · Agenda** — three pages on the first three buttons,
 numbered 1-3 (KEY1 / KEY2 / KEY3) left to right. Press and release to switch;
 hold length doesn't matter. KEY3 (D3) shares GPIO4 with the display BUSY line,
