@@ -220,19 +220,29 @@ def silhouette(
     w: int,
     h: int,
     threshold: int = 190,
+    shade: int = 70,
 ) -> bytearray:
-    """Alpha shape + luminance threshold to packed 1-bit. Set bit = black ink.
+    """Alpha shape + two-band luminance to packed 1-bit. Set bit = black ink.
 
-    Pixels outside the sprite stay white whatever their colour; inside, anything
-    darker than `threshold` becomes ink. Flat sprite fills survive this intact,
-    where error diffusion would shred them.
+    Pixels outside the sprite stay white whatever their colour. Inside, two
+    inks: anything darker than `shade` is solid black — linework and the
+    darkest features — and the band between `shade` and `threshold` renders as
+    a 50% checker. One flat cutoff turned every dark-bodied pet into a solid
+    blob; the checker reads as grey on the panel, so the body becomes tone and
+    the character's face survives. `shade >= threshold` restores the old
+    single-ink behaviour.
     """
     inside = [a > 128 for a in alpha]
-    bits = [ins and g <= threshold for ins, g in zip(inside, gray)]
+    ink = [ins and g <= threshold for ins, g in zip(inside, gray)]
 
     shape = sum(inside)
-    if shape and sum(bits) / shape < _MIN_INK:
-        bits = inside  # too pale to read — use the shape itself
+    if shape and sum(ink) / shape < _MIN_INK:
+        return _pack(inside, w, h)  # too pale to read — use the shape itself
+
+    bits = [
+        on and (g <= shade or ((i % w) + (i // w)) % 2 == 0)
+        for i, (on, g) in enumerate(zip(ink, gray))
+    ]
     return _pack(bits, w, h)
 
 
@@ -251,10 +261,11 @@ def sprite_to_bits(
     h: int,
     crop: Optional[CropBox] = None,
     threshold: int = 190,
+    shade: int = 70,
 ) -> bytearray:
-    """Sprite art → packed 1-bit, via alpha silhouette."""
+    """Sprite art → packed 1-bit, via two-band alpha silhouette."""
     gray, alpha = decode_image(data, w, h, crop)
-    return silhouette(flatten_on_white(gray, alpha), alpha, w, h, threshold)
+    return silhouette(flatten_on_white(gray, alpha), alpha, w, h, threshold, shade)
 
 
 def bits_to_pgm(bits: Sequence[int], w: int, h: int) -> bytes:
