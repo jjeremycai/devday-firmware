@@ -22,6 +22,27 @@ SPEC.loader.exec_module(sync)
 
 
 class DashSyncTests(unittest.TestCase):
+    def test_today_tokens_and_usage_payload_contract(self) -> None:
+        date_key = sync.datetime.now().date().isoformat()
+        usage = {
+            "summary": {"lifetimeTokens": 48_800_000_000, "currentStreakDays": 38},
+            "dailyUsageBuckets": [
+                {"startDate": "2026-08-08", "tokens": 900},
+                {"startDate": date_key, "tokens": 133_200_000},
+            ],
+        }
+
+        self.assertEqual(sync.today_tokens_from_usage(usage, date_key), 133_200_000)
+        self.assertEqual(sync.today_tokens_from_usage(usage, "2026-08-07"), 0)
+
+        payload = sync.build_payload({"account": {"planType": "pro"}}, usage, {}, "")
+        dash = payload["dash"]
+        self.assertEqual(dash["today"], "133.2M")
+        self.assertEqual(dash["lifetime"], "48.8B")
+        self.assertEqual(dash["streak"], "38 days")
+        self.assertNotIn("peak", dash)
+        self.assertNotIn("longest", dash)
+
     def test_weather_units_follow_ip_country_then_locale(self) -> None:
         self.assertEqual(sync.weather_units("US"), ("fahrenheit", "mph", "mph"))
         self.assertEqual(sync.weather_units("DE"), ("celsius", "kmh", "km/h"))
@@ -93,6 +114,8 @@ class DashSyncTests(unittest.TestCase):
             offline=False,
             no_weather=False,
             no_avatar=True,
+            ics="https://calendar.example/private.ics",
+            no_calendar=True,
         )
         command = sync.auto_sync_command(args, "A1B2C3D4E5F6")
         self.assertEqual(command[-1], "--no-avatar")
@@ -101,6 +124,14 @@ class DashSyncTests(unittest.TestCase):
         self.assertIn("/dev/cu.usbmodem1101", command)
         self.assertIn("39.74", command)
         self.assertIn("-104.99", command)
+        self.assertIn("https://calendar.example/private.ics", command)
+        self.assertIn("--no-calendar", command)
+
+        args.ics = None
+        args.no_calendar = False
+        command = sync.auto_sync_command(args, "A1B2C3D4E5F6")
+        self.assertNotIn("--ics", command)
+        self.assertNotIn("--no-calendar", command)
 
     def test_pet_selection_prefers_explicit_then_the_one_chosen_in_codex(self) -> None:
         seen: list[object] = []

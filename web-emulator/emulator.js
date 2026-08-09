@@ -112,8 +112,7 @@ function applyJson(text) {
   if (b.updated_at) api.emu_set("build_updated_at", b.updated_at);
 
   const strKeys = ["name", "handle", "plan", "weather_temp", "weather_detail",
-                   "lifetime", "peak", "longest", "streak", "best_streak",
-                   "insight_left", "insight_right"];
+                   "today", "lifetime", "streak", "insight_left", "insight_right"];
   for (const k of strKeys) if (d[k] != null) api.emu_set("dash_" + k, String(d[k]));
   if (Array.isArray(d.days)) api.emu_set_days_csv(d.days.join(","));
   if (d.avatar_hex) {

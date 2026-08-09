@@ -18,9 +18,8 @@ inline CardContent sampleContent() {
   c.dash_name = "Jeremy Cai";
   c.dash_handle = "@permanentunderclass";
   c.dash_plan = "Pro";
+  c.dash_today = "133.2M";
   c.dash_lifetime = "48.8B";
-  c.dash_peak = "2.7B";
-  c.dash_longest = "34h 45m";
   c.dash_streak = "38 days";
   c.dash_insight_left = "Most used reasoning · Extra High · 41%";
   c.dash_insight_right = "Wed 11:04 PM";
@@ -77,6 +76,7 @@ inline RenderStatus sampleStatus() {
   st.fw_hash = "0e12366abcde";
   st.battery_v = 4.11f;
   st.battery_pct = 96;
+  st.wifi_connected = true;
   st.connection = "Wi-Fi OfficeNet · 192.168.1.20";
   return st;
 }

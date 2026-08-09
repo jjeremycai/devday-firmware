@@ -20,6 +20,7 @@ void netPoll();
 void netRefresh();
 NetState netGetState();
 String netDescribe(); // human-readable connection line for the Build card footer
+bool netConnected();
 
 // True once a content refresh cycle (connect + optional fetch) has finished,
 // so the power manager knows it can go back to sleep.

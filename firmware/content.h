@@ -17,9 +17,8 @@ struct CardContent {
   String dash_name;
   String dash_handle;
   String dash_plan;          // e.g. "Pro"
+  String dash_today;
   String dash_lifetime;
-  String dash_peak;
-  String dash_longest;
   String dash_streak;
   String dash_insight_left;
   String dash_insight_right;

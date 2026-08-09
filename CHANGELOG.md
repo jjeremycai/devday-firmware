@@ -4,6 +4,15 @@
 
 ### Added
 
+- **Wi-Fi status in every page header.** A compact signal mark now sits beside
+  the battery gauge; connected shows clean arcs, while offline uses the same
+  glyph with a slash.
+- **Developer-centric display voice without developer-themed clutter.** Machine
+  values now use FreeMono — token metrics, agenda times, weather telemetry,
+  timestamps, firmware diagnostics, and the recipe URL — while labels and
+  human prose stay in FreeSans. Empty pages present the real Codex request as
+  a terminal prompt with one static block cursor and the splash character
+  peeking above the tabs; portal credentials still take that space when active.
 - **The Agenda page fills itself from the local calendar.** On macOS the sync
   reads today's events straight from the system calendar store
   (`tools/localcal.py`) — every account Calendar.app shows, recurring events
@@ -53,6 +62,9 @@
   drives the Weather page is untouched.
 
 ### Changed
+- Usage now presents the three current Codex metrics that matter at a glance:
+  today, lifetime, and streak. Today comes from the matching local-date usage
+  bucket; peak day and longest chat are no longer displayed or sent.
 
 - The portrait is a 96x104 rectangle, not a 72x72 circle: pets have legs,
   tails and props that a circular crop amputates.
@@ -75,7 +87,27 @@
   every page already numbers the keys.
 
 ### Fixed
+- Agenda times are vertically centred in their column while event titles and
+  details remain left aligned as a centred two-line block.
+- Header status now reads Wi-Fi, battery gauge, then battery percentage; the
+  percentage no longer sits on the wrong side of its icon.
 
+- Rendered schema strings are capped at 256 bytes on UTF-8 boundaries before
+  they reach the display library's 8 KB task stack. `refresh_after_s` is also
+  bounded to one day.
+- HTTPS responses now merge into the persistent cache, collect and reuse ETags,
+  and apply the 12-second budget to the TLS handshake.
+- Saving either configuration form with a blank Wi-Fi password keeps the
+  stored password; an explicit checkbox still clears it.
+- Invalid `content.push.show` values are rejected before live content or the
+  cache changes.
+- Repeated SoftAP sessions reuse one route table, timeout clears expired
+  credentials from the screen, and OTA uploads preserve their first failure
+  reason.
+- `dash_sync.py --install` now preserves `--ics` and `--no-calendar`.
+- Release packaging now ships and checksums `boot_app0.bin`, places OTA data
+  at its toolchain-required `0xe000` offset, quarantines pre-rename auxiliary
+  binaries, and uses the LittleFS partition subtype.
 - A `content.push` without `show` always yanked the screen to Usage — the
   protocol layer defaulted the field to `"dash"`, so `push.py agenda.json`
   switched away from the page it was pushing for, and the device-side "stay on

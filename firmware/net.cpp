@@ -42,7 +42,7 @@ static void fetchContent() {
 
   WiFiClientSecure client;
   client.setCACert(CA_BUNDLE_PEM); // verified TLS only, never insecure
-  client.setTimeout(CONTENT_FETCH_MS / 1000);
+  client.setHandshakeTimeout(CONTENT_FETCH_MS / 1000); // API takes seconds
 
   HTTPClient http;
   http.setTimeout(CONTENT_FETCH_MS);
@@ -53,6 +53,8 @@ static void fetchContent() {
   http.addHeader("Accept", "application/json");
   String etag = cacheReadEtag();
   if (etag.length() > 0) http.addHeader("If-None-Match", etag);
+  const char* response_headers[] = {"ETag"};
+  http.collectHeaders(response_headers, 1);
 
   int code = http.GET();
   if (code == HTTP_CODE_OK) {
@@ -90,7 +92,7 @@ static void fetchContent() {
       CardContent probe;
       contentDefaults(probe, "");
       if ((int)payload.length() == declared && contentParse(payload, probe)) {
-        cacheWriteContent(payload, etag_new);
+        cacheMergeContent(payload, etag_new);
         fresh_payload_ = payload;
         fresh_valid_ = true;
       }
@@ -131,6 +133,7 @@ void netRefresh() {
 
 NetState netGetState() { return state_; }
 String netDescribe() { return describe_; }
+bool netConnected() { return WiFi.status() == WL_CONNECTED; }
 
 bool netCycleComplete() {
   return state_ == NetState::DONE || state_ == NetState::FAILED || state_ == NetState::IDLE;

@@ -3,8 +3,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-// On-demand SoftAP setup portal. Starts only when requested (long D2 or
-// ap.start), shows generated credentials on screen, and stops after 5 minutes.
+// On-demand SoftAP setup portal. Starts only when requested over USB, shows
+// generated credentials on screen, and stops after 5 minutes.
 struct PortalHooks {
   void (*status)(JsonObject data);
   bool (*config_write)(JsonObjectConst obj, String& err_code);

@@ -72,9 +72,8 @@ extern "C" void emu_set(const char* key, const char* value) {
   else if (k == "dash_name") { g_content.dash_name = v; g_content.dash_present = true; }
   else if (k == "dash_handle") g_content.dash_handle = v;
   else if (k == "dash_plan") g_content.dash_plan = v;
+  else if (k == "dash_today") g_content.dash_today = v;
   else if (k == "dash_lifetime") g_content.dash_lifetime = v;
-  else if (k == "dash_peak") g_content.dash_peak = v;
-  else if (k == "dash_longest") g_content.dash_longest = v;
   else if (k == "dash_streak") g_content.dash_streak = v;
   else if (k == "dash_insight_left") g_content.dash_insight_left = v;
   else if (k == "dash_insight_right") g_content.dash_insight_right = v;

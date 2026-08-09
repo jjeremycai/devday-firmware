@@ -6,6 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$ROOT/tools/preview/out"
 mkdir -p "$OUT"
+ARDUINOJSON_DIR="${ARDUINOJSON_DIR:-$HOME/Documents/Arduino/libraries/ArduinoJson/src}"
+
 
 clang++ -std=c++17 -O1 \
   -I "$ROOT/tools/preview/stubs" \
@@ -18,6 +20,17 @@ clang++ -std=c++17 -O1 \
   "$ROOT/firmware/cards.cpp" \
   -framework CoreFoundation -framework CoreGraphics -framework CoreText \
   -o "$OUT/preview"
+
+clang++ -std=c++17 -O1 \
+  -I "$ROOT/tools/preview/stubs" \
+  -I "$ROOT/firmware" \
+  -I "$ARDUINOJSON_DIR" \
+  -DARDUINOJSON_ENABLE_ARDUINO_STRING=1 \
+  "$ROOT/tools/preview/content_test.cpp" \
+  "$ROOT/firmware/content.cpp" \
+  -o "$OUT/content_test"
+
+"$OUT/content_test"
 
 "$OUT/preview" "$OUT"
 

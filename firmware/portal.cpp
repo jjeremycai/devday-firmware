@@ -10,6 +10,7 @@ static WebServer server(80);
 static PortalHooks hooks_;
 static OtaSession ota_;
 static bool active_ = false;
+static bool routes_registered_ = false;
 static uint32_t started_ms_ = 0;
 static String ssid_, password_, ip_;
 
@@ -33,6 +34,7 @@ section{border-top:1px solid #ddd;margin-top:2rem;padding-top:1rem}
 <option value="build">Build</option><option value="yours">Yours</option></select>
 <label>Wi-Fi SSID (2.4 GHz)</label><input name="wifi_ssid">
 <label>Wi-Fi password</label><input name="wifi_password" type="password">
+<label><input name="clear_wifi_password" type="checkbox" style="width:auto"> Clear saved Wi-Fi password</label>
 <label>Content URL (HTTPS, optional)</label><input name="content_url" placeholder="https://">
 <label>Refresh (minutes)</label><input name="refresh_minutes" type="number" min="5" value="30">
 <button type="submit">Save configuration</button>
@@ -56,8 +58,10 @@ document.getElementById('cfg').onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;
   const body = {device_name:f.device_name.value, startup_card:f.startup_card.value,
-    wifi_ssid:f.wifi_ssid.value, wifi_password:f.wifi_password.value,
-    content_url:f.content_url.value, refresh_minutes:Number(f.refresh_minutes.value)};
+    wifi_ssid:f.wifi_ssid.value, content_url:f.content_url.value,
+    refresh_minutes:Number(f.refresh_minutes.value)};
+  if (f.clear_wifi_password.checked) body.wifi_password = '';
+  else if (f.wifi_password.value) body.wifi_password = f.wifi_password.value;
   const r = await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
   msg(r.ok ? 'Saved. Reconnect the terminal to your Wi-Fi to apply.' : 'Save failed: ' + await r.text());
 };
@@ -100,6 +104,7 @@ static void handleConfig() {
 
 static bool update_ok_ = false;
 static String update_err_;
+static bool update_failed_ = false;
 
 static void handleUpdateDone() {
   if (update_ok_) {
@@ -121,24 +126,46 @@ static void handleUpdateRaw() {
   HTTPRaw& raw = server.raw();
   if (raw.status == RAW_START) {
     update_ok_ = false;
+    update_failed_ = false;
     update_err_ = "";
     if (!ota_.begin(server.clientContentLength(), update_err_)) {
+      update_failed_ = true;
       raw.status = RAW_ABORTED;
     }
   } else if (raw.status == RAW_WRITE) {
-    if (!ota_.write(raw.buf, raw.currentSize, update_err_)) {
+    if (update_failed_) {
+      raw.status = RAW_ABORTED;
+    } else if (!ota_.write(raw.buf, raw.currentSize, update_err_)) {
+      update_failed_ = true;
       raw.status = RAW_ABORTED;
     }
   } else if (raw.status == RAW_END) {
-    update_ok_ = ota_.finish(update_err_);
+    if (update_failed_) {
+      update_ok_ = false;
+      ota_.abort();
+    } else {
+      update_ok_ = ota_.finish(update_err_);
+      update_failed_ = !update_ok_;
+    }
   } else if (raw.status == RAW_ABORTED) {
+    update_failed_ = true;
     ota_.abort();
     if (update_err_.length() == 0) update_err_ = "aborted";
   }
 }
 
+static void registerRoutes() {
+  if (routes_registered_) return;
+  server.on("/", HTTP_GET, handleIndex);
+  server.on("/api/status", HTTP_GET, handleStatus);
+  server.on("/api/config", HTTP_POST, handleConfig);
+  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateRaw);
+  routes_registered_ = true;
+}
+
 bool portalStart() {
   if (active_) return false;
+  registerRoutes();
 
   uint64_t mac = ESP.getEfuseMac();
   char suffix[5];
@@ -155,10 +182,6 @@ bool portalStart() {
   WiFi.softAP(ssid_.c_str(), password_.c_str());
   ip_ = WiFi.softAPIP().toString();
 
-  server.on("/", HTTP_GET, handleIndex);
-  server.on("/api/status", HTTP_GET, handleStatus);
-  server.on("/api/config", HTTP_POST, handleConfig);
-  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateRaw);
   server.begin();
 
   started_ms_ = millis();
@@ -179,7 +202,10 @@ bool portalActive() { return active_; }
 void portalPoll() {
   if (!active_) return;
   server.handleClient();
-  if (millis() - started_ms_ > AP_TIMEOUT_MS) portalStop();
+  if (millis() - started_ms_ > AP_TIMEOUT_MS) {
+    portalStop();
+    hooks_.request_rerender();
+  }
 }
 
 void portalSetHooks(const PortalHooks& hooks) { hooks_ = hooks; }

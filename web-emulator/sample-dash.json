@@ -7,11 +7,9 @@
     "plan": "Pro",
     "weather_temp": "73°",
     "weather_detail": "Clear · H100° L66°",
+    "today": "133.2M",
     "lifetime": "48.8B",
-    "peak": "2.7B",
-    "longest": "34h 45m",
     "streak": "38 days",
-    "best_streak": "64 days",
     "insight_left": "Codex · local sync",
     "insight_right": "Thu 1:16 AM",
     "days": [

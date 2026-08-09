@@ -19,6 +19,7 @@ class String {
 public:
   String() = default;
   String(const char* s) : s_(s ? s : "") {}
+  String(const char* s, unsigned int length) : s_(s ? std::string(s, length) : "") {}
   String(const std::string& s) : s_(s) {}
   String(int v) : s_(std::to_string(v)) {}
   String(unsigned v) : s_(std::to_string(v)) {}
@@ -49,6 +50,7 @@ public:
   friend String operator+(const char* a, const String& b) { return String(std::string(a ? a : "") + b.s_); }
   String& operator+=(const String& o) { s_ += o.s_; return *this; }
   String& operator+=(const char* o) { s_ += (o ? o : ""); return *this; }
+  bool concat(const char* s) { if (s) s_ += s; return true; }
   bool operator==(const String& o) const { return s_ == o.s_; }
   bool operator!=(const String& o) const { return s_ != o.s_; }
 

@@ -197,16 +197,12 @@
 
     <div class="grid-2" style="margin-top:.5rem">
       <div>
+        <label>Today’s tokens</label>
+        <input id="p-today" placeholder="133.2M">
+      </div>
+      <div>
         <label>Lifetime tokens</label>
         <input id="p-lifetime" placeholder="48.8B">
-      </div>
-      <div>
-        <label>Peak tokens</label>
-        <input id="p-peak" placeholder="2.7B">
-      </div>
-      <div>
-        <label>Longest chat</label>
-        <input id="p-longest" placeholder="34h 46m">
       </div>
       <div>
         <label>Current streak</label>
@@ -247,6 +243,7 @@
     </select>
     <label>Wi-Fi SSID (2.4 GHz)</label><input id="c-ssid" maxlength="32">
     <label>Wi-Fi password</label><input id="c-pass" type="password" maxlength="63">
+    <label><input id="c-pass-clear" type="checkbox" style="width:auto"> Clear saved Wi-Fi password</label>
     <label>Content URL (HTTPS, optional)</label><input id="c-url" placeholder="https://example.com/card.json">
     <label>Refresh interval (minutes)</label><input id="c-refresh" type="number" min="5" max="1440" value="30">
     <div class="hero-row">
@@ -336,12 +333,21 @@ function formatTokens(n) {
   return String(n);
 }
 
-function formatDuration(sec) {
-  if (sec == null || Number.isNaN(sec)) return "";
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+function localDateKey(date = new Date()) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function todayTokens(buckets) {
+  const key = localDateKey();
+  for (let i = buckets.length - 1; i >= 0; i--) {
+    const bucket = buckets[i];
+    if ((bucket.startDate ?? bucket.start_date) === key) {
+      return formatTokens(Number(bucket.tokens ?? bucket.totalTokens ?? 0));
+    }
+  }
+  return "0";
 }
 
 function loadProfile() {
@@ -358,9 +364,8 @@ function saveProfile(extra = {}) {
     handle: $("p-handle").value.trim(),
     plan: $("p-plan").value.trim(),
     avatarUrl: $("p-avatar-url").value.trim(),
+    today: $("p-today").value.trim(),
     lifetime: $("p-lifetime").value.trim(),
-    peak: $("p-peak").value.trim(),
-    longest: $("p-longest").value.trim(),
     streak: $("p-streak").value.trim(),
     insight: $("p-insight").value.trim(),
     usageJson: $("p-usage-json").value.trim(),
@@ -377,9 +382,8 @@ function applyProfile(p) {
   $("p-handle").value = p.handle || "";
   $("p-plan").value = p.plan || "Pro";
   $("p-avatar-url").value = p.avatarUrl || "";
+  $("p-today").value = p.today || "";
   $("p-lifetime").value = p.lifetime || "";
-  $("p-peak").value = p.peak || "";
-  $("p-longest").value = p.longest || "";
   $("p-streak").value = p.streak || "";
   $("p-insight").value = p.insight || "";
   $("p-usage-json").value = p.usageJson || "";
@@ -393,9 +397,8 @@ function loadDemo() {
   $("p-name").value = "Jeremy Cai";
   $("p-handle").value = "@permanentunderclass";
   $("p-plan").value = "Pro";
+  $("p-today").value = "133.2M";
   $("p-lifetime").value = "48.8B";
-  $("p-peak").value = "2.7B";
-  $("p-longest").value = "34h 46m";
   $("p-streak").value = "38 days";
   $("p-insight").value = "Most used reasoning · Extra High · 41%";
   $("p-usage-json").value = "";
@@ -430,11 +433,9 @@ function parseUsageJson(text) {
     const peak = Math.max(1, ...days);
     const norm = days.map((d) => Math.round((d / peak) * 255));
     return {
+      today: todayTokens(buckets),
       lifetime: formatTokens(summary.lifetimeTokens),
-      peak: formatTokens(summary.peakDailyTokens),
-      longest: formatDuration(summary.longestRunningTurnSec),
       streak: summary.currentStreakDays != null ? `${summary.currentStreakDays} days` : "",
-      best: summary.longestStreakDays != null ? `${summary.longestStreakDays} days` : "",
       days: norm,
     };
   } catch (e) {
@@ -446,9 +447,8 @@ function parseUsageJson(text) {
 function applyUsagePaste() {
   const u = parseUsageJson($("p-usage-json").value);
   if (!u) return;
+  if (u.today) $("p-today").value = u.today;
   if (u.lifetime) $("p-lifetime").value = u.lifetime;
-  if (u.peak) $("p-peak").value = u.peak;
-  if (u.longest) $("p-longest").value = u.longest;
   if (u.streak) $("p-streak").value = u.streak;
   saveProfile({ days: u.days });
   paintPreview();
@@ -709,9 +709,8 @@ function buildPayload() {
       name: $("p-name").value.trim() || "Codex",
       handle: $("p-handle").value.trim(),
       plan: $("p-plan").value.trim(),
+      today: $("p-today").value.trim(),
       lifetime: $("p-lifetime").value.trim(),
-      peak: $("p-peak").value.trim(),
-      longest: $("p-longest").value.trim(),
       streak: $("p-streak").value.trim(),
       insight_left: $("p-insight").value.trim(),
       insight_right: new Date().toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }),
@@ -727,9 +726,8 @@ function buildPayload() {
 function applyUsagePasteQuiet() {
   const u = parseUsageJson($("p-usage-json").value);
   if (!u) return;
+  if (u.today) $("p-today").value = u.today;
   if (u.lifetime) $("p-lifetime").value = u.lifetime;
-  if (u.peak) $("p-peak").value = u.peak;
-  if (u.longest) $("p-longest").value = u.longest;
   if (u.streak) $("p-streak").value = u.streak;
   if (u.days?.length) saveProfile({ days: u.days });
 }
@@ -998,19 +996,21 @@ $("p-avatar-url").addEventListener("change", async () => {
   paintPreview();
 });
 
-["p-name","p-handle","p-plan","p-lifetime","p-peak","p-longest","p-streak","p-insight"]
+["p-name","p-handle","p-plan","p-today","p-lifetime","p-streak","p-insight"]
   .forEach((id) => $(id).addEventListener("input", paintPreview));
 
 $("save").onclick = async () => {
   try {
-    await send("config.write", {
+    const settings = {
       device_name: $("c-name").value,
       startup_card: $("c-card").value,
       wifi_ssid: $("c-ssid").value,
-      wifi_password: $("c-pass").value,
       content_url: $("c-url").value,
       refresh_minutes: Number($("c-refresh").value),
-    });
+    };
+    if ($("c-pass-clear").checked) settings.wifi_password = "";
+    else if ($("c-pass").value) settings.wifi_password = $("c-pass").value;
+    await send("config.write", settings);
     log("config saved");
     refreshStatus();
   } catch (e) { alert("Save failed: " + e.message); }

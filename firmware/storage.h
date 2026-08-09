@@ -25,8 +25,9 @@ void configFactoryReset();
 bool cacheReadContent(String& out);
 bool cacheWriteContent(const String& payload, const String& etag);
 // Merges the top-level members of a (possibly partial) payload into the cached
-// document, so a weather-only push does not drop a previously pushed dash.
-// Clears the ETag: the cache no longer matches whatever the server last served.
-bool cacheMergeContent(const String& payload);
+// document, so a weather-only update does not drop a previously cached dash.
+// USB pushes omit etag and clear the old validator; network fetches pass the
+// validator for the server document they just merged.
+bool cacheMergeContent(const String& payload, const String& etag = "");
 String cacheReadEtag();
 bool cacheClear();

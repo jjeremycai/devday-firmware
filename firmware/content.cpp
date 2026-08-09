@@ -23,6 +23,19 @@ static bool decodeHex(const char* hex, size_t len, uint8_t* out, size_t out_len)
   return true;
 }
 
+// Rendered strings eventually reach TFT_eSPI's String overloads, which copy
+// the whole value onto the 8 KB loop-task stack. Keep every display field
+// bounded well above the panel's useful width, without splitting UTF-8.
+static String contentText(JsonVariantConst value) {
+  if (!value.is<const char*>()) return "";
+  const char* text = value.as<const char*>();
+  size_t n = strlen(text);
+  if (n <= CONTENT_TEXT_MAX_BYTES) return String(text);
+  n = CONTENT_TEXT_MAX_BYTES;
+  while (n > 0 && ((uint8_t)text[n] & 0xC0) == 0x80) n--;
+  return String(text, (unsigned int)n);
+}
+
 void contentDefaults(CardContent& c, const String& device_name) {
   (void)device_name;
   c.build_state = "ready";
@@ -34,9 +47,8 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.dash_name = "";
   c.dash_handle = "";
   c.dash_plan = "";
+  c.dash_today = "";
   c.dash_lifetime = "";
-  c.dash_peak = "";
-  c.dash_longest = "";
   c.dash_streak = "";
   c.dash_insight_left = "";
   c.dash_insight_right = "";
@@ -82,12 +94,14 @@ bool contentParse(const String& payload, CardContent& c) {
 
   if (doc["refresh_after_s"].is<uint32_t>()) {
     uint32_t r = doc["refresh_after_s"].as<uint32_t>();
-    c.refresh_after_s = r < 300 ? 300 : r;
+    if (r < 300) r = 300;
+    if (r > CONTENT_REFRESH_MAX_S) r = CONTENT_REFRESH_MAX_S;
+    c.refresh_after_s = r;
   }
 
   JsonObject build = doc["build"].as<JsonObject>();
   if (!build.isNull()) {
-    String state = build["state"] | "";
+    String state = contentText(build["state"]);
     const char* valid[] = {"ready", "running", "passed", "failed", "unknown"};
     for (const char* v : valid) {
       if (state == v) {
@@ -95,23 +109,22 @@ bool contentParse(const String& payload, CardContent& c) {
         break;
       }
     }
-    if (build["title"].is<const char*>()) c.build_title = build["title"].as<String>();
-    if (build["detail"].is<const char*>()) c.build_detail = build["detail"].as<String>();
-    if (build["updated_at"].is<const char*>()) c.build_updated_at = build["updated_at"].as<String>();
+    if (build["title"].is<const char*>()) c.build_title = contentText(build["title"]);
+    if (build["detail"].is<const char*>()) c.build_detail = contentText(build["detail"]);
+    if (build["updated_at"].is<const char*>()) c.build_updated_at = contentText(build["updated_at"]);
   }
 
   JsonObject dash = doc["dash"].as<JsonObject>();
   if (!dash.isNull()) {
     c.dash_present = true;
-    if (dash["name"].is<const char*>()) c.dash_name = dash["name"].as<String>();
-    if (dash["handle"].is<const char*>()) c.dash_handle = dash["handle"].as<String>();
-    if (dash["plan"].is<const char*>()) c.dash_plan = dash["plan"].as<String>();
-    if (dash["lifetime"].is<const char*>()) c.dash_lifetime = dash["lifetime"].as<String>();
-    if (dash["peak"].is<const char*>()) c.dash_peak = dash["peak"].as<String>();
-    if (dash["longest"].is<const char*>()) c.dash_longest = dash["longest"].as<String>();
-    if (dash["streak"].is<const char*>()) c.dash_streak = dash["streak"].as<String>();
-    if (dash["insight_left"].is<const char*>()) c.dash_insight_left = dash["insight_left"].as<String>();
-    if (dash["insight_right"].is<const char*>()) c.dash_insight_right = dash["insight_right"].as<String>();
+    if (dash["name"].is<const char*>()) c.dash_name = contentText(dash["name"]);
+    if (dash["handle"].is<const char*>()) c.dash_handle = contentText(dash["handle"]);
+    if (dash["plan"].is<const char*>()) c.dash_plan = contentText(dash["plan"]);
+    if (dash["today"].is<const char*>()) c.dash_today = contentText(dash["today"]);
+    if (dash["lifetime"].is<const char*>()) c.dash_lifetime = contentText(dash["lifetime"]);
+    if (dash["streak"].is<const char*>()) c.dash_streak = contentText(dash["streak"]);
+    if (dash["insight_left"].is<const char*>()) c.dash_insight_left = contentText(dash["insight_left"]);
+    if (dash["insight_right"].is<const char*>()) c.dash_insight_right = contentText(dash["insight_right"]);
 
     JsonArray days = dash["days"].as<JsonArray>();
     if (!days.isNull()) {
@@ -138,11 +151,11 @@ bool contentParse(const String& payload, CardContent& c) {
 
   JsonObject wx = doc["weather"].as<JsonObject>();
   if (!wx.isNull()) {
-    if (wx["location"].is<const char*>()) c.weather_location = wx["location"].as<String>();
-    if (wx["date"].is<const char*>()) c.weather_date = wx["date"].as<String>();
-    if (wx["now_temp"].is<const char*>()) c.weather_now_temp = wx["now_temp"].as<String>();
-    if (wx["now_cond"].is<const char*>()) c.weather_now_cond = wx["now_cond"].as<String>();
-    if (wx["now_hilo"].is<const char*>()) c.weather_now_hilo = wx["now_hilo"].as<String>();
+    if (wx["location"].is<const char*>()) c.weather_location = contentText(wx["location"]);
+    if (wx["date"].is<const char*>()) c.weather_date = contentText(wx["date"]);
+    if (wx["now_temp"].is<const char*>()) c.weather_now_temp = contentText(wx["now_temp"]);
+    if (wx["now_cond"].is<const char*>()) c.weather_now_cond = contentText(wx["now_cond"]);
+    if (wx["now_hilo"].is<const char*>()) c.weather_now_hilo = contentText(wx["now_hilo"]);
 
     JsonArray segs = wx["segments"].as<JsonArray>();
     if (!segs.isNull()) {
@@ -151,11 +164,11 @@ bool contentParse(const String& payload, CardContent& c) {
         if (n >= CardContent::WX_SEGS) break;
         JsonObject s = v.as<JsonObject>();
         if (s.isNull()) continue;
-        c.wx_label[n] = s["label"] | "";
-        c.wx_temp[n] = s["temp"] | "";
-        c.wx_cond[n] = s["cond"] | "";
-        c.wx_wind[n] = s["wind"] | "";
-        c.wx_precip[n] = s["precip"] | "";
+        c.wx_label[n] = contentText(s["label"]);
+        c.wx_temp[n] = contentText(s["temp"]);
+        c.wx_cond[n] = contentText(s["cond"]);
+        c.wx_wind[n] = contentText(s["wind"]);
+        c.wx_precip[n] = contentText(s["precip"]);
         n++;
       }
       c.wx_seg_count = n;
@@ -181,7 +194,7 @@ bool contentParse(const String& payload, CardContent& c) {
 
   JsonObject agenda = doc["agenda"].as<JsonObject>();
   if (!agenda.isNull()) {
-    if (agenda["date"].is<const char*>()) c.agenda_date = agenda["date"].as<String>();
+    if (agenda["date"].is<const char*>()) c.agenda_date = contentText(agenda["date"]);
     JsonArray events = agenda["events"].as<JsonArray>();
     if (!events.isNull()) {
       size_t n = 0;
@@ -189,9 +202,9 @@ bool contentParse(const String& payload, CardContent& c) {
         if (n >= CardContent::AGENDA_MAX) break;
         JsonObject e = v.as<JsonObject>();
         if (e.isNull()) continue;
-        c.agenda_time[n] = e["time"] | "";
-        c.agenda_title[n] = e["title"] | "";
-        c.agenda_detail[n] = e["detail"] | "";
+        c.agenda_time[n] = contentText(e["time"]);
+        c.agenda_title[n] = contentText(e["title"]);
+        c.agenda_detail[n] = contentText(e["detail"]);
         n++;
       }
       c.agenda_count = n;
@@ -199,10 +212,10 @@ bool contentParse(const String& payload, CardContent& c) {
   }
 
   // Header date — explicit top-level value wins, else agenda, else weather.
-  if (doc["header_date"].is<const char*>()) c.header_date = doc["header_date"].as<String>();
-  else if (doc["date"].is<const char*>()) c.header_date = doc["date"].as<String>();
-  else if (!agenda.isNull() && agenda["date"].is<const char*>()) c.header_date = agenda["date"].as<String>();
-  else if (!wx.isNull() && wx["date"].is<const char*>()) c.header_date = wx["date"].as<String>();
+  if (doc["header_date"].is<const char*>()) c.header_date = contentText(doc["header_date"]);
+  else if (doc["date"].is<const char*>()) c.header_date = contentText(doc["date"]);
+  else if (!agenda.isNull() && agenda["date"].is<const char*>()) c.header_date = contentText(agenda["date"]);
+  else if (!wx.isNull() && wx["date"].is<const char*>()) c.header_date = contentText(wx["date"]);
 
   return true;
 }

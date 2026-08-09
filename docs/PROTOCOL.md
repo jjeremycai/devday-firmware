@@ -96,9 +96,8 @@ Caches the payload in LittleFS and renders immediately.
         "name": "Jeremy Cai",
         "handle": "@permanentunderclass",
         "plan": "Pro",
+        "today": "133.2M",
         "lifetime": "48.8B",
-        "peak": "2.7B",
-        "longest": "34h 46m",
         "streak": "38 days",
         "insight_left": "Most used reasoning · Extra High · 41%",
         "insight_right": "Wed 11:04 PM",
@@ -116,6 +115,8 @@ forward to the startup card). Payload size is capped at 12 KB. The payload is
 merged into current content and into the LittleFS cache section by section, so
 a weather-only push keeps a previously pushed dash — on screen and after a
 power cycle.
+An invalid `show` value rejects the request before live content or the cache is
+changed.
 
 `data`: `cached` — whether the merged payload was written to the LittleFS
 cache. A push can render on screen and still report `cached: false` when the
@@ -158,8 +159,9 @@ bundle). Maximum 12 KB, and the response **must carry `Content-Length`** —
 chunked transfer encoding is not supported. The device sends `If-None-Match`
 with the cached ETag and accepts `304 Not Modified`. Missing, malformed,
 chunked, oversized, truncated, or unavailable content leaves the cached/bundled
-card in place. A fetched document is merged into current content, so omitting a
-section keeps the section already there.
+card in place. A successful response is merged into live content and the
+LittleFS cache by top-level section, so omitting a section preserves it across
+power cycles. Send an explicit empty section when it should be cleared.
 
 Response schema:
 
@@ -177,9 +179,8 @@ Response schema:
     "name": "Jeremy Cai",
     "handle": "@permanentunderclass",
     "plan": "Pro",
+    "today": "133.2M",
     "lifetime": "48.8B",
-    "peak": "2.7B",
-    "longest": "34h 46m",
     "streak": "38 days",
     "insight_left": "Most used reasoning · Extra High · 41%",
     "insight_right": "Wed 11:04 PM",
@@ -197,10 +198,11 @@ Response schema:
 }
 ```
 
-All fields optional except `schema`. `refresh_after_s` is clamped to ≥300.
-Unknown `build.state` values are ignored (keep last known). `date` (or
-`header_date`) sets the date shown in every card header; without it the agenda
-date is used, then the weather date.
+All fields optional except `schema`. `refresh_after_s` is clamped to
+300–86400 seconds. Rendered text fields are truncated to 256 bytes on a UTF-8
+boundary before they reach the display. Unknown `build.state` values are
+ignored (keep last known). `date` (or `header_date`) sets the date shown in
+every card header; without it the agenda date is used, then the weather date.
 
 Page buttons, release-triggered: **1** Usage (empty state until a dash payload
 arrives), **2** Weather, **3** Agenda. The board's fourth key also shows

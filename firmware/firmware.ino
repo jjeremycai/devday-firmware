@@ -55,6 +55,7 @@ static void refreshStatus() {
   st.fw_hash = ESP.getSketchMD5().substring(0, 12);
   st.battery_v = batteryReadVoltage();
   st.battery_pct = batteryPercent(st.battery_v);
+  st.wifi_connected = netConnected();
   if (portalActive()) {
     st.connection = "Setup portal: http://" + portalIp();
     st.ap_hint = "AP " + portalSsid() + "   pass " + portalPassword() + "   open http://" + portalIp();
@@ -175,6 +176,18 @@ static bool hookContentPush(const String& payload, const String& show_card, Json
     err_code = "bad_params";
     return false;
   }
+
+  String card = show_card;
+  if (card.length() == 0) card = contentHasDash(next) ? "dash" : current_card;
+  // First sync while the first-boot splash is still up: land on a real page.
+  // The splash's own instruction was "ask Codex to set this up" — this push is
+  // that setup arriving, so staying on the splash would look like a hang.
+  if (card == "splash" && show_card.length() == 0) card = cfg.startup_card;
+  if (!cardIsRenderable(card)) {
+    err_code = "bad_params";
+    return false;
+  }
+
   content = next;
   // Merge, don't overwrite: a partial push (weather only, agenda only) must not
   // drop fields an earlier push cached, or the screen and the next cold boot
@@ -186,16 +199,6 @@ static bool hookContentPush(const String& payload, const String& show_card, Json
   // content and nothing ever reported why.
   bool cached = cacheMergeContent(payload);
   data["cached"] = cached;
-  String card = show_card;
-  if (card.length() == 0) card = contentHasDash(content) ? "dash" : current_card;
-  // First sync while the first-boot splash is still up: land on a real page.
-  // The splash's own instruction was "ask Codex to set this up" — this push is
-  // that setup arriving, so staying on the splash would look like a hang.
-  if (card == "splash" && show_card.length() == 0) card = cfg.startup_card;
-  if (!cardIsRenderable(card)) {
-    err_code = "bad_params";
-    return false;
-  }
   current_card = card;
   last_activity_ms = millis();
   refreshStatus();

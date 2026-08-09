@@ -10,8 +10,8 @@ esptool.py --chip esp32s3 --port PORT --baud 921600 write_flash \
   0x0 devday-terminal-factory-1.0.0.bin
 ```
 
-Then verify against `release/SHA256SUMS.txt` and run serial `factory.check`
-on each unit (see docs/LINE_TEST.md).
+Then verify every shipped binary against `release/SHA256SUMS.txt` and run
+serial `factory.check` on each unit (see docs/LINE_TEST.md).
 
 ## Flash map
 
@@ -19,12 +19,11 @@ on each unit (see docs/LINE_TEST.md).
 |---|---|---|---|
 | `0x0` | bootloader | 0x7000 | 2nd-stage bootloader |
 | `0x8000` | partition table | 0x1000 | `partitions.csv` |
-| `0x9000` | nvs | 0x6000 | `Preferences` config |
-| `0xf000` | phy_init | 0x1000 | RF calibration |
+| `0x9000` | nvs | 0x5000 | `Preferences` config |
+| `0xe000` | otadata / boot_app0 | 0x2000 | OTA boot selection initializer |
 | `0x10000` | factory | 3 MB | ships the RC |
 | `0x310000` | ota_0 | 3 MB | portal updates |
 | `0x610000` | ota_1 | 3 MB | portal updates |
-| `0x910000` | otadata | 0x2000 | OTA boot selection |
 | `0x912000` | nvs_keys | 0x1000 | NVS keys |
 | `0x920000` | littlefs | 6.9 MB | content cache |
 

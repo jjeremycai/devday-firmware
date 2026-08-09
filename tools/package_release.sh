@@ -19,21 +19,36 @@ APP="$BUILD/firmware.ino.bin"
 MERGED="$BUILD/firmware.ino.merged.bin"
 BOOTLOADER="$BUILD/firmware.ino.bootloader.bin"
 PARTITIONS="$BUILD/firmware.ino.partitions.bin"
+BOOT_APP0="$(python3 -c 'import json,pathlib,sys; folders=json.load(open(sys.argv[1]))["hardwareFolders"].split(","); print(next(pathlib.Path(p)/"tools/partitions/boot_app0.bin" for p in folders if (pathlib.Path(p)/"tools/partitions/boot_app0.bin").is_file()))' \
+  "$BUILD/build.options.json")"
 
 FACTORY="$OUT/devday-terminal-factory-$VERSION.bin"
 UPDATE="$OUT/devday-terminal-update-$VERSION.bin"
 RECOVERY="$OUT/devday-terminal-recovery-$VERSION.bin"
+ARCHIVE="$OUT/archive"
+mkdir -p "$ARCHIVE"
+for stale in "$OUT"/devday_terminal.ino.*; do
+  if [ -e "$stale" ]; then mv "$stale" "$ARCHIVE/"; fi
+done
 
 cp "$MERGED" "$FACTORY"
 cp "$APP" "$RECOVERY"
 cp "$APP" "$UPDATE"
+cp "$BOOTLOADER" "$PARTITIONS" "$BOOT_APP0" "$OUT/"
 
 GIT_REV="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if [ "$GIT_REV" != "unknown" ] &&
+   [ -n "$(git -C "$ROOT" status --porcelain --untracked-files=normal 2>/dev/null)" ]; then
+  GIT_REV="$GIT_REV+dirty"
+fi
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 ( cd "$OUT" && shasum -a 256 "devday-terminal-factory-$VERSION.bin" \
   "devday-terminal-update-$VERSION.bin" \
-  "devday-terminal-recovery-$VERSION.bin" > SHA256SUMS.txt )
+  "devday-terminal-recovery-$VERSION.bin" \
+  "$(basename "$BOOTLOADER")" \
+  "$(basename "$PARTITIONS")" \
+  "$(basename "$BOOT_APP0")" > SHA256SUMS.txt )
 
 cat > "$OUT/build-info.json" <<EOF
 {
@@ -59,8 +74,8 @@ Seeed_GFX              GitHub release V3.1.0 (Seeed-Studio/Seeed_GFX, internal v
 ArduinoJson            7.4.3
 CA bundle              curl.se Mozilla CA store (regenerate: tools/gen_ca_bundle.sh)
 Partition table        partitions.csv (16 MB: factory + ota_0/ota_1 3 MB each + LittleFS)
+Boot app initializer   boot_app0.bin (flashed at 0xe000)
 EOF
-
 
 cat > "$OUT/flash_command.txt" <<EOF
 # Factory flash (merged image at 0x0), XIAO ESP32-S3 Plus over USB:
@@ -73,22 +88,20 @@ esptool.py --chip esp32s3 --port PORT --baud 921600 write_flash \\
   --flash_mode dio --flash_freq 80m --flash_size 16MB \\
   0x0      $(basename "$BOOTLOADER") \\
   0x8000   $(basename "$PARTITIONS") \\
+  0xe000   $(basename "$BOOT_APP0") \\
   0x10000  $(basename "$RECOVERY")
 
 # Flash map (partitions.csv):
 #   0x0       bootloader      (0x7000)
 #   0x8000    partition table (0x1000)
-#   0x9000    nvs             (0x6000)
-#   0xf000    phy_init        (0x1000)
+#   0x9000    nvs             (0x5000)
+#   0xe000    otadata         (0x2000)  <- initialized by boot_app0.bin
 #   0x10000   factory app     (3 MB)  <- ships the RC
 #   0x310000  ota_0           (3 MB)  <- portal updates
 #   0x610000  ota_1           (3 MB)  <- portal updates
-#   0x910000  otadata         (0x2000)
 #   0x912000  nvs_keys        (0x1000)
 #   0x920000  littlefs        (6.9 MB) <- content cache
 EOF
-
-cp "$BOOTLOADER" "$PARTITIONS" "$OUT/" 2>/dev/null || true
 
 echo
 echo "release bundle:"

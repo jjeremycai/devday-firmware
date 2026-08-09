@@ -39,9 +39,9 @@ permanently.
 
 The attendee's Codex identity: their pet (whichever one they picked in Codex,
 drawn from the real sprite atlas with a two-band halftone pass so dark-bodied
-characters keep their features in 1-bit ink), name, handle, plan badge, four
-lifetime metrics, and a 14-day token activity chart. Fills automatically when
-the terminal is plugged into a laptop with Codex signed in.
+characters keep their features in 1-bit ink), name, handle, plan badge, today /
+lifetime / streak metrics, and a 14-day token activity chart. Fills
+automatically when the terminal is plugged into a laptop with Codex signed in.
 
 ### 2 · Weather
 

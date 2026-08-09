@@ -100,6 +100,44 @@ static void drawBatteryIcon(int16_t x, int16_t y, uint8_t pct) {
 #endif
 }
 
+// Compact 1-bit Wi-Fi mark. Connected uses stepped arcs; disconnected keeps
+// the same silhouette with a separated slash, so state is visible without
+// relying on grey or a text label.
+static void drawWifiIcon(int16_t x, int16_t y, bool connected) {
+#ifdef EPAPER_ENABLE
+  epaper.fillRect(x + 5, y, 6, 1, TFT_BLACK);
+  epaper.fillRect(x + 2, y + 1, 3, 1, TFT_BLACK);
+  epaper.fillRect(x + 11, y + 1, 3, 1, TFT_BLACK);
+  epaper.fillRect(x + 1, y + 2, 2, 1, TFT_BLACK);
+  epaper.fillRect(x + 13, y + 2, 2, 1, TFT_BLACK);
+  epaper.drawPixel(x, y + 3, TFT_BLACK);
+  epaper.drawPixel(x + 15, y + 3, TFT_BLACK);
+
+  epaper.fillRect(x + 6, y + 4, 4, 1, TFT_BLACK);
+  epaper.fillRect(x + 4, y + 5, 2, 1, TFT_BLACK);
+  epaper.fillRect(x + 10, y + 5, 2, 1, TFT_BLACK);
+  epaper.drawPixel(x + 3, y + 6, TFT_BLACK);
+  epaper.drawPixel(x + 12, y + 6, TFT_BLACK);
+
+  epaper.fillRect(x + 7, y + 7, 2, 1, TFT_BLACK);
+  epaper.drawPixel(x + 6, y + 8, TFT_BLACK);
+  epaper.drawPixel(x + 9, y + 8, TFT_BLACK);
+  epaper.fillRect(x + 7, y + 10, 2, 2, TFT_BLACK);
+
+  if (!connected) {
+    // A 2 px core with a 1 px paper moat remains a slash at arm's length;
+    // the old 1 px line broke the tiny arcs into what looked like panel noise.
+    // Extend past the glyph so neither endpoint disappears into an arc.
+    for (int16_t i = -2; i < 14; i++) {
+      epaper.fillRect(x + 1 + i, y + i, 4, 1, TFT_WHITE);
+    }
+    for (int16_t i = -2; i < 14; i++) {
+      epaper.fillRect(x + 2 + i, y + i, 2, 1, TFT_BLACK);
+    }
+  }
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // Weather condition icons
 //
@@ -229,17 +267,19 @@ static void drawWeatherIcon(int16_t x, int16_t y, int16_t s, const String& cond)
 
 static void header(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  // Blossom icon at top-left; date + battery gauge at right — no device name
+  // Blossom at left; date, Wi-Fi state, battery gauge and percentage at right.
   drawBlossomIcon(MARGIN, 8);
-  String right = "";
-  if (c.header_date.length()) right = c.header_date + "  ";
-  right += String(st.battery_pct) + "%";
   epaper.setFreeFont(&FreeSans9pt7b);
+  const String battery_pct = String(st.battery_pct) + "%";
+  const int16_t battery_pct_w = epaper.textWidth(battery_pct, GFXFF);
+  const int16_t battery_x = W - MARGIN - battery_pct_w - 4 - 21;
+  const int16_t wifi_x = battery_x - 22;
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(right, W - MARGIN - 26, 12, GFXFF);
-  // Icon centred on the text line: 9pt digits span ~12..25, so an 11px-tall
-  // gauge sits at 13 to share their midline.
-  drawBatteryIcon(W - MARGIN - 23, 13, st.battery_pct);
+  if (c.header_date.length()) epaper.drawString(c.header_date, wifi_x - 4, 12, GFXFF);
+  // Both icons and the percentage share the 9pt text midline.
+  drawWifiIcon(wifi_x, 13, st.wifi_connected);
+  drawBatteryIcon(battery_x, 13, st.battery_pct);
+  epaper.drawString(battery_pct, W - MARGIN, 12, GFXFF);
   // brutalist hairline + 1px double-rule for density
   epaper.drawFastHLine(MARGIN, 42, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 44, W - 2 * MARGIN, TFT_BLACK);
@@ -303,13 +343,42 @@ static void renderEmpty(const CardContent& c, const RenderStatus& st, const char
   epaper.setFreeFont(&FreeSans18pt7b);
   epaper.setTextDatum(MC_DATUM);
   epaper.drawString(headline, W / 2, 204, GFXFF);
-  // The ask is a sentence for a person, not a shell command: the attendee has
-  // not cloned this repo, but they do have Codex open. It names the device
-  // ("my Dev Day terminal") so Codex knows exactly what just got connected.
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.drawString("Connect over USB and ask Codex:", W / 2, 246, GFXFF);
-  epaper.setFreeFont(&FreeSans12pt7b);
-  epaper.drawString(ask, W / 2, 278, GFXFF);
+
+  // This is a real prompt: the terminal is waiting for exactly this request.
+  // Centre the prompt and static e-paper cursor as one unit.
+  epaper.setFreeFont(&FreeMono12pt7b);
+  const int16_t cursor_gap = 6;
+  const int16_t cursor_w = 10;
+  const int16_t cursor_h = 18;
+  String prompt = fit(String("> ") + ask, W - 2 * MARGIN - cursor_gap - cursor_w);
+  const int16_t prompt_w = epaper.textWidth(prompt, GFXFF);
+  const int16_t prompt_x = (W - prompt_w - cursor_gap - cursor_w) / 2;
+  epaper.setTextDatum(ML_DATUM);
+  epaper.drawString(prompt, prompt_x, 278, GFXFF);
+  epaper.fillRect(prompt_x + prompt_w + cursor_gap, 278 - cursor_h / 2,
+                  cursor_w, cursor_h, TFT_BLACK);
+
+  // The splash character waits below the prompt on otherwise empty pages.
+  // Portal credentials use this band instead, so they always take priority.
+  if (st.ap_hint.length() == 0) {
+    const int16_t dome_r = 64;
+    const int16_t dome_cx = W / 2;
+    const int16_t dome_base = 426;
+    epaper.fillCircle(dome_cx, dome_base, dome_r, TFT_BLACK);
+    epaper.fillRect(dome_cx - dome_r, dome_base, 2 * dome_r + 1, dome_r + 1, TFT_WHITE);
+
+    const int16_t eye_dx = dome_r / 2;
+    const int16_t eye_y = dome_base - dome_r + dome_r * 58 / 100;
+    const int16_t arm = 26;
+    const int16_t stroke = 4;
+    for (int8_t side = -1; side <= 1; side += 2) {
+      const int16_t ex = dome_cx + side * eye_dx;
+      epaper.fillRect(ex - arm / 2, eye_y - stroke / 2, arm, stroke, TFT_WHITE);
+      epaper.fillRect(ex - stroke / 2, eye_y - arm / 2, stroke, arm, TFT_WHITE);
+    }
+  }
 
   apHint(st);
   pageTabs(tab);
@@ -337,13 +406,22 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
     epaper.drawString("Updated " + c.build_updated_at, MARGIN, 280, GFXFF);
   }
 
-  // Battery / display / connection self-report block.
-  epaper.setFreeFont(&FreeSans9pt7b);
-  int16_t y = 324;
-  epaper.drawString("firmware  " FW_NAME " v" FW_VERSION " (" + st.fw_hash + ")", MARGIN, y, GFXFF);
-  epaper.drawString("battery   " + String(st.battery_v, 2) + " V (" + String(st.battery_pct) + "%)", MARGIN, y + 28, GFXFF);
-  epaper.drawString("display   UC8179 800x480  combo 502", MARGIN, y + 56, GFXFF);
-  epaper.drawString("link      " + st.connection, MARGIN, y + 84, GFXFF);
+  // Machine self-report: fixed mono columns instead of alignment by spaces.
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  const int16_t y = 324;
+  const int16_t value_x = MARGIN + 110;
+  const int16_t value_w = W - MARGIN - value_x;
+  epaper.drawString("firmware", MARGIN, y, GFXFF);
+  epaper.drawString(fit(String(FW_NAME " v" FW_VERSION " (") + st.fw_hash + ")", value_w),
+                    value_x, y, GFXFF);
+  epaper.drawString("battery", MARGIN, y + 28, GFXFF);
+  epaper.drawString(fit(String(st.battery_v, 2) + " V (" + String(st.battery_pct) + "%)", value_w),
+                    value_x, y + 28, GFXFF);
+  epaper.drawString("display", MARGIN, y + 56, GFXFF);
+  epaper.drawString("UC8179 800x480  combo 502", value_x, y + 56, GFXFF);
+  epaper.drawString("link", MARGIN, y + 84, GFXFF);
+  epaper.drawString(fit(st.connection, value_w), value_x, y + 84, GFXFF);
 
   apHint(st);
   pageTabs("build");
@@ -418,7 +496,7 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
   header(c, st);
 
   if (!contentHasAgenda(c)) {
-    renderEmpty(c, st, "agenda", "AGENDA", "No events today", "\"put my calendar on my terminal\"");
+    renderEmpty(c, st, "agenda", "AGENDA", "No events today", "put my calendar on my terminal");
     return;
   }
 
@@ -457,26 +535,33 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
       epaper.drawCircle(spineX, ry + row_h / 2, 5, TFT_BLACK);
     }
 
-    // Time and title share a baseline; the detail hangs under the title. A
-    // fixed time column keeps event names aligned down the page.
+    // The time is vertically centred in its fixed column. Event text stays
+    // left aligned, but is vertically centred as a two-line block instead of
+    // being anchored to the time's much larger glyph baseline.
     const int16_t time_x = MARGIN + 38;
-    // Wide enough that a two-digit hour ("11:30 AM") still clears the title.
-    const int16_t title_x = MARGIN + 200;
-    const int16_t text_w = (W - MARGIN - 16) - title_x;
-    const int16_t baseline = ry + 32;
+    const int16_t text_left = MARGIN + 210;
+    const int16_t text_right = W - MARGIN - 16;
+    const int16_t text_w = text_right - text_left;
+    const int16_t center_y = ry + row_h / 2;
 
-    epaper.setFreeFont(&FreeSans18pt7b);
-    epaper.setTextDatum(BL_DATUM);
-    epaper.drawString(formatAgendaTime(c.agenda_time[i]), time_x, baseline, GFXFF);
+    epaper.setFreeFont(&FreeMonoBold18pt7b);
+    epaper.setTextDatum(ML_DATUM);
+    epaper.drawString(formatAgendaTime(c.agenda_time[i]), time_x, center_y, GFXFF);
 
+    const bool has_detail = c.agenda_detail[i].length() > 0;
     epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.drawString(fit(c.agenda_title[i], text_w), title_x, baseline, GFXFF);
+    epaper.setTextDatum(has_detail ? BL_DATUM : ML_DATUM);
+    epaper.drawString(fit(c.agenda_title[i], text_w), text_left,
+                      has_detail ? center_y - 2 : center_y, GFXFF);
 
-    // Sentence case: these are room names and people, and shouting them made
-    // the detail harder to read than the title it sits under.
-    epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.setTextDatum(TL_DATUM);
-    epaper.drawString(fit(c.agenda_detail[i], text_w), title_x, ry + 40, GFXFF);
+    if (has_detail) {
+      // Sentence case: room names and people stay human prose under the title
+      // while machine-derived times remain monospace.
+      epaper.setFreeFont(&FreeSans9pt7b);
+      epaper.setTextDatum(TL_DATUM);
+      epaper.drawString(fit(c.agenda_detail[i], text_w), text_left,
+                        center_y + 4, GFXFF);
+    }
   }
 
   apHint(st);
@@ -513,8 +598,9 @@ static void renderYours(const CardContent& c, const RenderStatus& st) {
   epaper.drawString("parts, wiring, and the exact Arduino +", MARGIN, y + 108, GFXFF);
   epaper.drawString("Codex recipe to build a replacement app.", MARGIN, y + 140, GFXFF);
 
-  epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.drawString(RECIPE_URL, MARGIN, y + 186, GFXFF);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.drawString(fit(RECIPE_URL, W - 2 * MARGIN - QR_RECIPE_SIZE * 6 - 20),
+                    MARGIN, y + 186, GFXFF);
 
   drawQr(W - MARGIN - 37 * 6, 100, 6);
 
@@ -542,13 +628,13 @@ static void drawSegmentCard(const CardContent& c, size_t i, int16_t x, int16_t y
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.drawString(c.wx_cond[i], cx, y + 84, GFXFF);
 
-  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setFreeFont(&FreeMono9pt7b);
   String sub = c.wx_wind[i];
   if (c.wx_precip[i].length() > 0) {
     if (sub.length() > 0) sub += "  ";
     sub += c.wx_precip[i];
   }
-  epaper.drawString(sub, cx, y + h - 22, GFXFF);
+  epaper.drawString(fit(sub, w - 32), cx, y + h - 22, GFXFF);
 #endif
 }
 
@@ -585,7 +671,7 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
   header(c, st);
 
   if (!contentHasWeather(c)) {
-    renderEmpty(c, st, "weather", "WEATHER", "No forecast yet", "\"set up my Dev Day terminal\"");
+    renderEmpty(c, st, "weather", "WEATHER", "No forecast yet", "set up my Dev Day terminal");
     return;
   }
 
@@ -642,7 +728,7 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
     drawHourStrip(c, MARGIN, 372, W - 2 * MARGIN, 36);
 
     static const char* kHourMarks[4] = {"12a", "6a", "12p", "6p"};
-    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.setFreeFont(&FreeMono9pt7b);
     const int16_t strip_w = W - 2 * MARGIN;
     for (uint8_t i = 0; i < 4; i++) {
       int16_t hx = MARGIN + (int16_t)i * 6 * strip_w / 24;
@@ -692,11 +778,12 @@ static void drawPet(const CardContent& c, int16_t x0, int16_t y0) {
 #endif
 }
 
-static void drawMetric(int16_t x, int16_t y, const String& value, const char* label) {
+static void drawMetric(int16_t x, int16_t y, int16_t max_w,
+                       const String& value, const char* label) {
 #ifdef EPAPER_ENABLE
-  epaper.setFreeFont(&FreeSans18pt7b);
+  epaper.setFreeFont(&FreeMonoBold18pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(value.length() ? value : "-", x, y, GFXFF);
+  epaper.drawString(fit(value.length() ? value : "-", max_w), x, y, GFXFF);
   String up = label;
   up.toUpperCase();
   epaper.setFreeFont(&FreeSans9pt7b);
@@ -798,7 +885,7 @@ static void renderSplash() {
 static void renderDash(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   if (!contentHasDash(c)) {
-    renderEmpty(c, st, "dash", "USAGE", "No usage yet", "\"set up my Dev Day terminal\"");
+    renderEmpty(c, st, "dash", "USAGE", "No usage yet", "set up my Dev Day terminal");
     return;
   }
   header(c, st);
@@ -839,13 +926,12 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
   epaper.drawFastHLine(MARGIN, 158, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 160, W - 2 * MARGIN, TFT_BLACK);
 
-  // Four metrics — tighter, with top tick for peak
+  // Today, lifetime total, and current streak — one column per requested metric.
   const int16_t metric_y = 176;
-  const int16_t col = (W - 2 * MARGIN) / 4;
-  drawMetric(MARGIN + 0 * col, metric_y, c.dash_lifetime, "lifetime");
-  drawMetric(MARGIN + 1 * col, metric_y, c.dash_peak, "peak day");
-  drawMetric(MARGIN + 2 * col, metric_y, c.dash_longest, "longest chat");
-  drawMetric(MARGIN + 3 * col, metric_y, c.dash_streak, "streak");
+  const int16_t col = (W - 2 * MARGIN) / 3;
+  drawMetric(MARGIN + 0 * col, metric_y, col - 12, c.dash_today, "today");
+  drawMetric(MARGIN + 1 * col, metric_y, col - 12, c.dash_lifetime, "lifetime");
+  drawMetric(MARGIN + 2 * col, metric_y, col - 12, c.dash_streak, "streak");
 
   epaper.drawFastHLine(MARGIN, 248, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 250, W - 2 * MARGIN, TFT_BLACK);
@@ -869,8 +955,10 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     }
     epaper.setTextDatum(TR_DATUM);
     if (c.dash_insight_right.length()) {
-      epaper.drawString(c.dash_insight_right, W - MARGIN, 412, GFXFF);
+      epaper.setFreeFont(&FreeMono9pt7b);
+      epaper.drawString(fit(c.dash_insight_right, 260), W - MARGIN, 412, GFXFF);
     } else {
+      epaper.setFreeFont(&FreeSans9pt7b);
       epaper.drawString("updates when you plug in", W - MARGIN, 412, GFXFF);
     }
   }

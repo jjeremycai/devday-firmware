@@ -10,13 +10,17 @@ unit eFuse MAC from `factory.check.serial`.
 - [ ] Serial `factory.check` returns `fw = "devday-terminal 1.0.0"`,
       `display_combo = 502`, `flash_mb = 16`, `partition = "factory"`,
       `sketch_size` matches `build-info.json.app_size`
+- [ ] `tools/push.py --show dash web-emulator/sample-dash.json` succeeds and
+      the Usage page renders. This catches an obsolete image without
+      `content.push`, even when its version string still says `1.0.0`.
 
 ## 2. Cold boot (no Wi-Fi configured)
 
-- [ ] Very first boot shows the ASCII OpenAI blossom splash with a
-      "PRESS ANY BUTTON TO UNLOCK" pill; any button press moves to the pages below
-- [ ] Useful screen within **8 seconds** of USB power: the Agenda card with the
-      bundled example events, date header, and battery percentage
+- [ ] Very first boot shows the Build Kit splash: recipe QR, `OpenAI DevDay
+      [2026]`, `Dev Day Terminal`, and the black half-circle face with plus eyes
+- [ ] Any key leaves the splash and opens its mapped page
+- [ ] After a power cycle, the default page is Usage; without a dash payload it
+      shows the `No usage yet` setup instruction and battery percentage
 - [ ] Full refresh is clean: no ghosting, no torn regions, borders aligned
 - [ ] Screen persists after power removal (e-ink image retention)
 
@@ -38,7 +42,7 @@ Press-and-release; hold length must not change the result.
 - [ ] `ap.start` over USB → setup AP starts; screen shows SSID `DevDay-XXXX`,
       password, and `192.168.4.1` — check on **all three pages**, the
       credentials must be visible whichever page is showing
-- [ ] AP stops by itself within 5 minutes
+- [ ] AP stops by itself within 5 minutes and the expired credentials disappear
 - [ ] Hold **D1+D4** at boot → configuration cleared (next `status` shows
       defaults, and `boots` restarts at 1 so the splash returns)
 
@@ -62,7 +66,8 @@ Press-and-release; hold length must not change the result.
 - [ ] Valid app-only update via portal `POST /update` succeeds; unit reboots
       into the new app (`partition` becomes `ota_0`/`ota_1`) and the reported
       SHA-256 matches the uploaded file
-- [ ] Corrupted/truncated binary is rejected (`bad_image`/`truncated`)
+- [ ] Oversized, corrupted, or truncated binaries preserve the useful rejection
+      reason (`bad_length`, `bad_image`, or `truncated`, not `not_started`)
 - [ ] Kill power mid-update → unit boots the previous application
 - [ ] USB bootloader recovery: hold BOOT, reflash recovery image, unit boots
 
@@ -72,3 +77,11 @@ Press-and-release; hold length must not change the result.
 - [ ] Jumper at `24Pin–GND`
 - [ ] Battery polarity correct, connector fully seated
 - [ ] No display artifacts on all three pages after one full refresh each
+- [ ] Header Wi-Fi mark shows clean arcs while connected and a slash while
+      disconnected; the battery percentage and gauge remain aligned
+- [ ] Usage metrics, agenda times, weather telemetry, Build diagnostics, and
+      the Yours URL use crisp monospace type; columns and mixed-font baselines
+      remain aligned with no clipping on long values
+- [ ] Empty Usage, Weather, and Agenda pages centre the prompt and cursor as one
+      unit; the dome face is symmetric and clears the tabs, and disappears when
+      setup AP credentials occupy the lower band

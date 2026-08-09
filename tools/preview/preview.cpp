@@ -29,12 +29,16 @@ int main(int argc, char** argv) {
     dump(p, content, st, p);
   }
 
-  // Usage empty state: no dash payload yet (what a fresh device shows on KEY1).
+  // Every empty page shares the prompt treatment; render all three asks.
   {
     CardContent empty = content;
     empty.dash_present = false;
     empty.dash_name = "";
+    empty.weather_now_temp = "";
+    empty.agenda_count = 0;
     dump("dash", empty, st, "dash_empty");
+    dump("weather", empty, st, "weather_empty");
+    dump("agenda", empty, st, "agenda_empty");
   }
 
   // No portrait pushed: the bundled pet stands in, so a fresh unit is never
@@ -58,11 +62,26 @@ int main(int argc, char** argv) {
     dump("agenda", longs, st, "agenda_long");
   }
 
+  // Disconnected header variant: same Wi-Fi silhouette, crossed for offline.
+  {
+    RenderStatus offline = st;
+    offline.wifi_connected = false;
+    dump("dash", content, offline, "dash_wifi_off");
+  }
+
   // AP-portal variant: the credentials must be legible on every page the
   // portal can be started from, including dash and weather.
   st.ap_hint = "AP DevDay-7F3A   pass kx29vq41pz   open http://192.168.4.1";
   dump("dash", content, st, "dash_ap");
   dump("weather", content, st, "weather_ap");
   dump("agenda", content, st, "agenda_ap");
+
+  // Empty-state portal credentials replace the resident face in the same band.
+  {
+    CardContent empty = content;
+    empty.dash_present = false;
+    empty.dash_name = "";
+    dump("dash", empty, st, "dash_empty_ap");
+  }
   return 0;
 }

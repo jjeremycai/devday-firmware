@@ -323,14 +323,13 @@ def format_tokens(n: Optional[int]) -> str:
     return str(n)
 
 
-def format_duration(sec: Optional[int]) -> str:
-    if sec is None:
-        return ""
-    h = sec // 3600
-    m = (sec % 3600) // 60
-    if h > 0:
-        return f"{h}h {m}m"
-    return f"{m}m"
+def today_tokens_from_usage(usage: Dict[str, Any], date_key: Optional[str] = None) -> int:
+    """Return the local day's token count, or zero when no bucket exists."""
+    key = date_key or datetime.now().date().isoformat()
+    for bucket in reversed(usage.get("dailyUsageBuckets") or []):
+        if (bucket.get("startDate") or bucket.get("start_date")) == key:
+            return int(bucket.get("tokens") or bucket.get("totalTokens") or 0)
+    return 0
 
 
 def days_from_usage(usage: Dict[str, Any], count: int = 14) -> List[int]:
@@ -538,9 +537,8 @@ def build_payload(
             "name": name,
             "handle": handle,
             "plan": plan,
+            "today": format_tokens(today_tokens_from_usage(usage)),
             "lifetime": format_tokens(summary.get("lifetimeTokens")),
-            "peak": format_tokens(summary.get("peakDailyTokens")),
-            "longest": format_duration(summary.get("longestRunningTurnSec")),
             "streak": f"{streak} days" if streak is not None else "",
             "insight_left": "Codex · local sync",
             "insight_right": datetime.now().strftime("%a %-I:%M %p"),
@@ -775,10 +773,11 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
     print("→ Codex app-server: usage…", file=sys.stderr)
     account, usage, configured_pet = await fetch_codex_usage()
     summary = (usage.get("summary") or {})
+    streak_label = f"{summary['currentStreakDays']}d" if summary.get("currentStreakDays") is not None else ""
     print(
-        f"  lifetime={format_tokens(summary.get('lifetimeTokens'))}  "
-        f"peak={format_tokens(summary.get('peakDailyTokens'))}  "
-        f"streak={summary.get('currentStreakDays')}d",
+        f"  today={format_tokens(today_tokens_from_usage(usage))}  "
+        f"lifetime={format_tokens(summary.get('lifetimeTokens'))}  "
+        f"streak={streak_label}",
         file=sys.stderr,
     )
 
@@ -971,6 +970,10 @@ def auto_sync_command(args: argparse.Namespace, terminal_serial: str) -> List[st
         command.extend(["--lat", str(args.lat)])
     if args.lon is not None:
         command.extend(["--lon", str(args.lon)])
+    if getattr(args, "ics", None):
+        command.extend(["--ics", args.ics])
+    if getattr(args, "no_calendar", False):
+        command.append("--no-calendar")
     if args.offline:
         command.append("--offline")
     if args.no_weather:

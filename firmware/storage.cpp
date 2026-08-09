@@ -87,7 +87,7 @@ bool cacheWriteContent(const String& payload, const String& etag) {
   return true;
 }
 
-bool cacheMergeContent(const String& payload) {
+bool cacheMergeContent(const String& payload, const String& etag) {
   JsonDocument incoming;
   if (deserializeJson(incoming, payload)) return false;
 
@@ -106,7 +106,7 @@ bool cacheMergeContent(const String& payload) {
   String out;
   serializeJson(merged, out);
   if (out.length() > CONTENT_MAX_BYTES) return false;
-  return cacheWriteContent(out, "");
+  return cacheWriteContent(out, etag);
 }
 
 String cacheReadEtag() {

@@ -33,6 +33,7 @@ static const GFXfont FreeSans18pt7b{33, false, false};
 static const GFXfont FreeSansBold24pt7b{44, true, false};
 static const GFXfont FreeMono9pt7b{17, false, true};
 static const GFXfont FreeMono12pt7b{23, false, true};
+static const GFXfont FreeMonoBold18pt7b{33, true, true};
 
 class EPaper {
 public:
