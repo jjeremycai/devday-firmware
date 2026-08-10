@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dev Day Firmware Audit — 2026-08-10</title>
+  <style>
+    :root { color-scheme: dark; --bg:#090b0d; --panel:#11151a; --ink:#f4f5f6; --muted:#9ca7b3; --line:#2b333c; --ok:#62d49f; --warn:#f4bf6a; --bad:#ff7a7a; --blue:#7db8ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+    main { width:min(1180px,calc(100% - 32px)); margin:0 auto; padding:48px 0 80px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:28px; margin-bottom:28px; }
+    h1,h2,h3 { line-height:1.15; margin:0; letter-spacing:-.02em; }
+    h1 { font-size:clamp(32px,6vw,68px); max-width:960px; }
+    h2 { font-size:25px; margin-bottom:16px; }
+    h3 { font-size:16px; }
+    p { margin:8px 0 0; }
+    .eyebrow { color:var(--blue); text-transform:uppercase; letter-spacing:.12em; font-size:12px; margin-bottom:14px; }
+    .lede { color:#cad1d8; max-width:900px; font:18px/1.55 system-ui,-apple-system,sans-serif; margin-top:18px; }
+    .grid { display:grid; gap:16px; }
+    .summary { grid-template-columns:repeat(4,minmax(0,1fr)); margin:28px 0; }
+    .card { background:var(--panel); border:1px solid var(--line); padding:18px; min-width:0; }
+    .value { display:block; font-size:24px; margin-top:8px; }
+    .muted, small { color:var(--muted); }
+    .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+    .verdict { border-left:4px solid var(--warn); padding:20px 22px; background:#17130d; margin:28px 0 44px; }
+    section { margin-top:44px; }
+    .screens { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    figure { margin:0; background:#fff; border:1px solid var(--line); }
+    figure img { width:100%; display:block; image-rendering:auto; }
+    figcaption { background:var(--panel); padding:12px 14px; color:#d8dde2; }
+    table { width:100%; border-collapse:collapse; background:var(--panel); }
+    th,td { text-align:left; vertical-align:top; padding:13px 14px; border:1px solid var(--line); }
+    th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
+    td:first-child { white-space:nowrap; font-weight:700; }
+    code { color:#d8e9ff; }
+    ul { margin:10px 0 0; padding-left:22px; }
+    li + li { margin-top:7px; }
+    .two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); }
+    .flow div { background:var(--panel); padding:16px; }
+    .flow b { color:var(--blue); display:block; margin-bottom:6px; }
+    .foot { margin-top:48px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); }
+    @media (max-width:900px) { .summary,.screens,.two,.flow { grid-template-columns:1fr 1fr; } }
+    @media (max-width:600px) { .summary,.screens,.two,.flow { grid-template-columns:1fr; } main { width:min(100% - 20px,1180px); padding-top:24px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Full firmware + renderer + local bridge audit · 2026-08-10</div>
+    <h1>Dev Day E-Ink Terminal</h1>
+    <p class="lede">The requested Usage-page change is complete and passes the software release pipeline. The pet was stretched because a 96:104 source cell was independently forced into a 200×185 box, making it about 17% too wide. It now preserves its native proportion, stays inside its own partial-refresh region, and the rail reads <code>[ DEV DAY 2026 ]</code>.</p>
+  </header>
+
+  <div class="grid summary">
+    <div class="card"><small>Design change</small><span class="value ok">PASS</span><p>Native aspect, centered pet, correct rail.</p></div>
+    <div class="card"><small>Software pipeline</small><span class="value ok">PASS</span><p>21 tests, 20 native fixtures, ESP32 + WASM builds.</p></div>
+    <div class="card"><small>Local payload</small><span class="value ok">5,697 B</span><p>4 events + 2 pet frames; cap is 12,000 B.</p></div>
+    <div class="card"><small>Factory release</small><span class="value warn">CONTESTED</span><p>Physical panel and stale-data behavior remain.</p></div>
+  </div>
+
+  <div class="verdict">
+    <h2>Lead judgment</h2>
+    <p><b>Accept the code/render change; do not approve a production flash batch yet.</b> Run the named UC8179/D3 line test and decide how Weather/Agenda should disclose stale cached sections. Those are evidence and product-trust gaps, not visual-layout failures.</p>
+  </div>
+
+  <section>
+    <h2>Current 800×480 surfaces</h2>
+    <div class="grid screens">
+      <figure><img src="screens/01-usage.png" alt="Usage screen"><figcaption><b>1 · Usage</b><br><span class="muted">Aspect-correct pet, DEV DAY 2026 rail, true 14-day chart, four local stats.</span></figcaption></figure>
+      <figure><img src="screens/02-weather.png" alt="Weather screen"><figcaption><b>2 · Weather</b><br><span class="muted">Spacing, icon hierarchy, 24-hour chart, physical-key rail.</span></figcaption></figure>
+      <figure><img src="screens/03-agenda.png" alt="Agenda screen"><figcaption><b>3 · Agenda</b><br><span class="muted">Four-row schedule, next-event emphasis, non-touch navigation.</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Implemented and verified</h2>
+    <div class="flow">
+      <div><b>01 · Import</b>One- and two-frame 96×104 pets are accepted. Missing or identical frame two becomes a static pet.</div>
+      <div><b>02 · Render</b>The source ratio is preserved at 152×165. The bitmap and partial window share one geometry.</div>
+      <div><b>03 · Animate</b>Four five-second swaps run only on USB and pause while the serial protocol is active.</div>
+      <div><b>04 · Restore</b>The native harness requires the final primary render to match the initial frame byte-for-byte.</div>
+    </div>
+    <div class="grid two" style="margin-top:16px">
+      <div class="card"><h3>Data correctness</h3><ul><li>Peak day, longest streak, seven-day total, and longest run map to fields exposed by local <code>account/usage/read</code>.</li><li>The chart now fills an actual 14-calendar-day window rather than taking the last 14 non-empty buckets.</li><li>Oversize payloads fail locally with a clear size error before USB opens.</li><li>Live and cached partial updates now use the same field-level merge.</li></ul></div>
+      <div class="card"><h3>Trust and safety</h3><ul><li>Factory Agenda defaults are empty; fictitious August 6 events were removed.</li><li>Profile-image downloads no longer forward the local ChatGPT bearer token to a CDN URL.</li><li>Large parse scratch storage moved out of the loop-task stack.</li><li>The WASM alternate-frame export is present and the committed emulator was rebuilt.</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Remaining findings</h2>
+    <table>
+      <thead><tr><th>Priority</th><th>Finding</th><th>Evidence / failure mode</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr><td class="bad">P1</td><td>Cached Weather or Agenda can look newly synced.</td><td><code>tools/dash_sync.py:999–1024</code> omits a failed section, while <code>firmware/firmware.ino:424–433</code> intentionally preserves it. The top date and last-sync timestamp still update. The audit fixtures expose the mismatch: the rail is Aug 9 while both section bodies say Aug 6.</td><td>Add explicit per-section freshness and render <code>STALE</code>/<code>UNAVAILABLE</code>, or clear a failed section. Decide before production.</td></tr>
+        <tr><td class="bad">P1</td><td>Physical partial-refresh behavior is still unproven.</td><td>Native preview proves framebuffer ownership and frame restoration, and the installed Seeed_GFX implementation rounds the x-window outward. It cannot prove UC8179 ghosting, optical weight, actual five-second cadence, or D3/BUSY behavior.</td><td>Flash one assembled unit and run the new line-test items through at least ten animation bursts.</td></tr>
+        <tr><td class="warn">P2</td><td>D3 is suppressed for a full-refresh-sized 1.2 seconds after each partial update.</td><td><code>firmware/cards.cpp:1540–1541</code> calls the same notifier as a full refresh; <code>firmware/buttons.cpp:11–32</code> drops key 3 during the window. Four swaps create 4.8 seconds of potential Agenda-key dead time.</td><td>Measure partial BUSY duration on hardware, then give partial updates their own shorter suppression window.</td></tr>
+        <tr><td class="warn">P2</td><td>A private ICS URL is stored in service arguments.</td><td><code>tools/dash_sync.py:1141–1143</code> places the feed URL in launchd/systemd arguments, then writes it into the unit file. That URL may be a bearer credential and can also appear in process listings.</td><td>Store the URL in a mode-0600 settings file and pass only the settings path to the service.</td></tr>
+        <tr><td class="warn">P2</td><td>No continuous integration exists.</td><td>All local checks pass, but there is no <code>.github/workflows</code> pipeline to prevent stale WASM, preview, or release artifacts from landing later.</td><td>Add a CI job for Python tests, native render, WASM export check, ESP32 build, and <code>git diff --check</code>.</td></tr>
+        <tr><td class="warn">P2</td><td>Profile-photo fallback lacks visual evidence.</td><td>The security boundary is fixed and the conversion is unit-covered, but the audit has no representative photograph fixture on the inverted Usage page.</td><td>Add one portrait fixture and judge clipping/negative-tone output at 800×480 before calling photo fallback polished.</td></tr>
+        <tr><td>P3</td><td>Usage changes theme between empty and populated states.</td><td>Populated Usage is black terminal UI; empty Usage uses the shared white prompt layout. Both are legible, but the transition feels like two products.</td><td>Keep for this release unless the empty state is redesigned deliberately; this is polish, not a blocker.</td></tr>
+        <tr><td>P3</td><td>Parked calendar code remains as maintenance weight.</td><td>The user explicitly asked to comment out the rejected grid. Its parser fields, fixtures, and disabled renderer remain, including about 371 bytes in <code>CardContent</code>.</td><td>Delete in a cleanup change if the experiment will not return; do not mix that cleanup into this visual release.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>State and copy audit</h2>
+    <table>
+      <thead><tr><th>State</th><th>Result</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Populated pages</td><td class="ok">PASS</td><td>All three pages fit at 800×480; Usage footer fits the real device mono font.</td></tr>
+        <tr><td>Long copy</td><td class="ok">PASS</td><td>Name, handle, weather location, event title, and detail truncate inside their regions.</td></tr>
+        <tr><td>Empty pages</td><td class="ok">PASS</td><td>Honest setup prompts, centered cursor, no fake agenda. Theme discontinuity noted above.</td></tr>
+        <tr><td>Offline header</td><td class="ok">PASS</td><td>Wi-Fi slash, battery, date, and sync rail remain legible.</td></tr>
+        <tr><td>SoftAP credentials</td><td class="ok">PASS</td><td>SSID, password, and URL fit on Usage, Weather, and Agenda.</td></tr>
+        <tr><td>Non-touch navigation</td><td class="ok">PASS</td><td>Tabs remain display-only labels for physical keys 1–3; no touch affordances were introduced.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Verification record</h2>
+    <div class="grid two">
+      <div class="card"><h3>Passed</h3><ul><li>21 Python sync/calendar/security tests</li><li>20 native page/state/frame fixtures</li><li>Primary → alternate → exact primary restore check</li><li>WASM rebuild and alternate export verification</li><li>ESP32 production package and checksums</li><li>Shell syntax, JS syntax, Python compile, <code>git diff --check</code></li></ul></div>
+      <div class="card"><h3>Release footprint</h3><ul><li>Application: 1,470,920 bytes / 2,097,152 (70%)</li><li>Globals: 57,100 bytes / 327,680 (17%)</li><li>Local payload: 5,697 / 12,000 bytes</li><li>Factory image: 16 MiB</li><li>Update/recovery image: 1,471,168 bytes</li><li>QR decodes to the repository URL</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Adversarial review</h2>
+    <p>Three read-only Claude CLI reviewers used Skeptic, Architect, and Minimalist lenses. Accepted findings drove the one-frame fallback, exact partial ownership, serial/animation exclusion, true 14-day window, payload cap check, cache parity, footer-width fix, native alternate-frame fixture, and WASM export fix. One alignment concern was rejected after inspecting the installed Seeed_GFX source: <code>EPaper::updataPartial</code> rounds both boundaries outward to 8/16-pixel alignment. Duplication and parked-calendar findings were deferred as non-blocking cleanup.</p>
+    <p class="muted">Process limitation: the adversarial-review package referenced missing <code>brain/principles.md</code> resources. Reviewers applied the named principles directly; no finding relied on those missing files.</p>
+  </section>
+
+  <div class="foot">Audit scope: current uncommitted working tree, firmware renderer, local Codex/calendar bridge, USB protocol, cache, native preview, browser emulator, packaging, documentation, empty/long/offline/AP states, and the installed Seeed_GFX partial-update implementation. No device was flashed in this audit.</div>
+</main>
+</body>
+</html>
