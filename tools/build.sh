@@ -10,6 +10,20 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARDUINO_CLI="${ARDUINO_CLI:-$ROOT/tools/bin/arduino-cli}"
 SKETCH="$ROOT/firmware"
 BUILD_DIR="$ROOT/release/build"
+DISPLAY_BOARD="${DISPLAY_BOARD:-ee04}"
+
+case "$DISPLAY_BOARD" in
+  ee04)
+    DISPLAY_FLAGS=()
+    ;;
+  legacy)
+    DISPLAY_FLAGS=(--build-property 'compiler.cpp.extra_flags=-DDEV_DAY_DISPLAY_BOARD_LEGACY')
+    ;;
+  *)
+    echo "unsupported DISPLAY_BOARD=$DISPLAY_BOARD (expected ee04 or legacy)" >&2
+    exit 2
+    ;;
+esac
 
 mkdir -p "$BUILD_DIR"
 
@@ -24,7 +38,9 @@ cp -f "$ROOT/partitions.csv" "$SKETCH/partitions.csv"
   --fqbn esp32:esp32:XIAO_ESP32S3_Plus \
   --build-path "$BUILD_DIR" \
   --warnings default \
+  "${DISPLAY_FLAGS[@]}" \
   "$SKETCH"
 
 echo
+echo "display board: $DISPLAY_BOARD"
 echo "app binary: $BUILD_DIR/firmware.ino.bin"

@@ -4,6 +4,27 @@
 
 ### Added
 
+- **Dev Day 2026 terminal Usage page.** The 7.5-inch Usage screen now renders
+  beneath a `[ DEV DAY 2026 ]` rail as a framed `/dev/user` and
+  `/proc/token_activity` terminal: aligned thirds, ordered
+  one-bit chart dithering, and three equal-width local stats — peak day,
+  longest streak, and seven-day total.
+- **One terminal system across all three pages.** Weather now renders
+  `/sys/weather` and `/proc/forecast [24h]`; Agenda renders
+  `/var/agenda/today`. Both use Usage's black canvas, dotted frames, exact
+  one-third grid, active physical-key tab, dark empty state, and AP-safe band.
+  Large readings moved from bold display faces to regular FreeMono for a more
+  classic terminal texture; small labels retain bold mono for legibility.
+- **Utility screens join the terminal system.** Build Diagnostics now uses
+  `/sys/firmware` and a one-third-aligned `/dev/hardware` table. Make It Yours
+  uses `/dev/terminal`, a source/prompt block, and a scan-verified QR cell.
+  Both retain the physical-key navigation strip without falsely marking a
+  main tab active, and both have AP-safe variants.
+- **Bounded two-frame pet motion.** The local bridge imports two neighboring
+  idle frames from the selected Codex pet atlas. On USB power the firmware
+  performs four pet-window-only partial updates at five-second intervals, then
+  returns to the primary frame. Full-screen refresh behavior is unchanged.
+
 - **Wi-Fi status in every page header.** A compact signal mark now sits beside
   the battery gauge; connected shows clean arcs, while offline uses the same
   glyph with a slash.
@@ -41,9 +62,9 @@
   It follows `tui.pet` — the pet you actually picked in Codex, read from the
   resolved config over `codex app-server` — then a pet hatched under
   `~/.codex/pets`, then the built-in `codex` companion, then your photo.
-  `tui.pet = "none"` (pets off in Codex) uses the photo. Pushed over USB in the
-  existing `avatar_hex` field, so no protocol change. `--pet <id>` overrides,
-  `--no-pet` opts out.
+  `tui.pet = "none"` (pets off in Codex) uses the photo. Pushed over USB in
+  `avatar_hex`, with optional `avatar_alt_hex` for the second idle frame.
+  `--pet <id>` overrides, `--no-pet` opts out.
 - Every unit ships with a bundled default pet, so the card is never faceless
   before the first sync.
 - `tools/gen_pet.py` generates the shipped pet bitmap. Changing it is one
@@ -62,9 +83,9 @@
   drives the Weather page is untouched.
 
 ### Changed
-- Usage now presents the three current Codex metrics that matter at a glance:
-  today, lifetime, and streak. Today comes from the matching local-date usage
-  bucket; peak day and longest chat are no longer displayed or sent.
+- Usage keeps today, lifetime, and current streak as its primary metrics.
+  Today comes from the matching local-date usage bucket; peak day, longest
+  streak, seven-day total, and longest running turn now appear below the chart.
 
 - The portrait is a 96x104 rectangle, not a 72x72 circle: pets have legs,
   tails and props that a circular crop amputates.
@@ -87,6 +108,22 @@
   every page already numbers the keys.
 
 ### Fixed
+- Factory defaults no longer populate Agenda with a fictitious August 6 demo
+  schedule. An unsynced or reset device now shows the documented empty state
+  until local calendar data arrives.
+- Profile-photo fallback downloads no longer forward the local ChatGPT bearer
+  token to the profile image URL, which may be hosted on a separate CDN.
+- A missing or identical second pet frame now degrades to a static primary
+  frame instead of discarding the selected pet or doing pointless refreshes.
+- The browser emulator exports the new alternate-frame setter; applying a real
+  two-frame sync payload no longer aborts before rendering.
+- Live and cached partial payloads now use the same nested merge semantics, so
+  a text-only Usage update cannot keep the pet on screen but lose it at reboot.
+- Pet payload parsing now uses serialized static scratch storage instead of
+  placing a multi-kilobyte `CardContent` copy on the loop task stack.
+- The enlarged 96x104 pet is now scaled at its native aspect ratio and centred
+  in the first profile third. It was previously drawn into a 200x185 rectangle,
+  making every imported frame about 17% too wide.
 - Agenda times are vertically centred in their column while event titles and
   details remain left aligned as a centred two-line block.
 - Header status now reads Wi-Fi, battery gauge, then battery percentage; the

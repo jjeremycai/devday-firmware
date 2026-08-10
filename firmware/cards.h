@@ -18,12 +18,17 @@ struct RenderStatus {
 bool displayBegin();
 // Full-refresh render of any name accepted by cardIsRenderable().
 void renderCard(const String& card, const CardContent& content, const RenderStatus& status);
+// Two-frame pet animation uses the controller's partial waveform and never
+// repaints the rest of the Usage page. Profile photos have no alternate frame.
+bool dashPetCanAnimate(const CardContent& content);
+void renderDashPetFrame(const CardContent& content, bool alternate);
 
 // One allowlist, shared by config.write, card.preview and content.push so the
 // three entry points can never disagree about which names exist.
 //
 // "dash" | "weather" | "agenda"  the three pages on the tab strip
 // "build" | "yours"              diagnostics / QR, reachable via card.preview
+//                                  or as a configured startup card
 // "splash"                       first-boot characters, not selectable as a startup card
 bool cardIsRenderable(const String& card); // valid for card.preview
 bool cardIsStartup(const String& card);    // valid for config.write startup_card

@@ -75,6 +75,10 @@ extern "C" void emu_set(const char* key, const char* value) {
   else if (k == "dash_today") g_content.dash_today = v;
   else if (k == "dash_lifetime") g_content.dash_lifetime = v;
   else if (k == "dash_streak") g_content.dash_streak = v;
+  else if (k == "dash_peak_day") g_content.dash_peak_day = v;
+  else if (k == "dash_longest_streak") g_content.dash_longest_streak = v;
+  else if (k == "dash_seven_day_total") g_content.dash_seven_day_total = v;
+  else if (k == "dash_longest_run") g_content.dash_longest_run = v;
   else if (k == "dash_insight_left") g_content.dash_insight_left = v;
   else if (k == "dash_insight_right") g_content.dash_insight_right = v;
   else if (k == "device_name") g_status.device_name = v;
@@ -163,5 +167,17 @@ extern "C" int emu_set_avatar_hex(const char* hex) {
     g_content.dash_avatar[i] = (uint8_t)((hi << 4) | lo);
   }
   g_content.dash_avatar_present = true;
+  return 1;
+}
+
+extern "C" int emu_set_avatar_alt_hex(const char* hex) {
+  if (strlen(hex) != CardContent::PET_BYTES * 2) return 0;
+  for (size_t i = 0; i < CardContent::PET_BYTES; i++) {
+    int hi = hexNibble(hex[i * 2]);
+    int lo = hexNibble(hex[i * 2 + 1]);
+    if (hi < 0 || lo < 0) return 0;
+    g_content.dash_avatar_alt[i] = (uint8_t)((hi << 4) | lo);
+  }
+  g_content.dash_avatar_alt_present = true;
   return 1;
 }

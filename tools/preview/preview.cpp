@@ -29,6 +29,21 @@ int main(int argc, char** argv) {
     dump(p, content, st, p);
   }
 
+  // Exercise the real two-frame path, not just its parser. The alternate must
+  // visibly differ, and returning to primary must reproduce the base frame.
+  {
+    char path[256];
+    renderCard("dash", content, st);
+    renderDashPetFrame(content, true);
+    snprintf(path, sizeof path, "%s/%s.pgm", out_dir, "dash_pet_alt");
+    epaperDumpPgm(path);
+    printf("wrote %s\n", path);
+    renderDashPetFrame(content, false);
+    snprintf(path, sizeof path, "%s/%s.pgm", out_dir, "dash_pet_rest");
+    epaperDumpPgm(path);
+    printf("wrote %s\n", path);
+  }
+
   // Every empty page shares the prompt treatment; render all three asks.
   {
     CardContent empty = content;
@@ -57,9 +72,23 @@ int main(int argc, char** argv) {
     longs.weather_location = "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch, Wales";
     longs.agenda_title[0] = "Quarterly cross-functional planning and roadmap review";
     longs.agenda_detail[0] = "with design, platform, infra, and the whole extended team";
+    longs.build_state = "maintenance required";
+    longs.build_title = "Factory firmware with a deliberately long release title";
+    longs.build_detail = "This diagnostic description is intentionally long enough to exercise both wrapped lines without touching the status cell.";
+    longs.build_updated_at = "Sunday, August 9 at 11:59 PM";
     dump("dash", longs, st, "dash_long");
     dump("weather", longs, st, "weather_long");
     dump("agenda", longs, st, "agenda_long");
+    dump("build", longs, st, "build_long");
+  }
+
+  // A quiet day is the common live case. It should use the available vertical
+  // space intentionally instead of looking like the first row of a missing
+  // table.
+  {
+    CardContent one = content;
+    one.agenda_count = 1;
+    dump("agenda", one, st, "agenda_single");
   }
 
   // Disconnected header variant: same Wi-Fi silhouette, crossed for offline.
@@ -75,6 +104,8 @@ int main(int argc, char** argv) {
   dump("dash", content, st, "dash_ap");
   dump("weather", content, st, "weather_ap");
   dump("agenda", content, st, "agenda_ap");
+  dump("build", content, st, "build_ap");
+  dump("yours", content, st, "yours_ap");
 
   // Empty-state portal credentials replace the resident face in the same band.
   {

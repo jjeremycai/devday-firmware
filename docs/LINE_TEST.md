@@ -40,7 +40,7 @@ Press-and-release; hold length must not change the result.
 - [ ] Tab strip at the bottom highlights the active page, label legible white
       on black
 - [ ] `ap.start` over USB → setup AP starts; screen shows SSID `DevDay-XXXX`,
-      password, and `192.168.4.1` — check on **all three pages**, the
+      password, and `192.168.4.1` — check on **all five non-splash pages**, the
       credentials must be visible whichever page is showing
 - [ ] AP stops by itself within 5 minutes and the expired credentials disappear
 - [ ] Hold **D1+D4** at boot → configuration cleared (next `status` shows
@@ -82,6 +82,12 @@ Press-and-release; hold length must not change the result.
 - [ ] Usage metrics, agenda times, weather telemetry, Build diagnostics, and
       the Yours URL use crisp monospace type; columns and mixed-font baselines
       remain aligned with no clipping on long values
+- [ ] Populated Usage shows `[ DEV DAY 2026 ]` in the top rail; the pet is
+      centred in the first third and keeps the 96:104 frame proportion with no
+      horizontal stretching
+- [ ] With USB connected, the Usage pet performs four small-window changes at
+      roughly five-second intervals, finishes on the primary frame, and leaves
+      no visible ghosting or torn pixels around its partial-refresh window
 - [ ] Empty Usage, Weather, and Agenda pages centre the prompt and cursor as one
       unit; the dome face is symmetric and clears the tabs, and disappears when
       setup AP credentials occupy the lower band

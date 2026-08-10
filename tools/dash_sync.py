@@ -45,7 +45,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ics  # noqa: E402
 import localcal  # noqa: E402
 import imaging  # noqa: E402  (path set above so the tool runs from anywhere)
-from pet import PET_H, PET_W, load_pet_bits, pet_is_disabled, resolve_pet  # noqa: E402
+from pet import PET_H, PET_W, pet_is_disabled, resolve_pet, sheet_bits  # noqa: E402
 
 BAUD = 115200
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -300,9 +300,9 @@ def fetch_codex_profile() -> Dict[str, Any]:
 # Profile photo → 1-bit hex (see tools/imaging.py for the conversion)
 # ---------------------------------------------------------------------------
 def dither_image_bytes(image_bytes: bytes) -> str:
-    """A profile photograph, error-diffused to the panel's pet-sized box."""
+    """A profile photograph, error-diffused as white ink on the dark Usage page."""
     try:
-        return imaging.photo_to_bits(image_bytes, PET_W, PET_H).hex()
+        return imaging.photo_to_dark_bits(image_bytes, PET_W, PET_H).hex()
     except imaging.ImagingError as exc:
         raise AppServerError(str(exc)) from exc
 
@@ -326,6 +326,45 @@ def format_tokens(n: Optional[int]) -> str:
     return str(n)
 
 
+def format_duration(seconds: Any) -> str:
+    """Compact a duration for the Usage footer (for example, 34H45M)."""
+    try:
+        total = max(0, int(seconds))
+    except (TypeError, ValueError):
+        return ""
+    minutes = total // 60
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}H{minutes:02d}M"
+    return f"{minutes}M"
+
+
+def seven_day_total_from_usage(
+    usage: Dict[str, Any], today: Optional[date] = None
+) -> int:
+    """Sum the seven calendar days ending today, filling omitted dates with 0."""
+    current = today or datetime.now().date()
+    start = current - timedelta(days=6)
+    by_date: Dict[date, int] = {}
+    for bucket in usage.get("dailyUsageBuckets") or []:
+        raw_date = bucket.get("startDate") or bucket.get("start_date")
+        if not raw_date:
+            continue
+        try:
+            bucket_date = date.fromisoformat(str(raw_date)[:10])
+        except ValueError:
+            continue
+        raw_tokens = bucket.get("tokens")
+        if raw_tokens is None:
+            raw_tokens = bucket.get("totalTokens")
+        try:
+            tokens = max(0, int(raw_tokens or 0))
+        except (TypeError, ValueError):
+            continue
+        by_date[bucket_date] = tokens
+    return sum(tokens for day, tokens in by_date.items() if start <= day <= current)
+
+
 def today_tokens_from_usage(usage: Dict[str, Any], date_key: Optional[str] = None) -> int:
     """Return the local day's token count, or zero when no bucket exists."""
     key = date_key or datetime.now().date().isoformat()
@@ -335,11 +374,32 @@ def today_tokens_from_usage(usage: Dict[str, Any], date_key: Optional[str] = Non
     return 0
 
 
-def days_from_usage(usage: Dict[str, Any], count: int = 14) -> List[int]:
-    buckets = usage.get("dailyUsageBuckets") or []
-    recent = buckets[-count:]
-    raw = [int(b.get("tokens") or 0) for b in recent]
-    if not raw:
+def days_from_usage(
+    usage: Dict[str, Any], count: int = 14, today: Optional[date] = None
+) -> List[int]:
+    """Normalize a real calendar window, filling omitted quiet days with zero."""
+    if count <= 0:
+        return []
+    current = today or datetime.now().date()
+    by_date: Dict[date, int] = {}
+    for bucket in usage.get("dailyUsageBuckets") or []:
+        raw_date = bucket.get("startDate") or bucket.get("start_date")
+        if not raw_date:
+            continue
+        try:
+            bucket_date = date.fromisoformat(str(raw_date)[:10])
+        except ValueError:
+            continue
+        raw_tokens = bucket.get("tokens")
+        if raw_tokens is None:
+            raw_tokens = bucket.get("totalTokens")
+        try:
+            by_date[bucket_date] = max(0, int(raw_tokens or 0))
+        except (TypeError, ValueError):
+            continue
+    start = current - timedelta(days=count - 1)
+    raw = [by_date.get(start + timedelta(days=offset), 0) for offset in range(count)]
+    if not by_date:
         return []
     # log-ish then normalize to 0–255 so quiet days still read.
     import math
@@ -578,6 +638,7 @@ def build_payload(
     avatar_hex: str,
     weather: Optional[Dict[str, Any]] = None,
     agenda: Optional[Dict[str, Any]] = None,
+    avatar_alt_hex: str = "",
 ) -> Dict[str, Any]:
     summary = usage.get("summary") or {}
     acct = (account.get("account") or {}) if account else {}
@@ -588,6 +649,7 @@ def build_payload(
     streak = summary.get("currentStreakDays")
     peak_day = summary.get("peakDailyTokens")
     longest_streak = summary.get("longestStreakDays")
+    longest_run = summary.get("longestRunningTurnSec")
     insight_parts = []
     if peak_day is not None:
         insight_parts.append(f"PEAK DAY {format_tokens(peak_day)}")
@@ -603,6 +665,10 @@ def build_payload(
             "today": format_tokens(today_tokens_from_usage(usage)),
             "lifetime": format_tokens(summary.get("lifetimeTokens")),
             "streak": f"{streak} days" if streak is not None else "",
+            "peak_day": format_tokens(peak_day),
+            "longest_streak": f"{longest_streak}D" if longest_streak is not None else "",
+            "seven_day_total": format_tokens(seven_day_total_from_usage(usage)),
+            "longest_run": format_duration(longest_run),
             "insight_left": " | ".join(insight_parts),
             "insight_right": datetime.now().strftime("%a %-I:%M %p"),
             "days": days_from_usage(usage),
@@ -612,6 +678,8 @@ def build_payload(
         # weather is skipped (--offline / --no-weather).
         "date": datetime.now().strftime("%A, %B %-d"),
     }
+    if avatar_alt_hex:
+        payload["dash"]["avatar_alt_hex"] = avatar_alt_hex
     if INCLUDE_USAGE_CALENDAR:
         calendar, calendar_today = calendar_from_usage(usage)
         payload["dash"]["calendar"] = calendar
@@ -807,16 +875,28 @@ def reboot_device(port: str, expected_serial: str = "") -> None:
 
 
 def push_to_device(port: str, payload: Dict[str, Any], expected_serial: str = "") -> None:
+    payload_size = len(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    if payload_size > CONTENT_MAX_BYTES:
+        raise AppServerError(
+            f"content payload is {payload_size} bytes, over the "
+            f"{CONTENT_MAX_BYTES}-byte terminal limit"
+        )
     fd = open_serial(port)
     try:
         verify_terminal(fd, expected_serial)
-        serial_request(
+        push_result = serial_request(
             fd,
             "push-content",
             "content.push",
             {"show": "dash", "payload": payload},
             timeout_s=25,
         )
+        if push_result.get("cached") is False:
+            print(
+                "warning: content rendered but the merged cache exceeded the "
+                "terminal limit; a reboot will restore the previous payload",
+                file=sys.stderr,
+            )
         # Prefer dash on next boot.
         try:
             serial_request(
@@ -850,6 +930,7 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
 
     profile: Dict[str, Any] = {}
     avatar_hex = ""
+    avatar_alt_hex = ""
     if offline:
         print("→ offline: skipping profile (no Wi-Fi)", file=sys.stderr)
     else:
@@ -878,11 +959,27 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
     if not args.no_pet and not skip_pet:
         print("→ Codex pet…", file=sys.stderr)
         try:
-            label, bits = load_pet_bits(want_pet, allow_download=not offline)
+            label, sheet = resolve_pet(want_pet, allow_download=not offline)
+            bits = sheet_bits(sheet, row=0, col=0)
             avatar_hex = bits.hex()
+            try:
+                alt_bits = sheet_bits(sheet, row=0, col=1)
+                if alt_bits != bits:
+                    avatar_alt_hex = alt_bits.hex()
+            except Exception:
+                # A plain image or one-cell atlas is still a valid static pet.
+                # Motion is optional; keep the primary when frame 2 is absent.
+                alt_bits = bytearray()
             chose = "configured" if (configured_pet and not args.pet) else "selected"
             note = f" ({chose})" if want_pet else " (default)"
-            print(f"  {label}{note} at {PET_W}×{PET_H} ({len(bits)} bytes)", file=sys.stderr)
+            frame_count = 2 if avatar_alt_hex else 1
+            byte_count = len(bits) + (len(alt_bits) if avatar_alt_hex else 0)
+            print(
+                f"  {label}{note}: {frame_count} idle frame"
+                f"{'' if frame_count == 1 else 's'} at {PET_W}×{PET_H} "
+                f"({byte_count} bytes)",
+                file=sys.stderr,
+            )
         except Exception as exc:
             print(f"  pet skipped: {exc}", file=sys.stderr)
 
@@ -890,8 +987,10 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
     if not avatar_hex and pic and not args.no_avatar:
         print("→ profile photo…", file=sys.stderr)
         try:
-            headers = load_auth_headers()
-            image_bytes = http_bytes(pic, headers)
+            # The URL is data returned by the profile service and may point at
+            # a CDN. Never forward the local ChatGPT bearer token to that host;
+            # profile-image URLs must be self-authenticating/public.
+            image_bytes = http_bytes(pic, {})
             avatar_hex = dither_image_bytes(image_bytes)
             print(f"  dithered {PET_W}×{PET_H} ({len(avatar_hex)//2} bytes)", file=sys.stderr)
         except Exception as exc:
@@ -911,8 +1010,8 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             print(f"  weather skipped: {exc}", file=sys.stderr)
 
     # Agenda sources, most explicit first: a configured feed, then the local
-    # macOS calendar store (no setup, works offline). Neither readable leaves
-    # the page's bundled example day in place.
+    # macOS calendar store (no setup, works offline). If neither is readable,
+    # the device preserves its last valid calendar; a fresh unit stays empty.
     agenda = None
     if args.ics:
         remote = args.ics.startswith(("http://", "https://", "webcal://"))
@@ -934,7 +1033,9 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             n = len(agenda["events"])
             print(f"  {n} event{'' if n == 1 else 's'} today", file=sys.stderr)
 
-    return build_payload(account, usage, profile, avatar_hex, weather, agenda)
+    return build_payload(
+        account, usage, profile, avatar_hex, weather, agenda, avatar_alt_hex
+    )
 
 
 def resolve_port(explicit: Optional[str]) -> str:

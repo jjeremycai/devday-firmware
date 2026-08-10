@@ -99,10 +99,14 @@ Caches the payload in LittleFS and renders immediately.
         "today": "133.2M",
         "lifetime": "48.8B",
         "streak": "38 days",
-        "insight_left": "PEAK DAY 2.7B | LONGEST STREAK 64D",
+        "peak_day": "2.7B",
+        "longest_streak": "64D",
+        "seven_day_total": "3.1B",
+        "longest_run": "34H45M",
         "insight_right": "Sun 2:11 PM",
-        "days": [40, 55, 90, 120, 80, 70, 95],
-        "avatar_hex": "<2496 hex chars for a 96×104 1-bit MSB bitmap>"
+        "days": [40, 55, 90, 120, 80, 70, 95, 65, 110, 90, 72, 125, 160, 180],
+        "avatar_hex": "<2496 hex chars for a 96×104 1-bit MSB bitmap>",
+        "avatar_alt_hex": "<optional second 96×104 frame>"
       }
     }
   }
@@ -112,9 +116,9 @@ Caches the payload in LittleFS and renders immediately.
 With `show` absent the device decides: Usage once the push has given it an
 identity to draw, otherwise the page already up (the factory splash falls
 forward to the startup card). Payload size is capped at 12 KB. The payload is
-merged into current content and into the LittleFS cache section by section, so
-a weather-only push keeps a previously pushed dash — on screen and after a
-power cycle.
+merged into current content and into the LittleFS cache field by field within
+each section, so a weather-only push keeps a previously pushed dash, and a
+text-only dash update keeps its pet — on screen and after a power cycle.
 An invalid `show` value rejects the request before live content or the cache is
 changed.
 
@@ -124,9 +128,12 @@ accumulated sections would exceed the 12 KB cap; the display is current, but a
 power cycle falls back to the last payload that did fit.
 
 `avatar_hex` holds the portrait shown on the Usage card — a Codex pet, or a
-profile photo: 2496 hex chars for the 96×104 pet rectangle. Any other length
-is ignored, leaving the previous portrait in place. Generate one with
-`tools/gen_pet.py --hex`.
+profile photo: 2496 hex chars for the 96×104 pet rectangle. `avatar_alt_hex`
+may hold a second pet frame of the same size. While the terminal is on USB,
+the firmware swaps that small window every five seconds for four partial
+updates, then stops on the primary frame; profile photos omit it. Any other
+length is ignored, leaving the previous portrait in place. Generate a primary
+frame with `tools/gen_pet.py --hex`.
 
 ### `ap.start`
 
@@ -182,10 +189,14 @@ Response schema:
     "today": "133.2M",
     "lifetime": "48.8B",
     "streak": "38 days",
-    "insight_left": "PEAK DAY 2.7B | LONGEST STREAK 64D",
+    "peak_day": "2.7B",
+    "longest_streak": "64D",
+    "seven_day_total": "3.1B",
+    "longest_run": "34H45M",
     "insight_right": "Sun 2:11 PM",
-    "days": [40, 55, 90, 120, 80, 70, 95],
-    "avatar_hex": "<96×104 1-bit MSB-first row-major, hex-encoded>"
+    "days": [40, 55, 90, 120, 80, 70, 95, 65, 110, 90, 72, 125, 160, 180],
+    "avatar_hex": "<96×104 1-bit MSB-first row-major, hex-encoded>",
+    "avatar_alt_hex": "<optional second 96×104 frame>"
   },
   "agenda": {
     "date": "Thursday, August 6",
@@ -198,7 +209,16 @@ Response schema:
 }
 ```
 
-`dash.days` contains up to 14 relative bar heights (0–255).
+`dash.days` contains up to 14 relative bar heights (0–255). The three rendered
+footer values are presentation-ready strings: `peak_day` comes from
+`summary.peakDailyTokens`, `longest_streak` from `summary.longestStreakDays`,
+and `seven_day_total` is the sum of the seven local calendar days ending today.
+`longest_run` remains accepted and emitted for schema compatibility but is no
+longer shown in the three-cell footer. The local sync uses
+only values available from `account/usage/read`; custom schema-1 producers may
+omit any footer field. `insight_right` is the short last-sync timestamp shown
+in all three page rails. Legacy `insight_left` remains parsed and emitted for
+compatibility with an older firmware build.
 
 All fields optional except `schema`. `refresh_after_s` is clamped to
 300–86400 seconds. Rendered text fields are truncated to 256 bytes on a UTF-8

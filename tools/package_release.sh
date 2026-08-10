@@ -12,8 +12,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="1.0.0"
 BUILD="$ROOT/release/build"
 OUT="$ROOT/release"
+DISPLAY_BOARD="${DISPLAY_BOARD:-ee04}"
 
-"$ROOT/tools/build.sh"
+DISPLAY_BOARD="$DISPLAY_BOARD" "$ROOT/tools/build.sh"
 
 APP="$BUILD/firmware.ino.bin"
 MERGED="$BUILD/firmware.ino.merged.bin"
@@ -58,6 +59,7 @@ cat > "$OUT/build-info.json" <<EOF
   "git": "$GIT_REV",
   "board": "esp32:esp32:XIAO_ESP32S3_Plus",
   "display_combo": 502,
+  "display_board": "$DISPLAY_BOARD",
   "app_size": $(stat -f%z "$APP"),
   "factory_size": $(stat -f%z "$FACTORY"),
   "update_size": $(stat -f%z "$UPDATE"),
@@ -70,6 +72,7 @@ cat > "$OUT/dependency-manifest.txt" <<EOF
 Arduino CLI            1.5.1
 Arduino-ESP32 core     3.3.8 (esp32:esp32@3.3.8)
 Board FQBN             esp32:esp32:XIAO_ESP32S3_Plus
+Display board          $DISPLAY_BOARD
 Seeed_GFX              GitHub release V3.1.0 (Seeed-Studio/Seeed_GFX, internal version 2.0.3)
 ArduinoJson            7.4.3
 CA bundle              curl.se Mozilla CA store (regenerate: tools/gen_ca_bundle.sh)

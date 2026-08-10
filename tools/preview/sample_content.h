@@ -21,6 +21,10 @@ inline CardContent sampleContent() {
   c.dash_today = "133.2M";
   c.dash_lifetime = "49B";
   c.dash_streak = "2 days";
+  c.dash_peak_day = "2.7B";
+  c.dash_longest_streak = "64D";
+  c.dash_seven_day_total = "3.1B";
+  c.dash_longest_run = "34H45M";
   c.dash_insight_left = "PEAK DAY 2.7B | LONGEST STREAK 64D";
   c.dash_insight_right = "Sun 2:11 PM";
   static const uint8_t days[CardContent::DASH_DAYS] = {30, 55, 40, 90, 120, 80, 70,
@@ -43,6 +47,8 @@ inline CardContent sampleContent() {
   // shows the real conversion rather than a synthetic stand-in.
   memcpy(c.dash_avatar, PET_ASSET_BITMAP, CardContent::PET_BYTES);
   c.dash_avatar_present = true;
+  memcpy(c.dash_avatar_alt, PET_ASSET_ALT_BITMAP, CardContent::PET_BYTES);
+  c.dash_avatar_alt_present = true;
 
   c.weather_location = "Salt Lake City, UT";
   c.weather_date = "Thursday, August 6";

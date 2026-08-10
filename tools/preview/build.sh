@@ -34,6 +34,12 @@ clang++ -std=c++17 -O1 \
 
 "$OUT/preview" "$OUT"
 
+if cmp -s "$OUT/dash.pgm" "$OUT/dash_pet_alt.pgm"; then
+  echo "alternate pet frame did not change the rendered Usage page" >&2
+  exit 1
+fi
+cmp "$OUT/dash.pgm" "$OUT/dash_pet_rest.pgm"
+
 for f in "$OUT"/*.pgm; do
   sips -s format png "$f" --out "${f%.pgm}.png" >/dev/null
 done

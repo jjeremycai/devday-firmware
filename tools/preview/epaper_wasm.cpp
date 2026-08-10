@@ -36,6 +36,7 @@ void EPaper::fillScreen(uint16_t color) { js_fill_screen(color == TFT_WHITE ? 1 
 void EPaper::setFreeFont(const GFXfont* f) { g_font = f; }
 void EPaper::setTextDatum(uint8_t d) { g_datum = d; }
 void EPaper::update() {}
+void EPaper::updataPartial(uint16_t, uint16_t, uint16_t, uint16_t) {}
 
 void EPaper::drawPixel(int32_t x, int32_t y, uint16_t color) {
   js_fill_rect(x, y, 1, 1, color == TFT_WHITE ? 1 : 0);

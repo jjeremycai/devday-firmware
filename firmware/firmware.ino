@@ -24,6 +24,9 @@
 
 static DeviceConfig cfg;
 static CardContent content;
+// Parsing is serialized in loop(); keep the large copy out of the ~8 KB loop
+// task stack now that CardContent owns two full pet frames.
+static CardContent content_scratch;
 static RenderStatus st;
 static String current_card = "dash";
 static uint32_t boots = 0;
@@ -31,6 +34,16 @@ static uint32_t last_activity_ms = 0;
 static bool reboot_pending = false;
 static bool content_render_pending = false;
 static String pending_card;
+
+// A short two-frame burst gives the imported Codex pet some life without
+// hammering the whole panel. It runs only while USB power is present, uses the
+// UC8179 partial window, performs four swaps, and ends back on the primary
+// frame. Entering Usage or receiving fresh content rearms the burst.
+static constexpr uint32_t DASH_PET_FRAME_MS = 5000;
+static constexpr uint8_t DASH_PET_FRAME_UPDATES = 4;
+static uint32_t dash_pet_frame_ms = 0;
+static uint8_t dash_pet_frame_updates = DASH_PET_FRAME_UPDATES;
+static bool dash_pet_alternate = false;
 
 static constexpr uint32_t AWAKE_IDLE_MS = 90000;  // sleep after 90 s idle
 static constexpr uint32_t MIN_AWAKE_MS = 10000;   // never sleep before this
@@ -46,6 +59,14 @@ static uint32_t last_usb_seen_ms = 0;
 static bool usb_ever_seen = false;
 // Boot counts as the first fetch, so the next one is a full interval away.
 static uint32_t last_fetch_ms = 0;
+
+static void armDashPetAnimation() {
+  dash_pet_alternate = false;
+  dash_pet_frame_ms = millis();
+  dash_pet_frame_updates =
+      current_card == "dash" && dashPetCanAnimate(content)
+        ? 0 : DASH_PET_FRAME_UPDATES;
+}
 
 // ---------------------------------------------------------------------------
 // Status / hooks
@@ -162,6 +183,7 @@ static bool hookCardPreview(const String& card, String& err_code) {
   current_card = card;
   refreshStatus();
   renderCard(current_card, content, st);
+  armDashPetAnimation();
   return true;
 }
 
@@ -171,14 +193,17 @@ static bool hookContentPush(const String& payload, const String& show_card, Json
     err_code = "bad_params";
     return false;
   }
-  CardContent next = content;
-  if (!contentParse(payload, next)) {
+  const bool had_dash = contentHasDash(content);
+  content_scratch = content;
+  if (!contentParse(payload, content_scratch)) {
     err_code = "bad_params";
     return false;
   }
 
   String card = show_card;
-  if (card.length() == 0) card = contentHasDash(next) ? "dash" : current_card;
+  if (card.length() == 0) {
+    card = !had_dash && contentHasDash(content_scratch) ? "dash" : current_card;
+  }
   // First sync while the first-boot splash is still up: land on a real page.
   // The splash's own instruction was "ask Codex to set this up" — this push is
   // that setup arriving, so staying on the splash would look like a hang.
@@ -188,7 +213,7 @@ static bool hookContentPush(const String& payload, const String& show_card, Json
     return false;
   }
 
-  content = next;
+  content = content_scratch;
   // Merge, don't overwrite: a partial push (weather only, agenda only) must not
   // drop fields an earlier push cached, or the screen and the next cold boot
   // would disagree.
@@ -222,6 +247,7 @@ static bool hookApStart(JsonObject data, String& err_code) {
   data["expires_s"] = AP_TIMEOUT_MS / 1000;
   refreshStatus();
   renderCard(current_card, content, st);
+  armDashPetAnimation();
   return true;
 }
 
@@ -332,6 +358,7 @@ void setup() {
   displayBegin();
   refreshStatus();
   renderCard(current_card, content, st); // one full refresh; useful screen first
+  armDashPetAnimation();
 
 #if CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
   esp_ota_mark_app_valid_cancel_rollback();
@@ -343,6 +370,7 @@ void setup() {
   PortalHooks poh{hookStatus, hookConfigWrite, []() {
                     refreshStatus();
                     renderCard(current_card, content, st);
+                    armDashPetAnimation();
                   },
                   hookReboot};
   portalSetHooks(poh);
@@ -362,6 +390,7 @@ void loop() {
   if (content_render_pending) {
     content_render_pending = false;
     renderCard(pending_card, content, st);
+    armDashPetAnimation();
   }
 
   netPoll();
@@ -381,6 +410,7 @@ void loop() {
     }
     refreshStatus();
     renderCard(current_card, content, st);
+    armDashPetAnimation();
   }
 
   // On battery the refresh interval is served by the deep-sleep timer: the
@@ -395,11 +425,12 @@ void loop() {
   // so a document that omits a section keeps the bundled/cached one.
   String fetched;
   if (netTakeFreshPayload(fetched)) {
-    CardContent next = content;
-    if (contentParse(fetched, next)) {
-      content = next;
+    content_scratch = content;
+    if (contentParse(fetched, content_scratch)) {
+      content = content_scratch;
       refreshStatus();
       renderCard(current_card, content, st);
+      armDashPetAnimation();
     }
   }
 
@@ -414,6 +445,17 @@ void loop() {
   }
   bool usbStayAwake =
       usb_ever_seen && millis() - last_usb_seen_ms < USB_ABSENT_GRACE_MS;
+
+  // A partial display update blocks on panel BUSY. Do not start one while the
+  // USB protocol has the port open and may be streaming a 12 KB JSON line.
+  if (usbStayAwake && !protocolUsbActive() && current_card == "dash" &&
+      dash_pet_frame_updates < DASH_PET_FRAME_UPDATES &&
+      millis() - dash_pet_frame_ms >= DASH_PET_FRAME_MS) {
+    dash_pet_alternate = !dash_pet_alternate;
+    renderDashPetFrame(content, dash_pet_alternate);
+    dash_pet_frame_ms = millis();
+    dash_pet_frame_updates++;
+  }
 
   if (reboot_pending) {
     delay(200);

@@ -31,6 +31,7 @@ class DashSyncTests(unittest.TestCase):
                 "currentStreakDays": 38,
                 "peakDailyTokens": 2_700_000_000,
                 "longestStreakDays": 64,
+                "longestRunningTurnSec": 125_146,
             },
             "dailyUsageBuckets": [
                 {"startDate": "2026-08-08", "tokens": 900},
@@ -46,11 +47,110 @@ class DashSyncTests(unittest.TestCase):
         self.assertEqual(dash["today"], "133.2M")
         self.assertEqual(dash["lifetime"], "48.8B")
         self.assertEqual(dash["streak"], "38 days")
+        self.assertEqual(dash["peak_day"], "2.7B")
+        self.assertEqual(dash["longest_streak"], "64D")
+        self.assertEqual(dash["seven_day_total"], "133.2M")
+        self.assertEqual(dash["longest_run"], "34H45M")
         self.assertEqual(dash["insight_left"], "PEAK DAY 2.7B | LONGEST STREAK 64D")
         self.assertNotIn("calendar", dash)
         self.assertNotIn("calendar_today", dash)
         self.assertNotIn("peak", dash)
         self.assertNotIn("longest", dash)
+
+    def test_seven_day_total_is_a_calendar_window(self) -> None:
+        usage = {
+            "dailyUsageBuckets": [
+                {"startDate": "2026-08-01", "tokens": 999_000},
+                {"startDate": "2026-08-03", "tokens": 10},
+                {"startDate": "2026-08-07", "totalTokens": 20},
+                {"startDate": "2026-08-09", "tokens": 30},
+                {"startDate": "2026-08-10", "tokens": 777_000},
+                {"startDate": "not-a-date", "tokens": 888_000},
+            ]
+        }
+        self.assertEqual(
+            sync.seven_day_total_from_usage(usage, date(2026, 8, 9)), 60
+        )
+        self.assertEqual(sync.format_duration(125_146), "34H45M")
+        self.assertEqual(sync.format_duration(2_700), "45M")
+        self.assertEqual(sync.format_duration(None), "")
+
+    def test_chart_is_a_fourteen_calendar_day_window(self) -> None:
+        usage = {
+            "dailyUsageBuckets": [
+                {"startDate": "2026-07-01", "tokens": 999},
+                {"startDate": "2026-08-07", "totalTokens": 10},
+                {"startDate": "2026-08-09", "tokens": 100},
+            ]
+        }
+        days = sync.days_from_usage(usage, 14, date(2026, 8, 9))
+        self.assertEqual(len(days), 14)
+        self.assertEqual(days[-2], 0)
+        self.assertGreater(days[-3], 0)
+        self.assertEqual(days[-1], 255)
+
+    def test_payload_includes_an_optional_second_pet_frame(self) -> None:
+        frame = "aa" * ((sync.PET_W * sync.PET_H) // 8)
+        alternate = "55" * ((sync.PET_W * sync.PET_H) // 8)
+        payload = sync.build_payload({}, {}, {}, frame, avatar_alt_hex=alternate)
+        self.assertEqual(payload["dash"]["avatar_hex"], frame)
+        self.assertEqual(payload["dash"]["avatar_alt_hex"], alternate)
+
+    def test_single_cell_pet_keeps_its_primary_frame(self) -> None:
+        primary = bytearray([0xAA] * (sync.PET_W * sync.PET_H // 8))
+
+        def fake_sheet_bits(_sheet, row=0, col=0):
+            if col == 1:
+                raise ValueError("single-cell image")
+            return primary
+
+        args = SimpleNamespace(
+            offline=True, no_weather=True, no_avatar=True,
+            no_pet=False, pet="single.png", lat=None, lon=None, ics=None,
+            no_calendar=True,
+        )
+        with patch.object(sync, "fetch_codex_usage",
+                          return_value=({}, {"summary": {}}, None)), \
+             patch.object(sync, "resolve_pet", return_value=("single", b"sheet")), \
+             patch.object(sync, "sheet_bits", side_effect=fake_sheet_bits):
+            payload = asyncio.run(sync.collect_payload(args))
+
+        self.assertEqual(payload["dash"]["avatar_hex"], primary.hex())
+        self.assertNotIn("avatar_alt_hex", payload["dash"])
+
+    def test_push_rejects_an_oversize_payload_before_opening_usb(self) -> None:
+        payload = {"schema": 1, "dash": {"avatar_hex": "a" * sync.CONTENT_MAX_BYTES}}
+        with patch.object(sync, "open_serial") as open_serial:
+            with self.assertRaisesRegex(sync.AppServerError, "over the 12000-byte"):
+                sync.push_to_device("/dev/null", payload)
+        open_serial.assert_not_called()
+
+    def test_profile_photo_fetch_does_not_forward_chatgpt_auth(self) -> None:
+        observed_headers: dict[str, str] | None = None
+
+        def fake_http_bytes(_url: str, headers: dict[str, str]) -> bytes:
+            nonlocal observed_headers
+            observed_headers = headers
+            return b"image"
+
+        avatar = "aa" * (sync.PET_W * sync.PET_H // 8)
+        args = SimpleNamespace(
+            offline=False, no_weather=True, no_avatar=False,
+            no_pet=True, pet=None, lat=None, lon=None, ics=None,
+            no_calendar=True,
+        )
+        with patch.object(sync, "fetch_codex_usage",
+                          return_value=({}, {"summary": {}}, None)), \
+             patch.object(sync, "fetch_codex_profile", return_value={
+                 "display_name": "Jeremy",
+                 "profile_picture_url": "https://images.example/avatar.png",
+             }), \
+             patch.object(sync, "http_bytes", side_effect=fake_http_bytes), \
+             patch.object(sync, "dither_image_bytes", return_value=avatar):
+            payload = asyncio.run(sync.collect_payload(args))
+
+        self.assertEqual(observed_headers, {})
+        self.assertEqual(payload["dash"]["avatar_hex"], avatar)
 
     def test_usage_calendar_preserves_blank_dates_and_today(self) -> None:
         current = date(2026, 8, 9)  # Sunday, first row of the final week.
@@ -159,9 +259,12 @@ class DashSyncTests(unittest.TestCase):
     def test_pet_selection_prefers_explicit_then_the_one_chosen_in_codex(self) -> None:
         seen: list[object] = []
 
-        def fake_load(want, allow_download=True):
+        def fake_resolve(want, allow_download=True):
             seen.append(want)
-            return (str(want or "codex"), bytearray(sync.PET_W * sync.PET_H // 8))
+            return (str(want or "codex"), b"sheet")
+
+        def fake_sheet_bits(_sheet, row=0, col=0):
+            return bytearray(sync.PET_W * sync.PET_H // 8)
 
         def collect(pet_arg, configured):
             seen.clear()
@@ -171,7 +274,8 @@ class DashSyncTests(unittest.TestCase):
             )
             with patch.object(sync, "fetch_codex_usage",
                               return_value=({}, {"summary": {}}, configured)), \
-                 patch.object(sync, "load_pet_bits", side_effect=fake_load):
+                 patch.object(sync, "resolve_pet", side_effect=fake_resolve), \
+                 patch.object(sync, "sheet_bits", side_effect=fake_sheet_bits):
                 asyncio.run(sync.collect_payload(args))
             return seen[0] if seen else None
 
@@ -191,10 +295,10 @@ class DashSyncTests(unittest.TestCase):
 
         called = False
 
-        def fake_load(want, allow_download=True):
+        def fake_resolve(want, allow_download=True):
             nonlocal called
             called = True
-            return ("x", bytearray(8))
+            return ("x", b"sheet")
 
         args = SimpleNamespace(
             offline=True, no_weather=True, no_avatar=True,
@@ -202,7 +306,7 @@ class DashSyncTests(unittest.TestCase):
         )
         with patch.object(sync, "fetch_codex_usage",
                           return_value=({}, {"summary": {}}, "none")), \
-             patch.object(sync, "load_pet_bits", side_effect=fake_load):
+             patch.object(sync, "resolve_pet", side_effect=fake_resolve):
             asyncio.run(sync.collect_payload(args))
         self.assertFalse(called, "a disabled pet must not be pushed")
 

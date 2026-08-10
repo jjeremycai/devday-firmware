@@ -62,14 +62,21 @@ static constexpr int16_t W = 800;
 static constexpr int16_t H = 480;
 static constexpr int16_t MARGIN = 28;
 static constexpr int16_t DASH_MARGIN = 16;
+// Shared exact three-column grid for every terminal page. The 782 px frame
+// cannot divide perfectly by three, so the outer cells take the remainder:
+// 261 / 260 / 261.
+static constexpr int16_t DASH_THIRD_EDGES[4] = {9, 270, 530, 791};
 
 static int16_t drawDashSectionLabel(const String& raw, int16_t x, int16_t y);
+static void drawDarkLegend(const String& raw, int16_t x, int16_t y);
+static void drawDarkApHint(const RenderStatus& st);
+static void pageTabsDark(const char* current);
 
 // Ordered one-bit texture for secondary/history states. Density is deliberately
 // limited to two levels: enough to create hierarchy on a monochrome panel,
 // without turning small shapes into grey mush after an e-paper refresh.
 static void fillDitherRect(int16_t x, int16_t y, int16_t w, int16_t h,
-                           uint8_t density) {
+                           uint8_t density, uint16_t color = TFT_BLACK) {
 #ifdef EPAPER_ENABLE
   if (w <= 0 || h <= 0 || density == 0) return;
   if (density > 2) density = 2;
@@ -78,11 +85,37 @@ static void fillDitherRect(int16_t x, int16_t y, int16_t w, int16_t h,
       const bool ink = density == 1
                          ? ((dx + dy * 2) & 3) == 0       // 25%
                          : ((dx + dy) & 1) == 0;          // 50%
-      if (ink) epaper.drawPixel(x + dx, y + dy, TFT_BLACK);
+      if (ink) epaper.drawPixel(x + dx, y + dy, color);
     }
   }
 #else
-  (void)x; (void)y; (void)w; (void)h; (void)density;
+  (void)x; (void)y; (void)w; (void)h; (void)density; (void)color;
+#endif
+}
+
+static void drawDashedHLine(int16_t x, int16_t y, int16_t w,
+                            uint16_t color, int16_t dash = 5,
+                            int16_t gap = 3) {
+#ifdef EPAPER_ENABLE
+  for (int16_t dx = 0; dx < w; dx += dash + gap) {
+    const int16_t span = dx + dash <= w ? dash : w - dx;
+    epaper.drawFastHLine(x + dx, y, span, color);
+  }
+#else
+  (void)x; (void)y; (void)w; (void)color; (void)dash; (void)gap;
+#endif
+}
+
+static void drawDashedVLine(int16_t x, int16_t y, int16_t h,
+                            uint16_t color, int16_t dash = 5,
+                            int16_t gap = 3) {
+#ifdef EPAPER_ENABLE
+  for (int16_t dy = 0; dy < h; dy += dash + gap) {
+    const int16_t span = dy + dash <= h ? dash : h - dy;
+    epaper.drawFastVLine(x, y + dy, span, color);
+  }
+#else
+  (void)x; (void)y; (void)h; (void)color; (void)dash; (void)gap;
 #endif
 }
 
@@ -223,51 +256,53 @@ static void wxCloudShape(int16_t cx, int16_t cy, int16_t s, uint16_t color) {
   epaper.fillRoundRect(cx - base_w / 2, cy - base_h / 2, base_w, base_h, base_h / 2, color);
 }
 
-static void drawWeatherIcon(int16_t x, int16_t y, int16_t s, const String& cond) {
+static void drawWeatherIcon(int16_t x, int16_t y, int16_t s, const String& cond,
+                            uint16_t color = TFT_BLACK,
+                            uint16_t background = TFT_WHITE) {
   const WxIcon icon = wxIconFor(cond);
   if (icon == WxIcon::NONE) return;
   const int16_t cx = x + s / 2;
   const int16_t cy = y + s / 2;
   switch (icon) {
     case WxIcon::SUN:
-      wxSunDisc(cx, cy, s, TFT_BLACK);
+      wxSunDisc(cx, cy, s, color);
       break;
     case WxIcon::PARTLY: {
       // Sun peeking out top-right; an oversized white cloud first, so a
       // margin of paper separates the two shapes.
-      wxSunDisc(cx + s * 18 / 100, cy - s * 18 / 100, s * 64 / 100, TFT_BLACK);
+      wxSunDisc(cx + s * 18 / 100, cy - s * 18 / 100, s * 64 / 100, color);
       const int16_t ccx = cx - s * 4 / 100;
       const int16_t ccy = cy + s * 16 / 100;
-      wxCloudShape(ccx, ccy, s * 116 / 100, TFT_WHITE);
-      wxCloudShape(ccx, ccy, s * 88 / 100, TFT_BLACK);
+      wxCloudShape(ccx, ccy, s * 116 / 100, background);
+      wxCloudShape(ccx, ccy, s * 88 / 100, color);
       break;
     }
     case WxIcon::CLOUD:
-      wxCloudShape(cx, cy + s * 6 / 100, s, TFT_BLACK);
+      wxCloudShape(cx, cy + s * 6 / 100, s, color);
       break;
     case WxIcon::RAIN: {
-      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, color);
       const int16_t drop = s * 16 / 100 < 4 ? 4 : s * 16 / 100;
       for (int8_t i = 0; i < 3; i++) {
         const int16_t dx = cx - s * 22 / 100 + i * (s * 22 / 100);
         const int16_t dy = cy + s * 10 / 100;
         for (int16_t k = 0; k < drop; k++) {
-          epaper.fillRect(dx - k / 2, dy + k, 2, 2, TFT_BLACK); // slanted drop
+          epaper.fillRect(dx - k / 2, dy + k, 2, 2, color); // slanted drop
         }
       }
       break;
     }
     case WxIcon::SNOW: {
-      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, color);
       for (int8_t i = 0; i < 3; i++) {
         const int16_t fx = cx - s * 22 / 100 + i * (s * 22 / 100);
         const int16_t fy = cy + s * 16 / 100 + (i == 1 ? s * 10 / 100 : 0);
-        epaper.fillCircle(fx, fy, 2, TFT_BLACK);
+        epaper.fillCircle(fx, fy, 2, color);
       }
       break;
     }
     case WxIcon::STORM: {
-      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, color);
       // Bolt: a staircase of slabs stepping down-left, notched out of the
       // cloud by a white pass so the two shapes never merge into one blob.
       const int16_t bw = s * 18 / 100 < 4 ? 4 : s * 18 / 100;
@@ -276,17 +311,17 @@ static void drawWeatherIcon(int16_t x, int16_t y, int16_t s, const String& cond)
       const int16_t by = cy - s * 2 / 100;
       for (int8_t pass = 0; pass < 2; pass++) {
         const int16_t in = pass == 0 ? 2 : 0;
-        const uint16_t color = pass == 0 ? TFT_WHITE : TFT_BLACK;
-        epaper.fillRect(bx - in, by - in, bw + 2 * in, step + 1 + 2 * in, color);
-        epaper.fillRect(bx - step / 2 - 1 - in, by + step - in, bw + 2 * in, step + 1 + 2 * in, color);
-        epaper.fillRect(bx - step - 2 - in, by + 2 * step - in, bw - 2 + 2 * in, step + 1 + 2 * in, color);
+        const uint16_t pass_color = pass == 0 ? background : color;
+        epaper.fillRect(bx - in, by - in, bw + 2 * in, step + 1 + 2 * in, pass_color);
+        epaper.fillRect(bx - step / 2 - 1 - in, by + step - in, bw + 2 * in, step + 1 + 2 * in, pass_color);
+        epaper.fillRect(bx - step - 2 - in, by + 2 * step - in, bw - 2 + 2 * in, step + 1 + 2 * in, pass_color);
       }
       break;
     }
     case WxIcon::FOG:
-      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, TFT_BLACK);
-      epaper.fillRect(cx - s * 34 / 100, cy + s * 12 / 100, s * 68 / 100, 2, TFT_BLACK);
-      epaper.fillRect(cx - s * 26 / 100, cy + s * 22 / 100, s * 52 / 100, 2, TFT_BLACK);
+      wxCloudShape(cx, cy - s * 12 / 100, s * 84 / 100, color);
+      epaper.fillRect(cx - s * 34 / 100, cy + s * 12 / 100, s * 68 / 100, 2, color);
+      epaper.fillRect(cx - s * 26 / 100, cy + s * 22 / 100, s * 52 / 100, 2, color);
       break;
     default:
       break;
@@ -418,6 +453,37 @@ static void terminalHeader(const char* page, const CardContent& c,
 #endif
 }
 
+// Shared inverted command-line rail for the three local terminal pages.
+static void terminalHeaderDark(const CardContent& c, const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  epaper.fillRect(0, 0, W, 34, TFT_BLACK);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString("[ DEV DAY 2026 ]", 14, 6, GFXFF);
+
+  const String battery_pct = String(st.battery_pct) + "%";
+  const int16_t pct_right = W - 12;
+  const int16_t pct_w = epaper.textWidth(battery_pct, GFXFF);
+  const int16_t battery_x = pct_right - pct_w - 5 - 21;
+  const int16_t wifi_x = battery_x - 26;
+  drawWifiIcon(wifi_x, 8, st.wifi_connected, TFT_WHITE, TFT_BLACK);
+  drawBatteryIcon(battery_x, 8, st.battery_pct, TFT_WHITE);
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(battery_pct, pct_right, 6, GFXFF);
+
+  const String sync = compactLastSync(c.dash_insight_right);
+  const int16_t sync_right = wifi_x - 12;
+  epaper.drawString(sync, sync_right, 6, GFXFF);
+  const int16_t date_right = sync_right - epaper.textWidth(sync, GFXFF) - 22;
+  const String date = compactDashDate(c.header_date);
+  if (date.length()) epaper.drawString(date, date_right, 6, GFXFF);
+
+  epaper.drawFastHLine(8, 31, W - 16, TFT_WHITE);
+  epaper.drawFastHLine(8, 32, W - 16, TFT_WHITE);
+#endif
+}
+
 static void apHint(const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   if (st.ap_hint.length() > 0) {
@@ -497,46 +563,135 @@ static void renderEmpty(const CardContent& c, const RenderStatus& st, const char
 #endif
 }
 
-static void renderBuild(const CardContent& c, const RenderStatus& st) {
+// Missing local data should not kick a terminal page back into the legacy
+// white UI. Keep the same rail, frame, prompt language, and physical-key tabs
+// as the populated state so a first sync feels like data arriving in place.
+static void renderTerminalEmpty(const CardContent& c, const RenderStatus& st,
+                                const char* tab, const char* path,
+                                const char* headline, const char* ask) {
 #ifdef EPAPER_ENABLE
-  header(c, st);
+  epaper.fillScreen(TFT_BLACK);
+  terminalHeaderDark(c, st);
+  epaper.drawRect(9, 43, 782, 396, TFT_WHITE);
+  drawDarkLegend(path, 24, 37);
 
-  String state = c.build_state;
-  state.toUpperCase();
-  epaper.setFreeFont(&FreeSansBold24pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(state, MARGIN, 90, GFXFF);
-
-  epaper.setFreeFont(&FreeSans18pt7b);
-  epaper.drawString(c.build_title, MARGIN, 170, GFXFF);
-
-  epaper.setFreeFont(&FreeSans12pt7b);
-  epaper.drawString(c.build_detail, MARGIN, 230, GFXFF);
-
-  if (c.build_updated_at.length() > 0) {
-    epaper.setFreeFont(&FreeSans9pt7b);
-    epaper.drawString("Updated " + c.build_updated_at, MARGIN, 280, GFXFF);
-  }
-
-  // Machine self-report: fixed mono columns instead of alignment by spaces.
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
   epaper.setFreeFont(&FreeMono9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  const int16_t y = 324;
-  const int16_t value_x = MARGIN + 110;
-  const int16_t value_w = W - MARGIN - value_x;
-  epaper.drawString("firmware", MARGIN, y, GFXFF);
-  epaper.drawString(fit(String(FW_NAME " v" FW_VERSION " (") + st.fw_hash + ")", value_w),
-                    value_x, y, GFXFF);
-  epaper.drawString("battery", MARGIN, y + 28, GFXFF);
-  epaper.drawString(fit(String(st.battery_v, 2) + " V (" + String(st.battery_pct) + "%)", value_w),
-                    value_x, y + 28, GFXFF);
-  epaper.drawString("display", MARGIN, y + 56, GFXFF);
-  epaper.drawString("UC8179 800x480  combo 502", value_x, y + 56, GFXFF);
-  epaper.drawString("link", MARGIN, y + 84, GFXFF);
-  epaper.drawString(fit(st.connection, value_w), value_x, y + 84, GFXFF);
+  epaper.drawString("STATUS", 24, 64, GFXFF);
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString("WAITING FOR LOCAL DATA", 776, 64, GFXFF);
+  drawDashedHLine(15, 91, 770, TFT_WHITE);
 
-  apHint(st);
-  pageTabs("build");
+  epaper.setFreeFont(&FreeMono18pt7b);
+  epaper.setTextDatum(MC_DATUM);
+  epaper.drawString(headline, W / 2, 180, GFXFF);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.drawString("Connect over USB and ask Codex:", W / 2, 224, GFXFF);
+
+  const int16_t cursor_gap = 6;
+  const int16_t cursor_w = 10;
+  String prompt = fit(String("> ") + ask, 730 - cursor_gap - cursor_w);
+  const int16_t prompt_w = epaper.textWidth(prompt, GFXFF);
+  const int16_t prompt_x = (W - prompt_w - cursor_gap - cursor_w) / 2;
+  epaper.setTextDatum(ML_DATUM);
+  epaper.drawString(prompt, prompt_x, 267, GFXFF);
+  epaper.fillRect(prompt_x + prompt_w + cursor_gap, 258,
+                  cursor_w, 18, TFT_WHITE);
+
+  if (st.ap_hint.length()) {
+    drawDarkApHint(st);
+  } else {
+    drawDashedHLine(15, 404, 770, TFT_WHITE);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("USB SYNC  //  LOCAL DATA ONLY", W / 2, 422, GFXFF);
+  }
+  pageTabsDark(tab);
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+#else
+  (void)c; (void)st; (void)tab; (void)path; (void)headline; (void)ask;
+#endif
+}
+
+static void renderBuild(const CardContent& c, const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  epaper.fillScreen(TFT_BLACK);
+  terminalHeaderDark(c, st);
+
+  epaper.drawRect(9, 43, 782, 152, TFT_WHITE);
+  drawDarkLegend("/sys/firmware", 24, 37);
+  drawDashedVLine(DASH_THIRD_EDGES[1], 49, 139, TFT_WHITE);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString("STATUS", 24, 65, GFXFF);
+  String state = c.build_state;
+  state.toUpperCase();
+  epaper.setFreeFont(&FreeMono24pt7b);
+  epaper.drawString(fit(state, 230), 24, 96, GFXFF);
+
+  epaper.setFreeFont(&FreeMono18pt7b);
+  epaper.drawString(fit(c.build_title, 472), 294, 70, GFXFF);
+  epaper.setFreeFont(&FreeSans9pt7b);
+  int detail_split = -1;
+  for (size_t i = 0; i < c.build_detail.length(); i++) {
+    if (c.build_detail.charAt(i) != ' ') continue;
+    if (epaper.textWidth(c.build_detail.substring(0, i), GFXFF) <= 472) {
+      detail_split = (int)i;
+    } else {
+      break;
+    }
+  }
+  if (detail_split > 0 &&
+      epaper.textWidth(c.build_detail, GFXFF) > 472) {
+    epaper.drawString(c.build_detail.substring(0, detail_split), 294, 113, GFXFF);
+    epaper.drawString(fit(c.build_detail.substring(detail_split + 1,
+                                                    c.build_detail.length()), 472),
+                      294, 137, GFXFF);
+  } else {
+    epaper.drawString(fit(c.build_detail, 472), 294, 124, GFXFF);
+  }
+
+  if (c.build_updated_at.length() > 0) {
+    epaper.setFreeFont(&FreeMono9pt7b);
+    String updated = "UPDATED " + c.build_updated_at;
+    updated.toUpperCase();
+    epaper.drawString(fit(updated, 472), 294, 168, GFXFF);
+  }
+
+  epaper.drawRect(9, 203, 782, 236, TFT_WHITE);
+  drawDarkLegend("/dev/hardware", 24, 197);
+  drawDashedVLine(DASH_THIRD_EDGES[1], 210, 193, TFT_WHITE);
+
+  String labels[4] = {"FIRMWARE", "BATTERY", "DISPLAY", "LINK"};
+  String values[4] = {
+    String(FW_NAME " v" FW_VERSION " (") + st.fw_hash + ")",
+    String(st.battery_v, 2) + " V (" + String(st.battery_pct) + "%)",
+    "UC8179 800x480  //  COMBO 502",
+    st.connection,
+  };
+  const int16_t rows_top = 216;
+  const int16_t row_h = 47;
+  for (uint8_t i = 0; i < 4; i++) {
+    const int16_t row_y = rows_top + (int16_t)i * row_h;
+    if (i > 0) drawDashedHLine(15, row_y, 770, TFT_WHITE);
+    epaper.setFreeFont(&FreeMonoBold9pt7b);
+    epaper.setTextDatum(ML_DATUM);
+    epaper.drawString(labels[i], 24, row_y + row_h / 2, GFXFF);
+    epaper.setFreeFont(&FreeMono9pt7b);
+    epaper.drawString(fit(values[i], 472), 294, row_y + row_h / 2, GFXFF);
+  }
+
+  if (st.ap_hint.length()) {
+    drawDarkApHint(st);
+  } else {
+    drawDashedHLine(15, 404, 770, TFT_WHITE);
+    epaper.setFreeFont(&FreeMono9pt7b);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("FACTORY CHECK  //  USB SERVICE", W / 2, 422, GFXFF);
+  }
+  pageTabsDark("build");
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
 #endif
 }
 
@@ -605,97 +760,68 @@ static String formatAgendaTime(const String& raw) {
 
 static void renderAgenda(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  terminalHeader("AGENDA", c, st);
-
   if (!contentHasAgenda(c)) {
-    renderEmpty(c, st, "agenda", "AGENDA", "No events today", "put my calendar on my terminal");
+    renderTerminalEmpty(c, st, "agenda", "/var/agenda/today",
+                        "No events today", "put my calendar on my terminal");
     return;
   }
 
-  // Contextual section rail, followed by a compact date/status row.
-  const int16_t section_x = MARGIN;
-  const int16_t section_y = 54;
-  const int16_t section_w = drawDashSectionLabel("AGENDA", section_x, section_y);
-  epaper.drawFastHLine(section_x + section_w, section_y + 12,
-                      W - MARGIN - (section_x + section_w), TFT_BLACK);
+  epaper.fillScreen(TFT_BLACK);
+  terminalHeaderDark(c, st);
+  epaper.drawRect(9, 43, 782, 396, TFT_WHITE);
+  drawDarkLegend("/var/agenda/today", 24, 37);
 
-  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setFreeFont(&FreeMono9pt7b);
   epaper.setTextDatum(TL_DATUM);
   String adate = c.agenda_date; adate.toUpperCase();
-  epaper.drawString(adate, MARGIN, 88, GFXFF);
+  epaper.drawString(fit(adate, 540), 24, 62, GFXFF);
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(String(c.agenda_count) + " EVENTS", W - MARGIN, 88, GFXFF);
-  epaper.drawFastHLine(MARGIN, 108, W - 2 * MARGIN, TFT_BLACK);
+  String count = String(c.agenda_count) + (c.agenda_count == 1 ? " EVENT" : " EVENTS");
+  epaper.drawString(count, 776, 62, GFXFF);
+  drawDashedHLine(15, 90, 770, TFT_WHITE);
 
-  const int16_t row_h = 58;
-  const int16_t gap = 12;
-  const int16_t y0 = 122;
   const size_t rows =
       c.agenda_count < CardContent::AGENDA_MAX ? c.agenda_count : CardContent::AGENDA_MAX;
-
-  // Timeline spine, drawn between the first and last marker rather than to a
-  // fixed height — a short day used to leave it dangling past the last event.
-  const int16_t spineX = MARGIN + 14;
-  const int16_t first_dot = y0 + row_h / 2;
-  const int16_t last_dot = y0 + (int16_t)(rows - 1) * (row_h + gap) + row_h / 2;
-  if (rows > 1) {
-    epaper.drawFastVLine(spineX, first_dot, last_dot - first_dot, TFT_BLACK);
-  }
+  const int16_t rows_top = 96;
+  const int16_t rows_bottom = st.ap_hint.length() ? 400 : 431;
+  const int16_t row_h = (rows_bottom - rows_top) / (int16_t)rows;
+  drawDashedVLine(DASH_THIRD_EDGES[1], rows_top,
+                  rows_bottom - rows_top, TFT_WHITE);
 
   for (size_t i = 0; i < rows; i++) {
-    int16_t ry = y0 + (int16_t)i * (row_h + gap);
-    const int16_t card_x = MARGIN + 28;
-    const int16_t card_w = W - 2 * MARGIN - 28;
-    const int16_t time_x = MARGIN + 40;
-    const int16_t text_left = MARGIN + 222;
-    const int16_t divider_x = text_left - 16;
-
-    // The next event gets an inverse time cell. It is a stronger, cleaner
-    // active state than shading the entire row behind body copy.
-    if (i == 0) {
-      epaper.fillRect(card_x, ry, divider_x - card_x, row_h, TFT_BLACK);
-    }
-    epaper.drawFastVLine(divider_x, ry, row_h, TFT_BLACK);
-    epaper.drawFastHLine(card_x, ry + row_h, card_w, TFT_BLACK);
-
-    // Filled marker for what is next, hollow for the rest.
-    if (i == 0) {
-      epaper.fillCircle(spineX, ry + row_h / 2, 7, TFT_BLACK);
-    } else {
-      epaper.drawCircle(spineX, ry + row_h / 2, 5, TFT_BLACK);
-    }
-
-    // The time is vertically centred in its fixed column. Event text stays
-    // left aligned, but is vertically centred as a two-line block instead of
-    // being anchored to the time's much larger glyph baseline.
-    const int16_t text_right = W - MARGIN - 16;
-    const int16_t text_w = text_right - text_left;
+    const int16_t ry = rows_top + (int16_t)i * row_h;
     const int16_t center_y = ry + row_h / 2;
+    const bool spotlight = rows == 1;
+    if (i > 0) drawDashedHLine(15, ry, 770, TFT_WHITE);
 
-    epaper.setFreeFont(&FreeMonoBold18pt7b);
+    epaper.setFreeFont(&FreeMonoBold9pt7b);
     epaper.setTextDatum(ML_DATUM);
-    if (i == 0) epaper.setTextColor(TFT_WHITE, TFT_BLACK);
-    epaper.drawString(formatAgendaTime(c.agenda_time[i]), time_x, center_y, GFXFF);
-    epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+    epaper.drawString(i == 0 ? "> NEXT" : "  QUEUED", 24,
+                      center_y - (spotlight ? 42 : 24), GFXFF);
+
+    epaper.setFreeFont(spotlight ? &FreeMono24pt7b : &FreeMono18pt7b);
+    epaper.drawString(fit(formatAgendaTime(c.agenda_time[i]), 220), 24,
+                      center_y + (spotlight ? 12 : 8), GFXFF);
 
     const bool has_detail = c.agenda_detail[i].length() > 0;
-    epaper.setFreeFont(&FreeSans12pt7b);
+    epaper.setFreeFont(spotlight ? &FreeSans18pt7b : &FreeSans12pt7b);
     epaper.setTextDatum(has_detail ? BL_DATUM : ML_DATUM);
-    epaper.drawString(fit(c.agenda_title[i], text_w), text_left,
-                      has_detail ? center_y - 2 : center_y, GFXFF);
+    epaper.drawString(fit(c.agenda_title[i], 472), 294,
+                      has_detail ? center_y - (spotlight ? 4 : 2) : center_y,
+                      GFXFF);
 
     if (has_detail) {
-      // Sentence case: room names and people stay human prose under the title
-      // while machine-derived times remain monospace.
-      epaper.setFreeFont(&FreeSans9pt7b);
+      epaper.setFreeFont(spotlight ? &FreeSans12pt7b : &FreeSans9pt7b);
       epaper.setTextDatum(TL_DATUM);
-      epaper.drawString(fit(c.agenda_detail[i], text_w), text_left,
-                        center_y + 4, GFXFF);
+      epaper.drawString(fit(c.agenda_detail[i], 472), 294,
+                        center_y + (spotlight ? 8 : 4), GFXFF);
     }
   }
 
-  apHint(st);
-  pageTabs("agenda");
+  if (st.ap_hint.length()) drawDarkApHint(st);
+  pageTabsDark("agenda");
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
 #endif
 }
 
@@ -714,53 +840,89 @@ static void drawQr(int16_t x, int16_t y, uint8_t scale) {
 
 static void renderYours(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st);
+  epaper.fillScreen(TFT_BLACK);
+  terminalHeaderDark(c, st);
+  epaper.drawRect(9, 43, 782, 396, TFT_WHITE);
+  drawDarkLegend("/dev/terminal", 24, 37);
+  drawDashedVLine(DASH_THIRD_EDGES[2], 49, 354, TFT_WHITE);
 
-  epaper.setFreeFont(&FreeSansBold24pt7b);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString("This terminal is open", MARGIN, 96, GFXFF);
+  epaper.drawString("OPEN FIRMWARE", 24, 65, GFXFF);
+  epaper.setFreeFont(&FreeMono18pt7b);
+  epaper.drawString("THIS TERMINAL IS OPEN", 24, 96, GFXFF);
+  drawDashedHLine(15, 145, DASH_THIRD_EDGES[2] - 21, TFT_WHITE);
 
   epaper.setFreeFont(&FreeSans12pt7b);
-  int16_t y = 180;
-  epaper.drawString("Flash your own firmware over USB -", MARGIN, y, GFXFF);
-  epaper.drawString("no keys, no locks.", MARGIN, y + 32, GFXFF);
-  epaper.drawString("Scan the code for the hardware recipe:", MARGIN, y + 76, GFXFF);
-  epaper.drawString("parts, wiring, and the exact Arduino +", MARGIN, y + 108, GFXFF);
-  epaper.drawString("Codex recipe to build a replacement app.", MARGIN, y + 140, GFXFF);
+  epaper.drawString("Flash your own firmware over USB.", 24, 170, GFXFF);
+  epaper.drawString("No keys. No locks.", 24, 203, GFXFF);
+
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
+  epaper.drawString("SOURCE", 24, 254, GFXFF);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.drawString("github.com/jjeremycai/devday-firmware", 24, 282, GFXFF);
+
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
+  epaper.drawString("ASK CODEX", 24, 326, GFXFF);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.drawString("> set up my Dev Day terminal", 24, 354, GFXFF);
+
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
+  epaper.setTextDatum(TC_DATUM);
+  const int16_t qr_center =
+      (DASH_THIRD_EDGES[2] + DASH_THIRD_EDGES[3]) / 2;
+  epaper.drawString("SCAN RECIPE", qr_center, 65, GFXFF);
+  const int16_t qr_scale = 5;
+  const int16_t qr_ink = QR_RECIPE_SIZE * qr_scale;
+  const int16_t qr_quiet = 12;
+  const int16_t qr_box = qr_ink + 2 * qr_quiet;
+  const int16_t qr_box_x = qr_center - qr_box / 2;
+  const int16_t qr_box_y = 103;
+  epaper.fillRect(qr_box_x, qr_box_y, qr_box, qr_box, TFT_WHITE);
+  drawQr(qr_box_x + qr_quiet, qr_box_y + qr_quiet, qr_scale);
 
   epaper.setFreeFont(&FreeMono9pt7b);
-  epaper.drawString(fit(RECIPE_URL, W - 2 * MARGIN - QR_RECIPE_SIZE * 6 - 20),
-                    MARGIN, y + 186, GFXFF);
+  epaper.drawString("PARTS + WIRING + CODE", qr_center, 337, GFXFF);
+  epaper.drawString("README", qr_center, 367, GFXFF);
 
-  drawQr(W - MARGIN - 37 * 6, 100, 6);
-
-  apHint(st);
-  pageTabs("yours");
+  if (st.ap_hint.length()) {
+    drawDarkApHint(st);
+  } else {
+    drawDashedHLine(15, 404, 770, TFT_WHITE);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("USB FLASH  //  OPEN SOURCE  //  NO LOCKS",
+                      W / 2, 422, GFXFF);
+  }
+  pageTabsDark("yours");
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
 #endif
 }
 
-static void drawSegmentCard(const CardContent& c, size_t i, int16_t x, int16_t y, int16_t w, int16_t h) {
+static void drawSegmentCard(const CardContent& c, size_t i, int16_t x,
+                            int16_t y, int16_t w, int16_t h,
+                            uint16_t color = TFT_BLACK,
+                            uint16_t background = TFT_WHITE) {
 #ifdef EPAPER_ENABLE
-  const int16_t cx = x + 6;
+  const int16_t cx = x + 16;
   String label = c.wx_label[i];
   label.toUpperCase();
-  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setTextColor(color, background);
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(label, cx, y + 12, GFXFF);
-  // Keep the icon in the card header so the main reading row has room for
-  // temperature and prose on one shared baseline.
-  drawWeatherIcon(x + w - 32, y + 8, 24, c.wx_cond[i]);
-  epaper.drawFastHLine(x + 6, y + 38, w - 12, TFT_BLACK);
+  epaper.drawString(fit(label, w - 72), cx, y + 10, GFXFF);
+  drawWeatherIcon(x + w - 48, y + 7, 30, c.wx_cond[i], color, background);
+  drawDashedHLine(x + 16, y + 42, w - 32, color);
 
-  const int16_t reading_y = y + 70;
-  epaper.setFreeFont(&FreeSans18pt7b);
+  const int16_t reading_y = y + 68;
+  epaper.setFreeFont(&FreeMono18pt7b);
   epaper.setTextDatum(ML_DATUM);
   epaper.drawString(c.wx_temp[i], cx, reading_y, GFXFF);
   const int16_t temp_w = epaper.textWidth(c.wx_temp[i], GFXFF);
 
   epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.drawString(fit(c.wx_cond[i], w - 28 - temp_w),
-                    cx + temp_w + 14, reading_y + 1, GFXFF);
+  epaper.drawString(fit(c.wx_cond[i], w - 44 - temp_w),
+                    cx + temp_w + 12, reading_y + 1, GFXFF);
 
   epaper.setFreeFont(&FreeMonoBold9pt7b);
   String sub = c.wx_wind[i];
@@ -769,11 +931,14 @@ static void drawSegmentCard(const CardContent& c, size_t i, int16_t x, int16_t y
     sub += c.wx_precip[i];
   }
   epaper.setTextDatum(BL_DATUM);
-  epaper.drawString(fit(sub, w - 12), cx, y + h - 8, GFXFF);
+  epaper.drawString(fit(sub, w - 32), cx, y + h - 10, GFXFF);
 #endif
 }
 
-static void drawHourStrip(const CardContent& c, int16_t x, int16_t y, int16_t w, int16_t h) {
+static void drawHourStrip(const CardContent& c, int16_t x, int16_t y,
+                          int16_t w, int16_t h,
+                          uint16_t color = TFT_BLACK,
+                          uint16_t background = TFT_WHITE) {
 #ifdef EPAPER_ENABLE
   size_t n = c.wx_hour_count;
   if (n == 0) return;
@@ -793,98 +958,92 @@ static void drawHourStrip(const CardContent& c, int16_t x, int16_t y, int16_t w,
     int16_t bx = x + (int16_t)i * (bar_w + gap);
     int16_t by = y + h - bh;
     if (i == (size_t)c.wx_hour_now) {
-      epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK); // now: solid
+      epaper.fillRect(bx, by, bar_w, bh, color); // now: solid
     } else if ((int16_t)i < c.wx_hour_now) {
-      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK); // past: textured
-      fillDitherRect(bx + 1, by + 1, bar_w - 2, bh - 2, 1);
+      epaper.drawRect(bx, by, bar_w, bh, color); // past: textured
+      fillDitherRect(bx + 1, by + 1, bar_w - 2, bh - 2, 1, color);
     } else {
-      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK); // future: outline
+      epaper.drawRect(bx, by, bar_w, bh, color); // future: outline
     }
   }
+#else
+  (void)c; (void)x; (void)y; (void)w; (void)h; (void)color; (void)background;
 #endif
 }
 
 static void renderWeather(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  terminalHeader("WEATHER", c, st);
-
   if (!contentHasWeather(c)) {
-    renderEmpty(c, st, "weather", "WEATHER", "No forecast yet", "set up my Dev Day terminal");
+    renderTerminalEmpty(c, st, "weather", "/sys/weather",
+                        "No forecast yet", "set up my Dev Day terminal");
     return;
   }
 
-  // Place + date row.
-  epaper.setFreeFont(&FreeSans12pt7b);
-  const int16_t date_w = epaper.textWidth(c.weather_date, GFXFF);
-  epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(c.weather_date, W - MARGIN, 80, GFXFF);
-  epaper.setFreeFont(&FreeSans18pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(fit(c.weather_location, W - 2 * MARGIN - date_w - 24), MARGIN, 74, GFXFF);
+  epaper.fillScreen(TFT_BLACK);
+  terminalHeaderDark(c, st);
+  epaper.drawRect(9, 43, 782, 127, TFT_WHITE);
+  drawDarkLegend("/sys/weather", 24, 37);
 
-  // Hero: current temp + condition icon + condition, hi/lo on the right.
-  epaper.setFreeFont(&FreeSansBold24pt7b);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setFreeFont(&FreeMono9pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(c.weather_now_temp, MARGIN, 116, GFXFF);
+  epaper.drawString(fit(c.weather_location, 520), 24, 60, GFXFF);
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(fit(c.weather_date, 220), 776, 60, GFXFF);
+  drawDashedHLine(15, 88, 770, TFT_WHITE);
+
+  epaper.setFreeFont(&FreeMono24pt7b);
+  epaper.setTextDatum(ML_DATUM);
+  epaper.drawString(c.weather_now_temp, 24, 128, GFXFF);
   int16_t tw = epaper.textWidth(c.weather_now_temp, GFXFF);
-  int16_t cond_x = MARGIN + tw + 20;
+  int16_t cond_x = 24 + tw + 22;
   if (wxIconFor(c.weather_now_cond) != WxIcon::NONE) {
-    drawWeatherIcon(cond_x, 118, 36, c.weather_now_cond);
-    cond_x += 48;
+    drawWeatherIcon(cond_x, 103, 48, c.weather_now_cond,
+                    TFT_WHITE, TFT_BLACK);
+    cond_x += 64;
   }
-  epaper.setFreeFont(&FreeSans18pt7b);
-  epaper.drawString(c.weather_now_cond, cond_x, 124, GFXFF);
   epaper.setFreeFont(&FreeSans12pt7b);
+  epaper.setTextDatum(ML_DATUM);
+  epaper.drawString(fit(c.weather_now_cond, 735 - cond_x), cond_x, 128, GFXFF);
+  epaper.setFreeFont(&FreeMono9pt7b);
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(c.weather_now_hilo, W - MARGIN, 128, GFXFF);
+  epaper.drawString(c.weather_now_hilo, 776, 145, GFXFF);
 
-  const int16_t forecast_label_y = 174;
-  const int16_t forecast_label_w =
-      drawDashSectionLabel("FORECAST", MARGIN, forecast_label_y);
-  epaper.drawFastHLine(MARGIN + forecast_label_w, forecast_label_y + 12,
-                      W - MARGIN - (MARGIN + forecast_label_w), TFT_BLACK);
-
-  // Three open day-part columns. Vertical separators provide structure while
-  // the missing outer boxes leave enough white space for the small panel.
-  const int16_t seg_y = 211;
-  const int16_t seg_h = 116;
-  const int16_t gap = 24;
-  const int16_t seg_w = (W - 2 * MARGIN - 2 * gap) / 3;
+  epaper.drawRect(9, 179, 782, 260, TFT_WHITE);
+  drawDarkLegend("/proc/forecast [24h]", 24, 173);
+  const int16_t seg_y = 194;
+  const int16_t seg_h = 132;
   size_t n = c.wx_seg_count;
   for (size_t i = 0; i < CardContent::WX_SEGS; i++) {
-    int16_t sx = MARGIN + (int16_t)i * (seg_w + gap);
     if (i > 0) {
-      epaper.drawFastVLine(sx - gap / 2, seg_y + 4, seg_h - 8, TFT_BLACK);
+      drawDashedVLine(DASH_THIRD_EDGES[i], seg_y, seg_h, TFT_WHITE);
     }
     if (i < n) {
-      drawSegmentCard(c, i, sx, seg_y, seg_w, seg_h);
+      drawSegmentCard(c, i, DASH_THIRD_EDGES[i], seg_y,
+                      DASH_THIRD_EDGES[i + 1] - DASH_THIRD_EDGES[i],
+                      seg_h, TFT_WHITE, TFT_BLACK);
     }
   }
 
-  // 24-hour temperature skyline. It occupies the same band as the portal
-  // credentials, which matter more while the AP is up — drop it entirely then
-  // rather than drawing the two on top of each other.
+  drawDashedHLine(15, 333, 770, TFT_WHITE);
   if (st.ap_hint.length() == 0) {
-    const int16_t hours_label_y = 348;
-    const int16_t hours_label_w =
-        drawDashSectionLabel("NEXT 24 HOURS", MARGIN, hours_label_y);
-    epaper.drawFastHLine(MARGIN + hours_label_w, hours_label_y + 12,
-                        W - MARGIN - (MARGIN + hours_label_w), TFT_BLACK);
-
-    drawHourStrip(c, MARGIN, 381, W - 2 * MARGIN, 27);
+    drawHourStrip(c, 24, 350, 752, 42, TFT_WHITE, TFT_BLACK);
 
     static const char* kHourMarks[4] = {"12a", "6a", "12p", "6p"};
     epaper.setFreeFont(&FreeMono9pt7b);
-    const int16_t strip_w = W - 2 * MARGIN;
+    epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+    const int16_t strip_w = 752;
     for (uint8_t i = 0; i < 4; i++) {
-      int16_t hx = MARGIN + (int16_t)i * 6 * strip_w / 24;
+      int16_t hx = 24 + (int16_t)i * 6 * strip_w / 24;
       epaper.setTextDatum(i == 0 ? TL_DATUM : TC_DATUM);
-      epaper.drawString(kHourMarks[i], hx, 412, GFXFF);
+      epaper.drawString(kHourMarks[i], hx, 405, GFXFF);
     }
+  } else {
+    drawDarkApHint(st);
   }
 
-  apHint(st);
-  pageTabs("weather");
+  pageTabsDark("weather");
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
 #endif
 }
 
@@ -899,7 +1058,9 @@ static bool packedBit(const uint8_t* bits, int16_t w, int16_t x, int16_t y) {
 // neighbour scaling keeps the pushed 1-bit asset crisp at the mock's larger
 // profile size without introducing greys or another asset format.
 static void drawPet(const CardContent& c, int16_t x0, int16_t y0,
-                    int16_t draw_w, int16_t draw_h) {
+                    int16_t draw_w, int16_t draw_h,
+                    bool alternate = false,
+                    uint16_t color = TFT_BLACK) {
 #ifdef EPAPER_ENABLE
   for (int16_t dy = 0; dy < draw_h; dy++) {
     const int16_t sy = (int16_t)((int32_t)dy * CardContent::PET_H / draw_h);
@@ -907,14 +1068,20 @@ static void drawPet(const CardContent& c, int16_t x0, int16_t y0,
       const int16_t sx = (int16_t)((int32_t)dx * CardContent::PET_W / draw_w);
       bool ink = false;
       if (c.dash_avatar_present) {
-        ink = packedBit(c.dash_avatar, CardContent::PET_W, sx, sy);
+        const uint8_t* bits = alternate && c.dash_avatar_alt_present
+                                ? c.dash_avatar_alt : c.dash_avatar;
+        ink = packedBit(bits, CardContent::PET_W, sx, sy);
       } else {
         const size_t bit = (size_t)sy * CardContent::PET_W + (size_t)sx;
-        const uint8_t b = pgm_read_byte(&PET_ASSET_BITMAP[bit / 8]);
+        const uint8_t* asset = PET_ASSET_BITMAP;
+#ifdef PET_ASSET_ALT_PRESENT
+        if (alternate) asset = PET_ASSET_ALT_BITMAP;
+#endif
+        const uint8_t b = pgm_read_byte(&asset[bit / 8]);
         ink = (b & (0x80 >> (bit % 8))) != 0;
       }
       if (ink) {
-        epaper.drawPixel(x0 + dx, y0 + dy, TFT_BLACK);
+        epaper.drawPixel(x0 + dx, y0 + dy, color);
       }
     }
   }
@@ -924,7 +1091,7 @@ static void drawPet(const CardContent& c, int16_t x0, int16_t y0,
 static void drawMetric(int16_t x, int16_t y, int16_t max_w,
                        const String& value, const char* label) {
 #ifdef EPAPER_ENABLE
-  epaper.setFreeFont(&FreeMonoBold18pt7b);
+  epaper.setFreeFont(&FreeMono18pt7b);
   epaper.setTextDatum(TL_DATUM);
   epaper.drawString(fit(value.length() ? value : "-", max_w), x, y, GFXFF);
   String up = label;
@@ -934,7 +1101,9 @@ static void drawMetric(int16_t x, int16_t y, int16_t max_w,
 #endif
 }
 
-static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, int16_t h) {
+static void drawDayChart(const CardContent& c, int16_t x, int16_t y,
+                         int16_t w, int16_t h,
+                         uint16_t color = TFT_BLACK) {
 #ifdef EPAPER_ENABLE
   size_t n = c.dash_day_count;
   if (n == 0) {
@@ -956,7 +1125,7 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
   }
 
   // Baseline rule the bars sit on.
-  epaper.drawFastHLine(x, base_y, w, TFT_BLACK);
+  epaper.drawFastHLine(x, base_y, w, color);
 
   for (size_t i = 0; i < n; i++) {
     int16_t bh = (int16_t)((uint32_t)c.dash_day_tokens[i] * (uint32_t)(h - 2) / peak);
@@ -964,12 +1133,12 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
     int16_t bx = x + (int16_t)i * (bar_w + gap);
     int16_t by = base_y - bh;
     if (i + 1 == n) {
-      epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK); // today: solid
+      epaper.fillRect(bx, by, bar_w, bh, color); // today: solid
     } else {
       const bool current_week = i + 7 >= n;
-      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK);
+      epaper.drawRect(bx, by, bar_w, bh, color);
       fillDitherRect(bx + 1, by + 1, bar_w - 2, bh - 2,
-                     current_week ? 2 : 1);
+                     current_week ? 2 : 1, color);
     }
   }
 #endif
@@ -1021,6 +1190,147 @@ static void drawDashMetric(int16_t center_x, const String& value, const char* la
   up.toUpperCase();
   epaper.setFreeFont(&FreeMono9pt7b);
   epaper.drawString(up, center_x, 250, GFXFF);
+#endif
+}
+
+// Keep the whole atlas cell inside the partial-refresh window. A custom frame
+// is allowed to use its top row; relying on the bundled pet's transparent
+// margin would let those pixels escape the /dev/user frame and never refresh.
+static constexpr int16_t DASH_PET_Y = 60;
+static constexpr int16_t DASH_PET_H = 165;
+// Preserve the 96:104 atlas-cell ratio. The previous 200x185 rectangle made
+// every pet about 17% too wide because drawPet scales each axis independently.
+static constexpr int16_t DASH_PET_W =
+    (DASH_PET_H * CardContent::PET_W + CardContent::PET_H / 2) /
+    CardContent::PET_H;
+static constexpr int16_t DASH_PET_X =
+    DASH_THIRD_EDGES[0] +
+    (DASH_THIRD_EDGES[1] - DASH_THIRD_EDGES[0] - DASH_PET_W) / 2;
+
+static void drawDarkLegend(const String& raw, int16_t x, int16_t y) {
+#ifdef EPAPER_ENABLE
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  const int16_t w = epaper.textWidth(raw, GFXFF);
+  epaper.fillRect(x - 4, y - 2, w + 8, 22, TFT_BLACK);
+  epaper.drawString(raw, x, y, GFXFF);
+#else
+  (void)raw; (void)x; (void)y;
+#endif
+}
+
+static void drawDarkMetric(int16_t center_x, const String& value,
+                           const char* label) {
+#ifdef EPAPER_ENABLE
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setTextDatum(TC_DATUM);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  String up = label;
+  up.toUpperCase();
+  epaper.drawString(up, center_x, 240, GFXFF);
+  epaper.setFreeFont(&FreeMono18pt7b);
+  epaper.drawString(fit(value.length() ? value : "-", 220), center_x, 263, GFXFF);
+#endif
+}
+
+static String legacyDashStat(const String& raw, const char* label) {
+  String upper = raw;
+  upper.toUpperCase();
+  String prefix = String(label) + " ";
+  const int start = upper.indexOf(prefix.c_str());
+  if (start < 0) return "";
+  String value = raw.substring(start + prefix.length(), raw.length());
+  const int pipe = value.indexOf("|");
+  if (pipe >= 0) value = value.substring(0, pipe);
+  value.trim();
+  return value;
+}
+
+static void drawDarkFooterStat(int16_t x0, int16_t x1,
+                               const char* label, const String& value) {
+#ifdef EPAPER_ENABLE
+  String text = String(label) + " " + (value.length() ? value : "-");
+  text.toUpperCase();
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setTextDatum(MC_DATUM);
+  // Six pixels of total breathing room keeps the label/value pair clear of
+  // the dashed separators in each one-third cell.
+  epaper.drawString(fit(text, x1 - x0 - 6), (x0 + x1) / 2, 422, GFXFF);
+#else
+  (void)x0; (void)x1; (void)label; (void)value;
+#endif
+}
+
+static void drawDarkFooter(const CardContent& c) {
+#ifdef EPAPER_ENABLE
+  String peak = c.dash_peak_day;
+  String longest_streak = c.dash_longest_streak;
+  if (peak.length() == 0) peak = legacyDashStat(c.dash_insight_left, "PEAK DAY");
+  if (longest_streak.length() == 0) {
+    longest_streak = legacyDashStat(c.dash_insight_left, "LONGEST STREAK");
+  }
+
+  drawDashedHLine(14, 404, 772, TFT_WHITE);
+  for (uint8_t i = 1; i < 3; i++) {
+    drawDashedVLine(DASH_THIRD_EDGES[i], 410, 24, TFT_WHITE);
+  }
+  drawDarkFooterStat(DASH_THIRD_EDGES[0], DASH_THIRD_EDGES[1],
+                     "PEAK DAY", peak);
+  drawDarkFooterStat(DASH_THIRD_EDGES[1], DASH_THIRD_EDGES[2],
+                     "LONGEST STREAK", longest_streak);
+  drawDarkFooterStat(DASH_THIRD_EDGES[2], DASH_THIRD_EDGES[3],
+                     "7D TOTAL", c.dash_seven_day_total);
+#endif
+}
+
+static void drawDarkApHint(const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  epaper.fillRect(10, 405, 780, 33, TFT_WHITE);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+  epaper.setTextDatum(MC_DATUM);
+  epaper.drawString(fit(st.ap_hint, 752), W / 2, 421, GFXFF);
+#endif
+}
+
+static void pageTabsDark(const char* current) {
+#ifdef EPAPER_ENABLE
+  static const char* kIds[3] = {"dash", "weather", "agenda"};
+  static const char* kLabels[3] = {"1 USAGE", "2 WEATHER", "3 AGENDA"};
+  const int16_t y = 448;
+  const int16_t h = 30;
+  int8_t selected = -1;
+  for (uint8_t i = 0; i < 3; i++) {
+    if (current != nullptr && strcmp(current, kIds[i]) == 0) selected = (int8_t)i;
+  }
+  epaper.drawRect(DASH_THIRD_EDGES[0], y,
+                  DASH_THIRD_EDGES[3] - DASH_THIRD_EDGES[0], h, TFT_WHITE);
+  if (selected >= 0) {
+    epaper.fillRect(DASH_THIRD_EDGES[selected] + 1, y + 1,
+                    DASH_THIRD_EDGES[selected + 1] - DASH_THIRD_EDGES[selected] - 1,
+                    h - 2, TFT_WHITE);
+  }
+  epaper.drawFastVLine(DASH_THIRD_EDGES[1], y, h, TFT_WHITE);
+  epaper.drawFastVLine(DASH_THIRD_EDGES[2], y, h, TFT_WHITE);
+
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
+  epaper.setTextDatum(MC_DATUM);
+  if (selected >= 0) {
+    epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+    epaper.drawString(">", DASH_THIRD_EDGES[selected] + 16,
+                      y + h / 2 + 1, GFXFF);
+  }
+  for (uint8_t i = 0; i < 3; i++) {
+    const bool active = selected >= 0 && i == (uint8_t)selected;
+    epaper.setTextColor(active ? TFT_BLACK : TFT_WHITE,
+                        active ? TFT_WHITE : TFT_BLACK);
+    epaper.drawString(kLabels[i],
+                      (DASH_THIRD_EDGES[i] + DASH_THIRD_EDGES[i + 1]) / 2,
+                      y + h / 2 + 1, GFXFF);
+  }
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
 #endif
 }
 
@@ -1254,68 +1564,103 @@ static void renderDashWithCalendar(const CardContent& c, const RenderStatus& st)
 static void renderDash(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   if (!contentHasDash(c)) {
-    renderEmpty(c, st, "dash", "USAGE", "No usage yet", "set up my Dev Day terminal");
+    renderTerminalEmpty(c, st, "dash", "/proc/token_activity",
+                        "No usage yet", "set up my Dev Day terminal");
     return;
   }
-  terminalHeader("USAGE", c, st);
+  epaper.fillScreen(TFT_BLACK);
+  terminalHeaderDark(c, st);
 
-  // Editorial profile lockup: pet on white, a single separator, then the
-  // attendee identity. Nearest-neighbour scaling keeps the one-bit character
-  // crisp on the physical panel.
-  const int16_t pet_x = 16;
-  const int16_t pet_y = 31;
-  drawPet(c, pet_x, pet_y, 144, 156);
-  epaper.drawFastVLine(168, 58, 114, TFT_BLACK);
+  // /dev/user: profile and top-line metrics share one framed command block.
+  epaper.drawRect(9, 43, 782, 271, TFT_WHITE);
+  drawDarkLegend("/dev/user", 24, 37);
+  drawPet(c, DASH_PET_X, DASH_PET_Y, DASH_PET_W, DASH_PET_H,
+          false, TFT_WHITE);
+  drawDashedVLine(DASH_THIRD_EDGES[1], 49, 176, TFT_WHITE);
 
-  const int16_t text_x = 198;
-  const int16_t name_w = W - DASH_MARGIN - text_x;
-
-  epaper.setFreeFont(&FreeSansBold18pt7b);
+  const int16_t text_x = 329;
+  const int16_t name_w = 432;
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(fit(c.dash_name, name_w), text_x, 76, GFXFF);
+  epaper.setFreeFont(&FreeMono24pt7b);
+  epaper.drawString(fit(c.dash_name, name_w), text_x, 69, GFXFF);
 
-  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.drawString(fit(c.dash_handle, name_w), text_x, 130, GFXFF);
+
   String plan = c.dash_plan;
   plan.toUpperCase();
-  const int16_t badge_x = 414;
-  String handle_line = fit(c.dash_handle, badge_x - text_x - 10);
-  epaper.drawString(handle_line, text_x, 121, GFXFF);
-
   if (plan.length() > 0) {
     epaper.setFreeFont(&FreeMono9pt7b);
-    int16_t bx = badge_x;
-    int16_t by = 118;
+    const int16_t bx = text_x;
+    const int16_t by = 164;
     int16_t bw = epaper.textWidth(plan, GFXFF) + 16;
-    int16_t bh = 25;
-    epaper.drawRoundRect(bx, by, bw, bh, 2, TFT_BLACK);
-    epaper.setTextDatum(ML_DATUM);
-    epaper.drawString(plan, bx + 10, by + bh / 2, GFXFF);
-    epaper.setTextDatum(TL_DATUM);
+    const int16_t bh = 27;
+    epaper.drawRect(bx, by, bw, bh, TFT_WHITE);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString(plan, bx + bw / 2, by + bh / 2 + 1, GFXFF);
   }
 
-  drawDashMetric(128, c.dash_today, "today");
-  drawDashMetric(388, c.dash_lifetime, "lifetime");
-  drawDashMetric(646, c.dash_streak, "current streak");
-  epaper.drawFastVLine(276, 202, 61, TFT_BLACK);
-  epaper.drawFastVLine(522, 202, 61, TFT_BLACK);
+  drawDashedHLine(14, 230, 772, TFT_WHITE);
+  drawDashedVLine(DASH_THIRD_EDGES[1], 236, 71, TFT_WHITE);
+  drawDashedVLine(DASH_THIRD_EDGES[2], 236, 71, TFT_WHITE);
+  drawDarkMetric((DASH_THIRD_EDGES[0] + DASH_THIRD_EDGES[1]) / 2,
+                 c.dash_today, "today");
+  drawDarkMetric((DASH_THIRD_EDGES[1] + DASH_THIRD_EDGES[2]) / 2,
+                 c.dash_lifetime, "lifetime");
+  drawDarkMetric((DASH_THIRD_EDGES[2] + DASH_THIRD_EDGES[3]) / 2,
+                 c.dash_streak, "current streak");
 
-  const int16_t label_y = 280;
-  const int16_t left_x = 18;
-  epaper.setFreeFont(&FreeMono9pt7b);
-  const int16_t left_w = epaper.textWidth("TOKEN ACTIVITY", GFXFF) + 24;
-  epaper.drawFastHLine(left_x + left_w, label_y + 12,
-                      W - 18 - (left_x + left_w), TFT_BLACK);
-  drawDashSectionLabel("TOKEN ACTIVITY", left_x, label_y);
-
-  drawDayChart(c, 22, 309, W - 44, 84);
+  // /proc/token_activity: 14 normalized daily bars over the real three-cell
+  // local summary. Previous/current week use ordered dither; today is solid.
+  epaper.drawRect(9, 322, 782, 117, TFT_WHITE);
+  drawDarkLegend("/proc/token_activity [14d]", 24, 316);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  drawDayChart(c, 24, 333, 752, 62, TFT_WHITE);
 
   if (st.ap_hint.length()) {
-    drawDashApHint(st);
-  } else if (c.dash_insight_left.length()) {
-    drawDashSummary(c.dash_insight_left);
+    drawDarkApHint(st);
+  } else {
+    drawDarkFooter(c);
   }
 
-  pageTabs("dash");
+  pageTabsDark("dash");
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+#endif
+}
+
+bool dashPetCanAnimate(const CardContent& c) {
+  if (!contentHasDash(c)) return false;
+  if (c.dash_avatar_present) {
+    return c.dash_avatar_alt_present &&
+           memcmp(c.dash_avatar, c.dash_avatar_alt, CardContent::PET_BYTES) != 0;
+  }
+#ifdef PET_ASSET_ALT_PRESENT
+  for (size_t i = 0; i < CardContent::PET_BYTES; i++) {
+    if (pgm_read_byte(&PET_ASSET_BITMAP[i]) !=
+        pgm_read_byte(&PET_ASSET_ALT_BITMAP[i])) return true;
+  }
+  return false;
+#else
+  return false;
+#endif
+}
+
+void renderDashPetFrame(const CardContent& c, bool alternate) {
+#ifdef EPAPER_ENABLE
+  if (!dashPetCanAnimate(c)) return;
+  // Keep the partial window inside /dev/user so it cannot disturb the frame,
+  // label, or one-third divider. updataPartial() aligns the x range for the
+  // controller and uses the UC8179 partial waveform.
+  static constexpr int16_t partial_y = DASH_PET_Y;
+  static constexpr int16_t partial_h = DASH_PET_H;
+  epaper.fillRect(DASH_PET_X, partial_y, DASH_PET_W, partial_h, TFT_BLACK);
+  drawPet(c, DASH_PET_X, DASH_PET_Y, DASH_PET_W, DASH_PET_H,
+          alternate, TFT_WHITE);
+  epaper.updataPartial(DASH_PET_X, partial_y, DASH_PET_W, partial_h);
+  buttonsNoteDisplayUpdate();
+#else
+  (void)c; (void)alternate;
 #endif
 }
 

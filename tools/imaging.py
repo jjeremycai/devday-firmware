@@ -246,6 +246,47 @@ def silhouette(
     return _pack(bits, w, h)
 
 
+def dark_silhouette(
+    gray: Sequence[int],
+    alpha: Sequence[int],
+    w: int,
+    h: int,
+    light: int = 170,
+    shade: int = 55,
+) -> bytearray:
+    """Sprite art for white foreground ink on a black display.
+
+    The alpha edge becomes a crisp white outline, bright facial/UI details stay
+    solid, and mid-tones use a checker. Very dark interior regions (such as a
+    pet's terminal face) remain black, so their light cursor details survive
+    instead of turning into a white rectangle after simple color inversion.
+    """
+    inside = [a > 128 for a in alpha]
+
+    def edge_pixel(x: int, y: int) -> bool:
+        i = y * w + x
+        if not inside[i]:
+            return False
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if nx < 0 or ny < 0 or nx >= w or ny >= h or not inside[ny * w + nx]:
+                return True
+        return False
+
+    bits: List[bool] = [False] * (w * h)
+    for y in range(h):
+        for x in range(w):
+            i = y * w + x
+            if not inside[i]:
+                continue
+            g = gray[i]
+            bits[i] = (
+                edge_pixel(x, y)
+                or g >= light
+                or (g >= shade and ((x + y) & 1) == 0)
+            )
+    return _pack(bits, w, h)
+
+
 # ---------------------------------------------------------------------------
 # Convenience wrappers
 # ---------------------------------------------------------------------------
@@ -253,6 +294,12 @@ def photo_to_bits(data: bytes, w: int, h: int) -> bytearray:
     """A photograph → packed 1-bit, via error diffusion."""
     gray, alpha = decode_image(data, w, h)
     return dither(flatten_on_white(gray, alpha), w, h)
+
+
+def photo_to_dark_bits(data: bytes, w: int, h: int) -> bytearray:
+    """A photograph → white foreground ink for a black display."""
+    black_ink = photo_to_bits(data, w, h)
+    return bytearray((~value) & 0xFF for value in black_ink)
 
 
 def sprite_to_bits(
@@ -266,6 +313,19 @@ def sprite_to_bits(
     """Sprite art → packed 1-bit, via two-band alpha silhouette."""
     gray, alpha = decode_image(data, w, h, crop)
     return silhouette(flatten_on_white(gray, alpha), alpha, w, h, threshold, shade)
+
+
+def sprite_to_dark_bits(
+    data: bytes,
+    w: int,
+    h: int,
+    crop: Optional[CropBox] = None,
+    light: int = 170,
+    shade: int = 55,
+) -> bytearray:
+    """Sprite art → white foreground ink for a black display."""
+    gray, alpha = decode_image(data, w, h, crop)
+    return dark_silhouette(gray, alpha, w, h, light, shade)
 
 
 def bits_to_pgm(bits: Sequence[int], w: int, h: int) -> bytes:

@@ -77,11 +77,20 @@ bool cacheReadContent(String& out) {
 bool cacheWriteContent(const String& payload, const String& etag) {
   File f = LittleFS.open(CACHE_CONTENT_PATH, "w");
   if (!f) return false;
-  f.print(payload);
+  const size_t written = f.print(payload);
   f.close();
-  File e = LittleFS.open(CACHE_ETAG_PATH, "w");
-  if (e) {
-    e.print(etag);
+  if (written != payload.length()) return false;
+  if (etag.length() == 0) {
+    if (LittleFS.exists(CACHE_ETAG_PATH) && !LittleFS.remove(CACHE_ETAG_PATH)) {
+      return false;
+    }
+  } else {
+    File e = LittleFS.open(CACHE_ETAG_PATH, "w");
+    if (!e) return false;
+    if (e.print(etag) != etag.length()) {
+      e.close();
+      return false;
+    }
     e.close();
   }
   return true;
@@ -94,10 +103,20 @@ bool cacheMergeContent(const String& payload, const String& etag) {
   String cached;
   JsonDocument merged;
   if (cacheReadContent(cached) && !deserializeJson(merged, cached) && merged.is<JsonObject>()) {
-    // Replace whole sections rather than deep-merging: a pushed "weather"
-    // object is the complete forecast, not a patch on the previous one.
+    // Match contentParse's live, field-by-field merge. Without this nested
+    // merge, a partial dash update can preserve the current pet on screen but
+    // silently drop it from the next cold boot's cached document.
     for (JsonPairConst kv : incoming.as<JsonObjectConst>()) {
-      merged[kv.key()] = kv.value();
+      JsonVariantConst value = kv.value();
+      JsonVariant existing = merged[kv.key()];
+      if (value.is<JsonObjectConst>() && existing.is<JsonObject>()) {
+        JsonObject target = existing.as<JsonObject>();
+        for (JsonPairConst field : value.as<JsonObjectConst>()) {
+          target[field.key()] = field.value();
+        }
+      } else {
+        merged[kv.key()] = value;
+      }
     }
   } else {
     merged = incoming;

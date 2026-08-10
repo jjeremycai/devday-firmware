@@ -35,7 +35,10 @@ static const GFXfont FreeSansBold24pt7b{44, true, false};
 static const GFXfont FreeMono9pt7b{17, false, true};
 static const GFXfont FreeMonoBold9pt7b{17, true, true};
 static const GFXfont FreeMono12pt7b{23, false, true};
+static const GFXfont FreeMono18pt7b{33, false, true};
 static const GFXfont FreeMonoBold18pt7b{33, true, true};
+static const GFXfont FreeMono24pt7b{44, false, true};
+static const GFXfont FreeMonoBold24pt7b{44, true, true};
 
 class EPaper {
 public:
@@ -57,6 +60,7 @@ public:
   void fillCircle(int32_t x, int32_t y, int32_t r, uint16_t color);
   void drawPixel(int32_t x, int32_t y, uint16_t color);
   void update();
+  void updataPartial(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 };
 
 // Harness hook: dump the framebuffer as PGM (P5) to this path.

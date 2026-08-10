@@ -23,6 +23,7 @@ void EPaper::fillScreen(uint16_t color) { memset(g_fb, ink(color), sizeof g_fb);
 void EPaper::setFreeFont(const GFXfont* f) { g_font = f; }
 void EPaper::setTextDatum(uint8_t d) { g_datum = d; }
 void EPaper::update() {}
+void EPaper::updataPartial(uint16_t, uint16_t, uint16_t, uint16_t) {}
 
 void EPaper::drawPixel(int32_t x, int32_t y, uint16_t color) {
   if (x < 0 || y < 0 || x >= FB_W || y >= FB_H) return;

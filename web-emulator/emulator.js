@@ -112,11 +112,15 @@ function applyJson(text) {
   if (b.updated_at) api.emu_set("build_updated_at", b.updated_at);
 
   const strKeys = ["name", "handle", "plan", "weather_temp", "weather_detail",
-                   "today", "lifetime", "streak", "insight_left", "insight_right"];
+                   "today", "lifetime", "streak", "peak_day", "longest_streak",
+                   "seven_day_total", "longest_run", "insight_left", "insight_right"];
   for (const k of strKeys) if (d[k] != null) api.emu_set("dash_" + k, String(d[k]));
   if (Array.isArray(d.days)) api.emu_set_days_csv(d.days.join(","));
   if (d.avatar_hex) {
     if (!api.emu_set_avatar_hex(d.avatar_hex)) showStatus("avatar_hex rejected");
+  }
+  if (d.avatar_alt_hex) {
+    if (!api.emu_set_avatar_alt_hex(d.avatar_alt_hex)) showStatus("avatar_alt_hex rejected");
   }
 
   const w = payload.weather || {};
@@ -145,6 +149,7 @@ function initEmu() {
     setDays: c("set_days_csv", null, ["string"]),
     setWxHours: c("set_wx_hours_csv", null, ["string"]),
     setAvatar: c("set_avatar_hex", "number", ["string"]),
+    setAvatarAlt: c("set_avatar_alt_hex", "number", ["string"]),
   };
   api.emu_render = api.render;
   api.emu_card = api.card;
@@ -153,6 +158,7 @@ function initEmu() {
   api.emu_set_days_csv = api.setDays;
   api.emu_set_wx_hours_csv = api.setWxHours;
   api.emu_set_avatar_hex = api.setAvatar;
+  api.emu_set_avatar_alt_hex = api.setAvatarAlt;
   api.emu_pin = api.pin;
 
   api.begin();

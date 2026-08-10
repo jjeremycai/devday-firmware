@@ -16,10 +16,11 @@ and usage over USB. No account to create, no permission prompt.
 
 Every render below is produced by the shipping firmware's actual drawing code
 (`tools/preview/build.sh`), not a mockup. Design language throughout:
-brutalist 1-bit — solid fills, hairline rules, FreeSans/FreeMono, uppercase
+brutalist 1-bit — solid fills, dotted rules, FreeSans/FreeMono, uppercase
 micro-labels, and ordered one-bit dithering instead of grayscale. Usage,
-Weather, and Agenda share a contextual black status rail and use solid,
-dithered, and outlined states for current, recent, and upcoming information.
+Weather, and Agenda share the same black command rail, framed `/path` sections,
+exact one-third grid, and page-aware physical-key tabs. Large readings use the
+regular mono face; bold mono is reserved for small labels where it stays crisp.
 
 ### First boot
 
@@ -39,21 +40,30 @@ permanently.
 
 ![Usage page](docs/screens/1-usage.png)
 
-The attendee's Codex identity: their pet (whichever one they picked in Codex,
-drawn from the real sprite atlas with a two-band halftone pass so dark-bodied
-characters keep their features in 1-bit ink), name, handle, plan badge, today /
-lifetime / streak metrics, and a 14-day token activity chart. Fills
-automatically when the terminal is plugged into a laptop with Codex signed in.
-The previous week is lightly dithered, the current week uses a denser pattern,
-and today remains solid black.
+The attendee's Codex identity beneath a `[ DEV DAY 2026 ]` command rail: their
+pet (whichever one they picked in Codex), name, handle, plan badge, today /
+lifetime / streak
+metrics, and a 14-day token activity chart. The three equal `/proc` footer cells
+show peak day, longest streak, and seven-day total using only values
+available from the local Codex usage service. Previous days use ordered
+dither; today remains solid. The real sprite atlas supplies two idle frames;
+while USB power is present the firmware makes four five-second partial-window
+swaps and then rests on the primary frame, avoiding full-panel refresh churn.
+Everything fills automatically when the terminal is plugged into a laptop
+with Codex signed in.
+
+The 96x104 pet cell is enlarged without changing its aspect ratio, so imported
+frames stay crisp and proportionate instead of being stretched to fill the
+profile column.
 
 ### 2 · Weather
 
 ![Weather page](docs/screens/2-weather.png)
 
-Today's forecast: current conditions with a condition icon, morning /
-afternoon / evening columns, and a 24-hour temperature skyline. Past hours are
-dithered, "now" is solid, and future hours are outlined. Icons are
+Today's forecast in a `/sys/weather` current-conditions frame and a
+`/proc/forecast [24h]` frame: morning / afternoon / evening occupy the same
+three exact columns as Usage, followed by a 24-hour temperature skyline. Past
+hours are dithered, "now" is solid, and future hours are outlined. Icons are
 solid-silhouette glyphs — sun, partly, cloud, rain, snow, storm, fog — drawn as
 geometry, because stroked icons turn to noise at this size on e-paper.
 
@@ -61,11 +71,29 @@ geometry, because stroked icons turn to noise at this size on e-paper.
 
 ![Agenda page](docs/screens/3-agenda.png)
 
-The attendee's actual day, read automatically from their local calendar on
-sync — all accounts, recurring events resolved, nothing to install. All-day
-and still-upcoming events take priority for the four rows. The next event gets
-an inverse time cell; later events retain hollow timeline markers in an open,
-rule-separated schedule.
+The attendee's actual day in `/var/agenda/today`, read automatically from their
+local calendar on sync — all accounts, recurring events resolved, nothing to
+install. All-day and still-upcoming events take priority for four dotted,
+rule-separated rows. The one-third boundary splits machine time from human
+event copy, and a one-event day expands into a deliberately spaced next-event
+view instead of looking like an incomplete table.
+
+### Utility screens
+
+![Build diagnostics](docs/screens/4-build.png)
+
+**Build Diagnostics** is the factory and service view. It reports the live
+firmware hash, battery, display controller, and connection beneath
+`/sys/firmware` and `/dev/hardware`. It is not in the 1–3 button rotation; it
+appears when requested over USB with `card.preview`, or when explicitly saved
+as the startup card in the setup portal or `config.write`.
+
+![Make it yours](docs/screens/5-yours.png)
+
+**Make It Yours** is the open-firmware handoff: USB flashing, source link, the
+exact Codex prompt, and a scan-tested hardware-recipe QR beneath
+`/dev/terminal`. It has the same two entry paths as Build Diagnostics and is
+never shown automatically on factory first boot.
 
 **Usage · Weather · Agenda** — three pages on the first three buttons,
 numbered 1-3 (KEY1 / KEY2 / KEY3) left to right. Press and release to switch;
@@ -74,14 +102,15 @@ so it doesn't wake the device from sleep and is ignored for ~1.2 s after each
 refresh. The board's fourth key (D4) also shows Agenda, and D1+D4 held at boot
 is the factory reset combo.
 
-- **1 → Usage** — your Codex pet, profile, and token chart (pushed over USB
-  by the local sync service whenever you plug in; it reuses the existing Codex
-  login). Shows an empty state until a dash payload arrives.
+- **1 → Usage** — your Codex pet, profile, token chart, and verified local
+  usage stats in a kernel-terminal layout (pushed over USB by the local sync
+  service whenever you plug in; it reuses the existing Codex login). Shows an
+  empty state until a dash payload arrives.
 - **2 → Weather** — today's forecast: current conditions, morning /
   afternoon / evening cards, and a 24-hour temperature strip (synced with
   the dash payload; shows "No forecast yet" placeholder until first sync).
-- **3 → Agenda** — today's agenda: time + title + detail rows (pre-installed
-  example app, push your calendar via `content.push`).
+- **3 → Agenda** — today's agenda: time + title + detail rows from the local
+  calendar sync; it stays in the honest empty state until those events arrive.
 
 The on-screen tab strip shows all three pages with the current one inverted.
 The very first boot after factory flash shows the Build Kit card at panel
@@ -89,8 +118,10 @@ scale — the recipe QR and DevDay wordmark over the kit's black half-circle
 face. Any key (or the first sync) moves on, and every page that has
 nothing to show yet carries the one instruction that fills it — *ask Codex:
 "set up my Dev Day terminal"* — instead of protocol jargon. The factory
-**Build** diagnostics page is still renderable via `card.preview` over USB
-(used by the line test).
+**Build** and **Yours** remain available via `card.preview` over USB and as
+explicit startup-card choices (Build is used by the line test). Neither is
+mapped to a physical page key; their bottom strip remains an immediate route
+back to Usage, Weather, or Agenda.
 
 ### Artwork
 
@@ -208,9 +239,10 @@ dependencies are needed.
 The portrait is your Codex pet. It follows `tui.pet` — whichever pet you picked
 in Codex — so a machine with several hatched pets shows the one you actually
 use. Unset, it takes a pet from `~/.codex/pets`, else the built-in `codex`
-companion. Pets already on disk need no network, so `--offline` still shows
-one. Turn pets off in Codex (`tui.pet = "none"`) and it uses your profile photo
-instead.
+companion. The bridge imports two neighboring idle cells when the atlas has
+them, or one frame for a profile photo. Pets already on disk need no network,
+so `--offline` still shows one. Turn pets off in Codex (`tui.pet = "none"`) and
+it uses your profile photo instead.
 
 Modern operating systems intentionally do not let a USB peripheral launch
 arbitrary host code when it is plugged in. `--install` is the one-time local

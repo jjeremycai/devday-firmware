@@ -2,9 +2,9 @@
 """Codex pet discovery and conversion for the Dev Day terminal.
 
 A Codex pet ships as a sprite atlas: a grid of transparent RGBA cells, one per
-animation frame. The terminal shows a single still frame in place of the profile
-picture, so the job here is to find a pet, pull one cell out of its sheet, and
-hand back packed 1-bit rows the firmware can blit.
+animation frame. The terminal imports the first two idle cells in place of the
+profile picture, so the job here is to find a pet, pull cells out of its sheet,
+and hand back packed 1-bit rows the firmware can blit.
 
 Atlas geometry, from the pet contract in the Codex CLI's `hatch-pet` skill:
 
@@ -116,16 +116,16 @@ def cell_box(sheet: bytes, row: int = 0, col: int = 0) -> imaging.CropBox:
 
 
 def sheet_bits(
-    sheet: bytes, row: int = 0, col: int = 0, threshold: int = 190
+    sheet: bytes, row: int = 0, col: int = 0, threshold: int = 170
 ) -> bytearray:
     """One atlas cell → packed 1-bit rows, PET_W x PET_H.
 
-    Sprite art gets the silhouette treatment, not error diffusion: these are
-    flat colour fills, and dithering them at this size turns the character into
-    grey noise.
+    Sprite art gets the dark-display silhouette treatment: a white alpha edge,
+    solid light details, and a checker for mid-tones. This keeps a terminal
+    pet's face black while its cursor and outline remain visible.
     """
-    return imaging.sprite_to_bits(
-        sheet, PET_W, PET_H, cell_box(sheet, row, col), threshold
+    return imaging.sprite_to_dark_bits(
+        sheet, PET_W, PET_H, cell_box(sheet, row, col), light=threshold
     )
 
 

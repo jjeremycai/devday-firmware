@@ -2,6 +2,12 @@
 
 ## Factory flash (Seeed line)
 
+The packaged production image targets the EE04 display board. Older Seeed
+XIAO ePaper driver-board units use a different CS/DC/BUSY/RESET pin map; build
+one explicitly with `DISPLAY_BOARD=legacy tools/build.sh` before flashing its
+app image at `0x10000`. The build prints the selected display board, and release
+metadata records it as `display_board`.
+
 Flash the merged image at `0x0`:
 
 ```sh

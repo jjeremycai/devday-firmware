@@ -50,6 +50,10 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.dash_today = "";
   c.dash_lifetime = "";
   c.dash_streak = "";
+  c.dash_peak_day = "";
+  c.dash_longest_streak = "";
+  c.dash_seven_day_total = "";
+  c.dash_longest_run = "";
   c.dash_insight_left = "";
   c.dash_insight_right = "";
   c.dash_day_count = 0;
@@ -59,6 +63,8 @@ void contentDefaults(CardContent& c, const String& device_name) {
   memset(c.dash_calendar, 0, sizeof(c.dash_calendar));
   memset(c.dash_avatar, 0, sizeof(c.dash_avatar));
   c.dash_avatar_present = false;
+  memset(c.dash_avatar_alt, 0, sizeof(c.dash_avatar_alt));
+  c.dash_avatar_alt_present = false;
 
   c.weather_location = "";
   c.weather_date = "";
@@ -77,14 +83,15 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.wx_hour_now = 255;
   memset(c.wx_hours, 0, sizeof(c.wx_hours));
 
-  c.agenda_date = "Thursday, August 6";
-  c.agenda_time[0] = "09:00"; c.agenda_title[0] = "Standup";        c.agenda_detail[0] = "with design · Room A";
-  c.agenda_time[1] = "11:30"; c.agenda_title[1] = "Lunch with team"; c.agenda_detail[1] = "Downtown · 1h";
-  c.agenda_time[2] = "14:00"; c.agenda_title[2] = "Deep work";       c.agenda_detail[2] = "Terminal demo prep";
-  c.agenda_time[3] = "16:30"; c.agenda_title[3] = "Demo";            c.agenda_detail[3] = "Hall B · 30m";
-  c.agenda_count = 4;
+  c.agenda_date = "";
+  for (size_t i = 0; i < CardContent::AGENDA_MAX; i++) {
+    c.agenda_time[i] = "";
+    c.agenda_title[i] = "";
+    c.agenda_detail[i] = "";
+  }
+  c.agenda_count = 0;
 
-  c.header_date = c.agenda_date;
+  c.header_date = "";
 
   c.refresh_after_s = DEFAULT_REFRESH_MINUTES * 60UL;
 }
@@ -126,6 +133,10 @@ bool contentParse(const String& payload, CardContent& c) {
     if (dash["today"].is<const char*>()) c.dash_today = contentText(dash["today"]);
     if (dash["lifetime"].is<const char*>()) c.dash_lifetime = contentText(dash["lifetime"]);
     if (dash["streak"].is<const char*>()) c.dash_streak = contentText(dash["streak"]);
+    if (dash["peak_day"].is<const char*>()) c.dash_peak_day = contentText(dash["peak_day"]);
+    if (dash["longest_streak"].is<const char*>()) c.dash_longest_streak = contentText(dash["longest_streak"]);
+    if (dash["seven_day_total"].is<const char*>()) c.dash_seven_day_total = contentText(dash["seven_day_total"]);
+    if (dash["longest_run"].is<const char*>()) c.dash_longest_run = contentText(dash["longest_run"]);
     if (dash["insight_left"].is<const char*>()) c.dash_insight_left = contentText(dash["insight_left"]);
     if (dash["insight_right"].is<const char*>()) c.dash_insight_right = contentText(dash["insight_right"]);
 
@@ -167,6 +178,16 @@ bool contentParse(const String& payload, CardContent& c) {
       const char* hex = dash["avatar_hex"];
       if (decodeHex(hex, strlen(hex), c.dash_avatar, CardContent::PET_BYTES)) {
         c.dash_avatar_present = true;
+        // The alternate frame belongs to this primary portrait. A profile
+        // photo (or any one-frame producer) must not animate against the
+        // previous pet's stale second frame.
+        c.dash_avatar_alt_present = false;
+      }
+    }
+    if (dash["avatar_alt_hex"].is<const char*>()) {
+      const char* hex = dash["avatar_alt_hex"];
+      if (decodeHex(hex, strlen(hex), c.dash_avatar_alt, CardContent::PET_BYTES)) {
+        c.dash_avatar_alt_present = true;
       }
     }
   }

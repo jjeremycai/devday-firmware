@@ -20,6 +20,13 @@ struct CardContent {
   String dash_today;
   String dash_lifetime;
   String dash_streak;
+  // Presentation-ready values for the four Usage footer cells. These stay
+  // separate from insight_left so custom schema-1 producers can omit any of
+  // them without the renderer having to parse display copy.
+  String dash_peak_day;
+  String dash_longest_streak;
+  String dash_seven_day_total;
+  String dash_longest_run;
   String dash_insight_left;
   String dash_insight_right;
   static constexpr size_t DASH_DAYS = 14;
@@ -40,6 +47,11 @@ struct CardContent {
   static constexpr size_t PET_BYTES = (PET_W * PET_H + 7) / 8;
   uint8_t dash_avatar[PET_BYTES];
   bool dash_avatar_present;
+  // Optional second idle frame. Pet packages are sprite atlases, so the local
+  // bridge can send one extra cell and the device can animate only the pet
+  // window with a bounded partial-refresh burst. Profile photos omit it.
+  uint8_t dash_avatar_alt[PET_BYTES];
+  bool dash_avatar_alt_present;
 
   // Weather page (full today forecast)
   String weather_location;
