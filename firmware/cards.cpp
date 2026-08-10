@@ -61,78 +61,107 @@ static void drawBlossomIcon(int16_t x0, int16_t y0) {
 static constexpr int16_t W = 800;
 static constexpr int16_t H = 480;
 static constexpr int16_t MARGIN = 28;
+static constexpr int16_t DASH_MARGIN = 16;
 
-// Brutalist tab strip: heavy inversion, tight type, no decoration
+static int16_t drawDashSectionLabel(const String& raw, int16_t x, int16_t y);
+
+// Ordered one-bit texture for secondary/history states. Density is deliberately
+// limited to two levels: enough to create hierarchy on a monochrome panel,
+// without turning small shapes into grey mush after an e-paper refresh.
+static void fillDitherRect(int16_t x, int16_t y, int16_t w, int16_t h,
+                           uint8_t density) {
+#ifdef EPAPER_ENABLE
+  if (w <= 0 || h <= 0 || density == 0) return;
+  if (density > 2) density = 2;
+  for (int16_t dy = 0; dy < h; dy++) {
+    for (int16_t dx = 0; dx < w; dx++) {
+      const bool ink = density == 1
+                         ? ((dx + dy * 2) & 3) == 0       // 25%
+                         : ((dx + dy) & 1) == 0;          // 50%
+      if (ink) epaper.drawPixel(x + dx, y + dy, TFT_BLACK);
+    }
+  }
+#else
+  (void)x; (void)y; (void)w; (void)h; (void)density;
+#endif
+}
+
+// Full-width physical-key strip. The three segments line up with the three
+// page buttons and never imply touch interaction.
 static void pageTabs(const char* current) {
 #ifdef EPAPER_ENABLE
   static const char* kIds[3] = {"dash", "weather", "agenda"};
   static const char* kLabels[3] = {"1 USAGE", "2 WEATHER", "3 AGENDA"};
-  const int16_t tw = 210, th = 28, gap = 14;
-  const int16_t total = 3 * tw + 2 * gap;
-  int16_t x = (W - total) / 2;
-  const int16_t y = H - 10 - th;
-  epaper.setFreeFont(&FreeSans9pt7b);
+  static const int16_t kWidths[3] = {268, 252, 252};
+  int16_t x = 14;
+  const int16_t y = 438;
+  const int16_t th = 33;
+  epaper.setFreeFont(&FreeMono9pt7b);
   epaper.setTextDatum(MC_DATUM);
   for (uint8_t i = 0; i < 3; i++) {
+    const int16_t tw = kWidths[i];
     bool active = current != nullptr && strcmp(current, kIds[i]) == 0;
     if (active) {
-      epaper.fillRoundRect(x, y, tw, th, 4, TFT_BLACK);
+      epaper.fillRect(x, y, tw, th, TFT_BLACK);
       epaper.setTextColor(TFT_WHITE, TFT_BLACK);
     } else {
-      epaper.drawRoundRect(x, y, tw, th, 4, TFT_BLACK);
+      epaper.drawRect(x, y, tw, th, TFT_BLACK);
       epaper.setTextColor(TFT_BLACK, TFT_WHITE);
     }
     epaper.drawString(kLabels[i], x + tw / 2, y + th / 2 + 1, GFXFF);
-    x += tw + gap;
+    x += tw;
   }
   epaper.setTextColor(TFT_BLACK, TFT_WHITE);
 #endif
 }
 
 // Battery gauge: outline + nub, fill level = charge percent.
-static void drawBatteryIcon(int16_t x, int16_t y, uint8_t pct) {
+static void drawBatteryIcon(int16_t x, int16_t y, uint8_t pct,
+                            uint16_t color = TFT_BLACK) {
 #ifdef EPAPER_ENABLE
-  epaper.drawRect(x, y, 18, 11, TFT_BLACK);
-  epaper.fillRect(x + 19, y + 3, 2, 5, TFT_BLACK); // nub
+  epaper.drawRect(x, y, 18, 11, color);
+  epaper.fillRect(x + 19, y + 3, 2, 5, color); // nub
   if (pct > 100) pct = 100;
   int16_t fill = (int16_t)((uint16_t)pct * 14 / 100);
-  if (fill > 0) epaper.fillRect(x + 2, y + 2, fill, 7, TFT_BLACK);
+  if (fill > 0) epaper.fillRect(x + 2, y + 2, fill, 7, color);
 #endif
 }
 
 // Compact 1-bit Wi-Fi mark. Connected uses stepped arcs; disconnected keeps
 // the same silhouette with a separated slash, so state is visible without
 // relying on grey or a text label.
-static void drawWifiIcon(int16_t x, int16_t y, bool connected) {
+static void drawWifiIcon(int16_t x, int16_t y, bool connected,
+                         uint16_t color = TFT_BLACK,
+                         uint16_t background = TFT_WHITE) {
 #ifdef EPAPER_ENABLE
-  epaper.fillRect(x + 5, y, 6, 1, TFT_BLACK);
-  epaper.fillRect(x + 2, y + 1, 3, 1, TFT_BLACK);
-  epaper.fillRect(x + 11, y + 1, 3, 1, TFT_BLACK);
-  epaper.fillRect(x + 1, y + 2, 2, 1, TFT_BLACK);
-  epaper.fillRect(x + 13, y + 2, 2, 1, TFT_BLACK);
-  epaper.drawPixel(x, y + 3, TFT_BLACK);
-  epaper.drawPixel(x + 15, y + 3, TFT_BLACK);
+  epaper.fillRect(x + 5, y, 6, 1, color);
+  epaper.fillRect(x + 2, y + 1, 3, 1, color);
+  epaper.fillRect(x + 11, y + 1, 3, 1, color);
+  epaper.fillRect(x + 1, y + 2, 2, 1, color);
+  epaper.fillRect(x + 13, y + 2, 2, 1, color);
+  epaper.drawPixel(x, y + 3, color);
+  epaper.drawPixel(x + 15, y + 3, color);
 
-  epaper.fillRect(x + 6, y + 4, 4, 1, TFT_BLACK);
-  epaper.fillRect(x + 4, y + 5, 2, 1, TFT_BLACK);
-  epaper.fillRect(x + 10, y + 5, 2, 1, TFT_BLACK);
-  epaper.drawPixel(x + 3, y + 6, TFT_BLACK);
-  epaper.drawPixel(x + 12, y + 6, TFT_BLACK);
+  epaper.fillRect(x + 6, y + 4, 4, 1, color);
+  epaper.fillRect(x + 4, y + 5, 2, 1, color);
+  epaper.fillRect(x + 10, y + 5, 2, 1, color);
+  epaper.drawPixel(x + 3, y + 6, color);
+  epaper.drawPixel(x + 12, y + 6, color);
 
-  epaper.fillRect(x + 7, y + 7, 2, 1, TFT_BLACK);
-  epaper.drawPixel(x + 6, y + 8, TFT_BLACK);
-  epaper.drawPixel(x + 9, y + 8, TFT_BLACK);
-  epaper.fillRect(x + 7, y + 10, 2, 2, TFT_BLACK);
+  epaper.fillRect(x + 7, y + 7, 2, 1, color);
+  epaper.drawPixel(x + 6, y + 8, color);
+  epaper.drawPixel(x + 9, y + 8, color);
+  epaper.fillRect(x + 7, y + 10, 2, 2, color);
 
   if (!connected) {
     // A 2 px core with a 1 px paper moat remains a slash at arm's length;
     // the old 1 px line broke the tiny arcs into what looked like panel noise.
     // Extend past the glyph so neither endpoint disappears into an arc.
     for (int16_t i = -2; i < 14; i++) {
-      epaper.fillRect(x + 1 + i, y + i, 4, 1, TFT_WHITE);
+      epaper.fillRect(x + 1 + i, y + i, 4, 1, background);
     }
     for (int16_t i = -2; i < 14; i++) {
-      epaper.fillRect(x + 2 + i, y + i, 2, 1, TFT_BLACK);
+      epaper.fillRect(x + 2 + i, y + i, 2, 1, color);
     }
   }
 #endif
@@ -316,13 +345,91 @@ static String fit(const String& text, int16_t max_w) {
 #endif
 }
 
+// The Usage page uses the compact, high-contrast status rail from the selected
+// design. Keep the content payload human-readable ("Sunday, August 9") and
+// abbreviate only at render time so the other cards can still use the full date.
+static String compactDashDate(const String& raw) {
+  String value = raw;
+  value.trim();
+  value.toUpperCase();
+  int comma = value.indexOf(",");
+  if (comma < 3) return value;
+
+  String weekday = value.substring(0, 3);
+  String rest = value.substring(comma + 1, value.length());
+  rest.trim();
+  int space = rest.indexOf(" ");
+  if (space < 0) return weekday + " " + rest;
+
+  String month = rest.substring(0, space);
+  if (month.length() > 3) month = month.substring(0, 3);
+  String day = rest.substring(space + 1, rest.length());
+  day.trim();
+  return weekday + " " + month + " " + day;
+}
+
+static String compactLastSync(const String& raw) {
+  String value = raw;
+  value.trim();
+  value.toUpperCase();
+  if (value.startsWith("LAST SYNC")) return value;
+
+  // dash_sync historically sent "Wed 11:04 PM". Strip the weekday while
+  // continuing to accept a bare "11:04 PM" from custom payload producers.
+  int colon = value.indexOf(":");
+  int space = value.indexOf(" ");
+  if (colon >= 0 && space > 0 && space < colon && space <= 3) {
+    value = value.substring(space + 1, value.length());
+  }
+  if (value.length() == 0) value = "--";
+  return "LAST SYNC " + value;
+}
+
+static void terminalHeader(const char* page, const CardContent& c,
+                           const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  const int16_t rail_h = 31;
+  epaper.fillRect(0, 0, W, rail_h, TFT_BLACK);
+  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setTextDatum(TL_DATUM);
+  String title = String("DEV DAY / ") + page;
+  title.toUpperCase();
+  epaper.drawString(title, 18, 6, GFXFF);
+
+  const String battery_pct = String(st.battery_pct) + "%";
+  const int16_t pct_right = W - 14;
+  const int16_t pct_w = epaper.textWidth(battery_pct, GFXFF);
+  const int16_t battery_x = pct_right - pct_w - 5 - 21;
+  const int16_t wifi_x = battery_x - 26;
+  drawWifiIcon(wifi_x, 8, st.wifi_connected, TFT_WHITE, TFT_BLACK);
+  drawBatteryIcon(battery_x, 8, st.battery_pct, TFT_WHITE);
+  epaper.setTextDatum(TR_DATUM);
+  epaper.drawString(battery_pct, pct_right, 6, GFXFF);
+
+  const String sync = compactLastSync(c.dash_insight_right);
+  const int16_t sync_right = wifi_x - 12;
+  epaper.drawString(sync, sync_right, 6, GFXFF);
+  const int16_t date_right = sync_right - epaper.textWidth(sync, GFXFF) - 22;
+  const String date = compactDashDate(c.header_date);
+  if (date.length()) epaper.drawString(date, date_right, 6, GFXFF);
+
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+#endif
+}
+
 static void apHint(const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   if (st.ap_hint.length() > 0) {
-    // Setup portal credentials, front and center while the AP is up.
-    epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.setTextDatum(BC_DATUM);
-    epaper.drawString(st.ap_hint, W / 2, H - 58, GFXFF);
+    // Dedicated inverse strip above the physical-key bar. Keeping credentials
+    // out of the tab row matters on e-paper because a refresh cannot repair a
+    // transient overlap until the next full update.
+    epaper.fillRect(MARGIN, 403, W - 2 * MARGIN, 28, TFT_BLACK);
+    epaper.setFreeFont(&FreeMono9pt7b);
+    epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+    epaper.setTextDatum(ML_DATUM);
+    epaper.drawString(fit(st.ap_hint, W - 2 * MARGIN - 20), MARGIN + 10, 417, GFXFF);
+    epaper.setTextColor(TFT_BLACK, TFT_WHITE);
   }
 #endif
 }
@@ -333,7 +440,12 @@ static void apHint(const RenderStatus& st) {
 static void renderEmpty(const CardContent& c, const RenderStatus& st, const char* tab,
                         const char* label, const char* headline, const char* ask) {
 #ifdef EPAPER_ENABLE
-  header(c, st);
+  if (strcmp(tab, "dash") == 0 || strcmp(tab, "weather") == 0 ||
+      strcmp(tab, "agenda") == 0) {
+    terminalHeader(label, c, st);
+  } else {
+    header(c, st);
+  }
 
   epaper.setFreeFont(&FreeSans12pt7b);
   epaper.setTextDatum(TL_DATUM);
@@ -493,25 +605,31 @@ static String formatAgendaTime(const String& raw) {
 
 static void renderAgenda(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st);
+  terminalHeader("AGENDA", c, st);
 
   if (!contentHasAgenda(c)) {
     renderEmpty(c, st, "agenda", "AGENDA", "No events today", "put my calendar on my terminal");
     return;
   }
 
-  // Date row: tight, uppercase label + hairline
+  // Contextual section rail, followed by a compact date/status row.
+  const int16_t section_x = MARGIN;
+  const int16_t section_y = 54;
+  const int16_t section_w = drawDashSectionLabel("AGENDA", section_x, section_y);
+  epaper.drawFastHLine(section_x + section_w, section_y + 12,
+                      W - MARGIN - (section_x + section_w), TFT_BLACK);
+
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
   String adate = c.agenda_date; adate.toUpperCase();
-  epaper.drawString(adate, MARGIN, 68, GFXFF);
+  epaper.drawString(adate, MARGIN, 88, GFXFF);
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(String(c.agenda_count) + " EVENTS", W - MARGIN, 68, GFXFF);
-  epaper.drawFastHLine(MARGIN, 88, W - 2 * MARGIN, TFT_BLACK);
+  epaper.drawString(String(c.agenda_count) + " EVENTS", W - MARGIN, 88, GFXFF);
+  epaper.drawFastHLine(MARGIN, 108, W - 2 * MARGIN, TFT_BLACK);
 
-  const int16_t row_h = 68;
-  const int16_t gap = 8;
-  const int16_t y0 = 102;
+  const int16_t row_h = 58;
+  const int16_t gap = 12;
+  const int16_t y0 = 122;
   const size_t rows =
       c.agenda_count < CardContent::AGENDA_MAX ? c.agenda_count : CardContent::AGENDA_MAX;
 
@@ -526,7 +644,19 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
 
   for (size_t i = 0; i < rows; i++) {
     int16_t ry = y0 + (int16_t)i * (row_h + gap);
-    epaper.drawRoundRect(MARGIN + 28, ry, W - 2 * MARGIN - 28, row_h, 4, TFT_BLACK);
+    const int16_t card_x = MARGIN + 28;
+    const int16_t card_w = W - 2 * MARGIN - 28;
+    const int16_t time_x = MARGIN + 40;
+    const int16_t text_left = MARGIN + 222;
+    const int16_t divider_x = text_left - 16;
+
+    // The next event gets an inverse time cell. It is a stronger, cleaner
+    // active state than shading the entire row behind body copy.
+    if (i == 0) {
+      epaper.fillRect(card_x, ry, divider_x - card_x, row_h, TFT_BLACK);
+    }
+    epaper.drawFastVLine(divider_x, ry, row_h, TFT_BLACK);
+    epaper.drawFastHLine(card_x, ry + row_h, card_w, TFT_BLACK);
 
     // Filled marker for what is next, hollow for the rest.
     if (i == 0) {
@@ -538,15 +668,15 @@ static void renderAgenda(const CardContent& c, const RenderStatus& st) {
     // The time is vertically centred in its fixed column. Event text stays
     // left aligned, but is vertically centred as a two-line block instead of
     // being anchored to the time's much larger glyph baseline.
-    const int16_t time_x = MARGIN + 38;
-    const int16_t text_left = MARGIN + 210;
     const int16_t text_right = W - MARGIN - 16;
     const int16_t text_w = text_right - text_left;
     const int16_t center_y = ry + row_h / 2;
 
     epaper.setFreeFont(&FreeMonoBold18pt7b);
     epaper.setTextDatum(ML_DATUM);
+    if (i == 0) epaper.setTextColor(TFT_WHITE, TFT_BLACK);
     epaper.drawString(formatAgendaTime(c.agenda_time[i]), time_x, center_y, GFXFF);
+    epaper.setTextColor(TFT_BLACK, TFT_WHITE);
 
     const bool has_detail = c.agenda_detail[i].length() > 0;
     epaper.setFreeFont(&FreeSans12pt7b);
@@ -611,30 +741,35 @@ static void renderYours(const CardContent& c, const RenderStatus& st) {
 
 static void drawSegmentCard(const CardContent& c, size_t i, int16_t x, int16_t y, int16_t w, int16_t h) {
 #ifdef EPAPER_ENABLE
-  epaper.drawRoundRect(x, y, w, h, 4, TFT_BLACK);
-  int16_t cx = x + 16;
+  const int16_t cx = x + 6;
   String label = c.wx_label[i];
   label.toUpperCase();
   epaper.setFreeFont(&FreeSans9pt7b);
   epaper.setTextDatum(TL_DATUM);
   epaper.drawString(label, cx, y + 12, GFXFF);
-  epaper.drawFastHLine(x + 10, y + 34, w - 20, TFT_BLACK);
+  // Keep the icon in the card header so the main reading row has room for
+  // temperature and prose on one shared baseline.
+  drawWeatherIcon(x + w - 32, y + 8, 24, c.wx_cond[i]);
+  epaper.drawFastHLine(x + 6, y + 38, w - 12, TFT_BLACK);
 
+  const int16_t reading_y = y + 70;
   epaper.setFreeFont(&FreeSans18pt7b);
-  epaper.drawString(c.wx_temp[i], cx, y + 44, GFXFF);
-  // Condition icon rides beside the temperature, where the card has room.
-  drawWeatherIcon(x + w - 48, y + 42, 30, c.wx_cond[i]);
+  epaper.setTextDatum(ML_DATUM);
+  epaper.drawString(c.wx_temp[i], cx, reading_y, GFXFF);
+  const int16_t temp_w = epaper.textWidth(c.wx_temp[i], GFXFF);
 
-  epaper.setFreeFont(&FreeSans12pt7b);
-  epaper.drawString(c.wx_cond[i], cx, y + 84, GFXFF);
+  epaper.setFreeFont(&FreeSans9pt7b);
+  epaper.drawString(fit(c.wx_cond[i], w - 28 - temp_w),
+                    cx + temp_w + 14, reading_y + 1, GFXFF);
 
-  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.setFreeFont(&FreeMonoBold9pt7b);
   String sub = c.wx_wind[i];
   if (c.wx_precip[i].length() > 0) {
     if (sub.length() > 0) sub += "  ";
     sub += c.wx_precip[i];
   }
-  epaper.drawString(fit(sub, w - 32), cx, y + h - 22, GFXFF);
+  epaper.setTextDatum(BL_DATUM);
+  epaper.drawString(fit(sub, w - 12), cx, y + h - 8, GFXFF);
 #endif
 }
 
@@ -659,8 +794,11 @@ static void drawHourStrip(const CardContent& c, int16_t x, int16_t y, int16_t w,
     int16_t by = y + h - bh;
     if (i == (size_t)c.wx_hour_now) {
       epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK); // now: solid
+    } else if ((int16_t)i < c.wx_hour_now) {
+      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK); // past: textured
+      fillDitherRect(bx + 1, by + 1, bar_w - 2, bh - 2, 1);
     } else {
-      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK);
+      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK); // future: outline
     }
   }
 #endif
@@ -668,7 +806,7 @@ static void drawHourStrip(const CardContent& c, int16_t x, int16_t y, int16_t w,
 
 static void renderWeather(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  header(c, st);
+  terminalHeader("WEATHER", c, st);
 
   if (!contentHasWeather(c)) {
     renderEmpty(c, st, "weather", "WEATHER", "No forecast yet", "set up my Dev Day terminal");
@@ -700,20 +838,26 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
   epaper.setTextDatum(TR_DATUM);
   epaper.drawString(c.weather_now_hilo, W - MARGIN, 128, GFXFF);
 
-  epaper.drawFastHLine(MARGIN, 178, W - 2 * MARGIN, TFT_BLACK);
+  const int16_t forecast_label_y = 174;
+  const int16_t forecast_label_w =
+      drawDashSectionLabel("FORECAST", MARGIN, forecast_label_y);
+  epaper.drawFastHLine(MARGIN + forecast_label_w, forecast_label_y + 12,
+                      W - MARGIN - (MARGIN + forecast_label_w), TFT_BLACK);
 
-  // Three day-part cards.
-  const int16_t seg_y = 196;
-  const int16_t seg_h = 140;
-  const int16_t gap = 14;
+  // Three open day-part columns. Vertical separators provide structure while
+  // the missing outer boxes leave enough white space for the small panel.
+  const int16_t seg_y = 211;
+  const int16_t seg_h = 116;
+  const int16_t gap = 24;
   const int16_t seg_w = (W - 2 * MARGIN - 2 * gap) / 3;
   size_t n = c.wx_seg_count;
   for (size_t i = 0; i < CardContent::WX_SEGS; i++) {
     int16_t sx = MARGIN + (int16_t)i * (seg_w + gap);
+    if (i > 0) {
+      epaper.drawFastVLine(sx - gap / 2, seg_y + 4, seg_h - 8, TFT_BLACK);
+    }
     if (i < n) {
       drawSegmentCard(c, i, sx, seg_y, seg_w, seg_h);
-    } else {
-      epaper.drawRoundRect(sx, seg_y, seg_w, seg_h, 6, TFT_BLACK);
     }
   }
 
@@ -721,11 +865,13 @@ static void renderWeather(const CardContent& c, const RenderStatus& st) {
   // credentials, which matter more while the AP is up — drop it entirely then
   // rather than drawing the two on top of each other.
   if (st.ap_hint.length() == 0) {
-    epaper.setFreeFont(&FreeSans12pt7b);
-    epaper.setTextDatum(TL_DATUM);
-    epaper.drawString("Next 24 hours", MARGIN, 346, GFXFF);
+    const int16_t hours_label_y = 348;
+    const int16_t hours_label_w =
+        drawDashSectionLabel("NEXT 24 HOURS", MARGIN, hours_label_y);
+    epaper.drawFastHLine(MARGIN + hours_label_w, hours_label_y + 12,
+                        W - MARGIN - (MARGIN + hours_label_w), TFT_BLACK);
 
-    drawHourStrip(c, MARGIN, 372, W - 2 * MARGIN, 36);
+    drawHourStrip(c, MARGIN, 381, W - 2 * MARGIN, 27);
 
     static const char* kHourMarks[4] = {"12a", "6a", "12p", "6p"};
     epaper.setFreeFont(&FreeMono9pt7b);
@@ -749,29 +895,26 @@ static bool packedBit(const uint8_t* bits, int16_t w, int16_t x, int16_t y) {
 
 // The pet (or profile photo) that sits at the top-left of the Usage card.
 // Drawn as a plain rectangle: a pet is a whole character, and the circular
-// crop the profile photo used would cut off its legs, tail and props. The
-// transparent margins baked in by tools/gen_pet.py do the framing instead.
-static void drawPet(const CardContent& c, int16_t x0, int16_t y0) {
+// crop the profile photo used would cut off its legs, tail and props. Nearest-
+// neighbour scaling keeps the pushed 1-bit asset crisp at the mock's larger
+// profile size without introducing greys or another asset format.
+static void drawPet(const CardContent& c, int16_t x0, int16_t y0,
+                    int16_t draw_w, int16_t draw_h) {
 #ifdef EPAPER_ENABLE
-  if (c.dash_avatar_present) {
-    for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
-      for (int16_t x = 0; x < (int16_t)CardContent::PET_W; x++) {
-        if (packedBit(c.dash_avatar, CardContent::PET_W, x, y)) {
-          epaper.drawPixel(x0 + x, y0 + y, TFT_BLACK);
-        }
+  for (int16_t dy = 0; dy < draw_h; dy++) {
+    const int16_t sy = (int16_t)((int32_t)dy * CardContent::PET_H / draw_h);
+    for (int16_t dx = 0; dx < draw_w; dx++) {
+      const int16_t sx = (int16_t)((int32_t)dx * CardContent::PET_W / draw_w);
+      bool ink = false;
+      if (c.dash_avatar_present) {
+        ink = packedBit(c.dash_avatar, CardContent::PET_W, sx, sy);
+      } else {
+        const size_t bit = (size_t)sy * CardContent::PET_W + (size_t)sx;
+        const uint8_t b = pgm_read_byte(&PET_ASSET_BITMAP[bit / 8]);
+        ink = (b & (0x80 >> (bit % 8))) != 0;
       }
-    }
-    return;
-  }
-
-  // Nothing pushed yet: the pet every unit ships with, so the card is never
-  // faceless out of the box.
-  for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
-    for (int16_t x = 0; x < (int16_t)CardContent::PET_W; x++) {
-      size_t bit = (size_t)y * CardContent::PET_W + (size_t)x;
-      uint8_t b = pgm_read_byte(&PET_ASSET_BITMAP[bit / 8]);
-      if (b & (0x80 >> (bit % 8))) {
-        epaper.drawPixel(x0 + x, y0 + y, TFT_BLACK);
+      if (ink) {
+        epaper.drawPixel(x0 + dx, y0 + dy, TFT_BLACK);
       }
     }
   }
@@ -793,8 +936,6 @@ static void drawMetric(int16_t x, int16_t y, int16_t max_w,
 
 static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, int16_t h) {
 #ifdef EPAPER_ENABLE
-  epaper.drawRect(x, y, w, h, TFT_BLACK);
-
   size_t n = c.dash_day_count;
   if (n == 0) {
     epaper.setFreeFont(&FreeSans9pt7b);
@@ -802,44 +943,33 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y, int16_t w, 
     epaper.drawString("Plug in over USB to refresh activity", x + w / 2, y + h / 2, GFXFF);
     return;
   }
+  if (n > CardContent::DASH_DAYS) n = CardContent::DASH_DAYS;
 
-  const int16_t pad = 12;
-  const int16_t base_y = y + h - pad;          // shared baseline for all bars
-  const int16_t inner_w = w - pad * 2;
-  const int16_t inner_h = h - pad * 2 - 8;     // leave room for the peak label
-  const int16_t gap = 6;
-  int16_t bar_w = (inner_w - (int16_t)(n - 1) * gap) / (int16_t)n;
+  const int16_t base_y = y + h - 1;
+  const int16_t gap = 11;
+  int16_t bar_w = (w - (int16_t)(n - 1) * gap) / (int16_t)n;
   if (bar_w < 4) bar_w = 4;
 
   uint8_t peak = 1;
-  size_t peak_i = 0;
   for (size_t i = 0; i < n; i++) {
-    if (c.dash_day_tokens[i] > peak) {
-      peak = c.dash_day_tokens[i];
-      peak_i = i;
-    }
+    if (c.dash_day_tokens[i] > peak) peak = c.dash_day_tokens[i];
   }
 
   // Baseline rule the bars sit on.
-  epaper.drawFastHLine(x + pad, base_y, inner_w, TFT_BLACK);
+  epaper.drawFastHLine(x, base_y, w, TFT_BLACK);
 
   for (size_t i = 0; i < n; i++) {
-    int16_t bh = (int16_t)((uint32_t)c.dash_day_tokens[i] * (uint32_t)inner_h / peak);
+    int16_t bh = (int16_t)((uint32_t)c.dash_day_tokens[i] * (uint32_t)(h - 2) / peak);
     if (c.dash_day_tokens[i] > 0 && bh < 3) bh = 3;
-    int16_t bx = x + pad + (int16_t)i * (bar_w + gap);
+    int16_t bx = x + (int16_t)i * (bar_w + gap);
     int16_t by = base_y - bh;
-    if (i == n - 1) {
-      // Today: outlined bar with a solid core - reads as "selected".
-      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK);
-      if (bh > 6 && bar_w > 6) {
-        epaper.fillRect(bx + 3, by + 3, bar_w - 6, bh - 5, TFT_BLACK);
-      }
+    if (i + 1 == n) {
+      epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK); // today: solid
     } else {
-      epaper.fillRect(bx, by, bar_w, bh, TFT_BLACK);
-    }
-    if (i == peak_i && bh > 0) {
-      // Tick above the tallest day.
-      epaper.fillRect(bx + bar_w / 2 - 1, by - 6, 3, 4, TFT_BLACK);
+      const bool current_week = i + 7 >= n;
+      epaper.drawRect(bx, by, bar_w, bh, TFT_BLACK);
+      fillDitherRect(bx + 1, by + 1, bar_w - 2, bh - 2,
+                     current_week ? 2 : 1);
     }
   }
 #endif
@@ -882,88 +1012,309 @@ static void renderSplash() {
 #endif
 }
 
+static void drawDashMetric(int16_t center_x, const String& value, const char* label) {
+#ifdef EPAPER_ENABLE
+  epaper.setFreeFont(&FreeSansBold24pt7b);
+  epaper.setTextDatum(TC_DATUM);
+  epaper.drawString(fit(value.length() ? value : "-", 220), center_x, 198, GFXFF);
+  String up = label;
+  up.toUpperCase();
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.drawString(up, center_x, 250, GFXFF);
+#endif
+}
+
+// Calendar experiment parked at the user's request. Keep the implementation
+// nearby for a future revisit, but do not compile or render it in production.
+#if 0
+static void drawActivityCell(int16_t x, int16_t y, int16_t size, uint8_t level) {
+#ifdef EPAPER_ENABLE
+  if (level > 4) level = 4;
+  epaper.drawRect(x, y, size, size, TFT_BLACK);
+  if (level == 0) return;
+  if (level == 4) {
+    epaper.fillRect(x, y, size, size, TFT_BLACK);
+    return;
+  }
+
+  // One-bit equivalents of GitHub's intensity shades. Keep a solid outline
+  // around every date so zero-activity days still read as a calendar grid.
+  for (int16_t dy = 1; dy < size - 1; dy++) {
+    for (int16_t dx = 1; dx < size - 1; dx++) {
+      bool ink = false;
+      if (level == 1) ink = ((dx + dy * 2) % 5) == 0;
+      else if (level == 2) ink = ((dx + dy) % 2) == 0;
+      else ink = ((dx + dy * 2) % 4) != 0;
+      if (ink) epaper.drawPixel(x + dx, y + dy, TFT_BLACK);
+    }
+  }
+#else
+  (void)x; (void)y; (void)size; (void)level;
+#endif
+}
+
+static void drawActivityCalendar(const CardContent& c, int16_t x, int16_t y,
+                                 int16_t w, int16_t cell, int16_t row_gap) {
+#ifdef EPAPER_ENABLE
+  if (c.dash_calendar_count == 0) {
+    epaper.setFreeFont(&FreeSans9pt7b);
+    epaper.setTextDatum(MC_DATUM);
+    epaper.drawString("Sync once to build your local activity calendar",
+                      W / 2, y + 36, GFXFF);
+    return;
+  }
+
+  const size_t count = c.dash_calendar_count < CardContent::DASH_CALENDAR_DAYS
+                         ? c.dash_calendar_count : CardContent::DASH_CALENDAR_DAYS;
+  static const uint8_t kBandStart[3] = {0, 3, 5};
+  static const uint8_t kBandEnd[3] = {3, 5, 7};
+  const size_t today_week = c.dash_calendar_today == UINT16_MAX
+                              ? CardContent::DASH_CALENDAR_WEEKS
+                              : c.dash_calendar_today / 7;
+  const uint8_t today_day = c.dash_calendar_today == UINT16_MAX
+                              ? 7 : (uint8_t)(c.dash_calendar_today % 7);
+
+  // One column per week, three rows per column. The rows aggregate Sun–Tue,
+  // Wed–Thu, and Fri–Sat so a full year stays visible without a seven-row
+  // thicket of tiny cells. Columns are distributed across the exact chart
+  // width, keeping both activity views edge-aligned.
+  for (size_t week = 0; week < CardContent::DASH_CALENDAR_WEEKS; week++) {
+    const int16_t cx = x + (int32_t)week * w / CardContent::DASH_CALENDAR_WEEKS;
+    for (uint8_t band = 0; band < 3; band++) {
+      uint16_t sum = 0;
+      uint8_t samples = 0;
+      for (uint8_t day = kBandStart[band]; day < kBandEnd[band]; day++) {
+        const size_t i = week * 7 + day;
+        if (i >= count) continue;
+        sum += c.dash_calendar[i];
+        samples++;
+      }
+      const uint8_t level = samples ? (uint8_t)((sum + samples / 2) / samples) : 0;
+      const int16_t cy = y + band * (cell + row_gap);
+      drawActivityCell(cx, cy, cell, level);
+      if (week == today_week && today_day >= kBandStart[band] && today_day < kBandEnd[band]) {
+        epaper.drawRect(cx - 1, cy - 1, cell + 2, cell + 2, TFT_BLACK);
+      }
+    }
+  }
+#else
+  (void)c; (void)x; (void)y; (void)w; (void)cell; (void)row_gap;
+#endif
+}
+#endif
+
+static int16_t drawDashSectionLabel(const String& raw, int16_t x, int16_t y) {
+#ifdef EPAPER_ENABLE
+  String label = raw;
+  label.toUpperCase();
+  epaper.setFreeFont(&FreeMono9pt7b);
+  const int16_t w = epaper.textWidth(label, GFXFF) + 24;
+  const int16_t h = 25;
+  epaper.fillRect(x, y, w, h, TFT_BLACK);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setTextDatum(MC_DATUM);
+  epaper.drawString(label, x + w / 2, y + h / 2 + 1, GFXFF);
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+  return w;
+#else
+  (void)raw; (void)x; (void)y;
+  return 0;
+#endif
+}
+
+static void drawDashSummary(const String& raw) {
+#ifdef EPAPER_ENABLE
+  String left = raw;
+  String right;
+  const int split = left.indexOf("|");
+  if (split >= 0) {
+    right = left.substring(split + 1, left.length());
+    left = left.substring(0, split);
+  }
+  left.trim();
+  right.trim();
+  left.toUpperCase();
+  right.toUpperCase();
+
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  left = fit(left, right.length() ? 265 : W - 2 * DASH_MARGIN);
+  epaper.drawString(left, 22, 405, GFXFF);
+  if (right.length()) {
+    const int16_t left_w = epaper.textWidth(left, GFXFF);
+    const int16_t bullet_x = 22 + left_w + 16;
+    epaper.fillCircle(bullet_x, 414, 2, TFT_BLACK);
+    epaper.drawString(fit(right, W - bullet_x - 30), bullet_x + 16, 405, GFXFF);
+  }
+#endif
+}
+
+static void drawDashApHint(const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  epaper.fillRect(DASH_MARGIN, 402, W - 2 * DASH_MARGIN, 29, TFT_BLACK);
+  epaper.setFreeFont(&FreeMono9pt7b);
+  epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  epaper.setTextDatum(ML_DATUM);
+  epaper.drawString(fit(st.ap_hint, W - 2 * DASH_MARGIN - 20),
+                    DASH_MARGIN + 10, 416, GFXFF);
+  epaper.setTextColor(TFT_BLACK, TFT_WHITE);
+#endif
+}
+
+// Parked calendar layout. It remains here, disabled, so the experiment can be
+// recovered without asking the sync bridge to invent or refetch any data.
+#if 0
+static void renderDashWithCalendar(const CardContent& c, const RenderStatus& st) {
+#ifdef EPAPER_ENABLE
+  if (!contentHasDash(c)) {
+    renderEmpty(c, st, "dash", "USAGE", "No usage yet", "set up my Dev Day terminal");
+    return;
+  }
+  terminalHeader("USAGE", c, st);
+
+  // Identity and local metrics share one compact badge-like band, leaving
+  // enough vertical room for both the short-term chart and year calendar.
+  const int16_t pet_x = 14;
+  const int16_t pet_y = 33;
+  drawPet(c, pet_x, pet_y, 96, 104);
+  epaper.drawFastVLine(121, 40, 96, TFT_BLACK);
+
+  const int16_t text_x = 139;
+  const int16_t name_w = 226;
+
+  epaper.setFreeFont(&FreeSansBold18pt7b);
+  epaper.setTextDatum(TL_DATUM);
+  epaper.drawString(fit(c.dash_name, name_w), text_x, 44, GFXFF);
+
+  epaper.setFreeFont(&FreeSans9pt7b);
+  String plan = c.dash_plan;
+  plan.toUpperCase();
+  String handle_line = fit(c.dash_handle, name_w);
+  epaper.drawString(handle_line, text_x, 83, GFXFF);
+
+  if (plan.length() > 0) {
+    epaper.setFreeFont(&FreeMono9pt7b);
+    int16_t bx = text_x;
+    int16_t by = 107;
+    int16_t bw = epaper.textWidth(plan, GFXFF) + 16;
+    int16_t bh = 25;
+    epaper.drawRoundRect(bx, by, bw, bh, 2, TFT_BLACK);
+    epaper.setTextDatum(ML_DATUM);
+    epaper.drawString(plan, bx + 10, by + bh / 2, GFXFF);
+    epaper.setTextDatum(TL_DATUM);
+  }
+
+  epaper.drawFastVLine(378, 40, 96, TFT_BLACK);
+  drawDashMetric(444, 47, c.dash_today, "today");
+  drawDashMetric(574, 47, c.dash_lifetime, "lifetime");
+  drawDashMetric(708, 47, c.dash_streak, "streak");
+  epaper.drawFastVLine(508, 48, 71, TFT_BLACK);
+  epaper.drawFastVLine(640, 48, 71, TFT_BLACK);
+
+  const int16_t label_y = 146;
+  const int16_t left_x = 18;
+  epaper.setFreeFont(&FreeMono9pt7b);
+  const String range = String((unsigned)(c.dash_day_count ? c.dash_day_count : 14)) + " DAYS";
+  const int16_t right_w = epaper.textWidth(range, GFXFF) + 24;
+  const int16_t right_x = W - 18 - right_w;
+  const int16_t left_w = epaper.textWidth("TOKEN ACTIVITY", GFXFF) + 24;
+  epaper.drawFastHLine(left_x + left_w, label_y + 12,
+                      right_x - (left_x + left_w), TFT_BLACK);
+  drawDashSectionLabel("TOKEN ACTIVITY", left_x, label_y);
+  drawDashSectionLabel(range, right_x, label_y);
+
+  drawDayChart(c, 22, 178, W - 44, 68);
+
+  const int16_t calendar_label_y = 255;
+  const String calendar_range = "LAST YEAR";
+  epaper.setFreeFont(&FreeMono9pt7b);
+  const int16_t calendar_right_w = epaper.textWidth(calendar_range, GFXFF) + 24;
+  const int16_t calendar_right_x = W - 18 - calendar_right_w;
+  const int16_t calendar_left_w = epaper.textWidth("ACTIVITY CALENDAR", GFXFF) + 24;
+  epaper.drawFastHLine(left_x + calendar_left_w, calendar_label_y + 12,
+                      calendar_right_x - (left_x + calendar_left_w), TFT_BLACK);
+  drawDashSectionLabel("ACTIVITY CALENDAR", left_x, calendar_label_y);
+  drawDashSectionLabel(calendar_range, calendar_right_x, calendar_label_y);
+
+  drawActivityCalendar(c, 22, 288, W - 44, 13, 6);
+
+  // Portal credentials replace the summary band so neither can overlap the
+  // physical-key strip on the slow-refresh display.
+  if (st.ap_hint.length()) {
+    drawDashApHint(st);
+  } else if (c.dash_insight_left.length()) {
+    drawDashSummary(c.dash_insight_left);
+  }
+
+  pageTabs("dash");
+#endif
+}
+#endif
+
 static void renderDash(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
   if (!contentHasDash(c)) {
     renderEmpty(c, st, "dash", "USAGE", "No usage yet", "set up my Dev Day terminal");
     return;
   }
-  header(c, st);
+  terminalHeader("USAGE", c, st);
 
-  // Top-left anchor, not a centre: the pet is a rectangle, and its baseline
-  // wants to sit just above the hairline under the identity block.
-  const int16_t pet_x = MARGIN;
-  const int16_t pet_y = 52;
-  drawPet(c, pet_x, pet_y);
+  // Editorial profile lockup: pet on white, a single separator, then the
+  // attendee identity. Nearest-neighbour scaling keeps the one-bit character
+  // crisp on the physical panel.
+  const int16_t pet_x = 16;
+  const int16_t pet_y = 31;
+  drawPet(c, pet_x, pet_y, 144, 156);
+  epaper.drawFastVLine(168, 58, 114, TFT_BLACK);
 
-  // Identity runs the full width. Weather lives on its own page (KEY2); a
-  // second copy here said nothing the tab strip did not already offer.
-  const int16_t text_x = pet_x + (int16_t)CardContent::PET_W + 28;
-  const int16_t name_w = W - MARGIN - text_x;
+  const int16_t text_x = 198;
+  const int16_t name_w = W - DASH_MARGIN - text_x;
 
-  epaper.setFreeFont(&FreeSansBold24pt7b);
+  epaper.setFreeFont(&FreeSansBold18pt7b);
   epaper.setTextDatum(TL_DATUM);
-  epaper.drawString(fit(c.dash_name, name_w), text_x, 66, GFXFF);
+  epaper.drawString(fit(c.dash_name, name_w), text_x, 76, GFXFF);
 
-  epaper.setFreeFont(&FreeSans12pt7b);
-  int16_t plan_w = c.dash_plan.length() > 0 ? epaper.textWidth(c.dash_plan, GFXFF) + 32 : 0;
-  String handle_line = fit(c.dash_handle, name_w - plan_w);
-  epaper.drawString(handle_line, text_x, 118, GFXFF);
-
-  if (c.dash_plan.length() > 0) {
-    int16_t hw = epaper.textWidth(handle_line, GFXFF);
-    int16_t bx = text_x + hw + 14;
-    int16_t by = 112;
-    int16_t bw = plan_w - 14;
-    int16_t bh = 26;
-    epaper.drawRoundRect(bx, by, bw, bh, 4, TFT_BLACK);
-    epaper.setTextDatum(ML_DATUM);
-    epaper.drawString(c.dash_plan, bx + 9, by + bh / 2, GFXFF);
-    epaper.setTextDatum(TL_DATUM);
-  }
-
-  // Double hairline — brutalist separation
-  epaper.drawFastHLine(MARGIN, 158, W - 2 * MARGIN, TFT_BLACK);
-  epaper.drawFastHLine(MARGIN, 160, W - 2 * MARGIN, TFT_BLACK);
-
-  // Today, lifetime total, and current streak — one column per requested metric.
-  const int16_t metric_y = 176;
-  const int16_t col = (W - 2 * MARGIN) / 3;
-  drawMetric(MARGIN + 0 * col, metric_y, col - 12, c.dash_today, "today");
-  drawMetric(MARGIN + 1 * col, metric_y, col - 12, c.dash_lifetime, "lifetime");
-  drawMetric(MARGIN + 2 * col, metric_y, col - 12, c.dash_streak, "streak");
-
-  epaper.drawFastHLine(MARGIN, 248, W - 2 * MARGIN, TFT_BLACK);
-  epaper.drawFastHLine(MARGIN, 250, W - 2 * MARGIN, TFT_BLACK);
-
-  epaper.setFreeFont(&FreeSans12pt7b);
-  epaper.setTextDatum(TL_DATUM);
-  epaper.drawString("Token activity", MARGIN, 270, GFXFF);
   epaper.setFreeFont(&FreeSans9pt7b);
-  epaper.setTextDatum(TR_DATUM);
-  epaper.drawString("last " + String((unsigned)(c.dash_day_count ? c.dash_day_count : 7)) + " days",
-                    W - MARGIN, 274, GFXFF);
+  String plan = c.dash_plan;
+  plan.toUpperCase();
+  const int16_t badge_x = 414;
+  String handle_line = fit(c.dash_handle, badge_x - text_x - 10);
+  epaper.drawString(handle_line, text_x, 121, GFXFF);
 
-  drawDayChart(c, MARGIN, 300, W - 2 * MARGIN, 104);
-
-  // Insight row and the portal credentials share this band; the credentials win.
-  if (st.ap_hint.length() == 0) {
-    epaper.setFreeFont(&FreeSans9pt7b);
+  if (plan.length() > 0) {
+    epaper.setFreeFont(&FreeMono9pt7b);
+    int16_t bx = badge_x;
+    int16_t by = 118;
+    int16_t bw = epaper.textWidth(plan, GFXFF) + 16;
+    int16_t bh = 25;
+    epaper.drawRoundRect(bx, by, bw, bh, 2, TFT_BLACK);
+    epaper.setTextDatum(ML_DATUM);
+    epaper.drawString(plan, bx + 10, by + bh / 2, GFXFF);
     epaper.setTextDatum(TL_DATUM);
-    if (c.dash_insight_left.length()) {
-      epaper.drawString(c.dash_insight_left, MARGIN, 412, GFXFF);
-    }
-    epaper.setTextDatum(TR_DATUM);
-    if (c.dash_insight_right.length()) {
-      epaper.setFreeFont(&FreeMono9pt7b);
-      epaper.drawString(fit(c.dash_insight_right, 260), W - MARGIN, 412, GFXFF);
-    } else {
-      epaper.setFreeFont(&FreeSans9pt7b);
-      epaper.drawString("updates when you plug in", W - MARGIN, 412, GFXFF);
-    }
   }
 
-  apHint(st);
+  drawDashMetric(128, c.dash_today, "today");
+  drawDashMetric(388, c.dash_lifetime, "lifetime");
+  drawDashMetric(646, c.dash_streak, "current streak");
+  epaper.drawFastVLine(276, 202, 61, TFT_BLACK);
+  epaper.drawFastVLine(522, 202, 61, TFT_BLACK);
+
+  const int16_t label_y = 280;
+  const int16_t left_x = 18;
+  epaper.setFreeFont(&FreeMono9pt7b);
+  const int16_t left_w = epaper.textWidth("TOKEN ACTIVITY", GFXFF) + 24;
+  epaper.drawFastHLine(left_x + left_w, label_y + 12,
+                      W - 18 - (left_x + left_w), TFT_BLACK);
+  drawDashSectionLabel("TOKEN ACTIVITY", left_x, label_y);
+
+  drawDayChart(c, 22, 309, W - 44, 84);
+
+  if (st.ap_hint.length()) {
+    drawDashApHint(st);
+  } else if (c.dash_insight_left.length()) {
+    drawDashSummary(c.dash_insight_left);
+  }
+
   pageTabs("dash");
 #endif
 }

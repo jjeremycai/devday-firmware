@@ -25,6 +25,13 @@ struct CardContent {
   static constexpr size_t DASH_DAYS = 14;
   uint8_t dash_day_tokens[DASH_DAYS]; // 0–255 relative heights for the chart
   size_t dash_day_count;
+  // Sunday-first contribution-style calendar. 53 columns includes the
+  // current partial week while keeping a full year of local activity visible.
+  static constexpr size_t DASH_CALENDAR_WEEKS = 53;
+  static constexpr size_t DASH_CALENDAR_DAYS = DASH_CALENDAR_WEEKS * 7;
+  uint8_t dash_calendar[DASH_CALENDAR_DAYS]; // 0–4 activity level
+  size_t dash_calendar_count;
+  uint16_t dash_calendar_today; // index into dash_calendar; UINT16_MAX = unknown
   // Packed 1-bit MSB-first portrait, row-major: the attendee's Codex pet, or
   // their profile photo. Not square — a pet cell is 192x208, and cropping one
   // to a circle cuts off its legs and props. Empty = draw the bundled pet.

@@ -54,6 +54,9 @@ void contentDefaults(CardContent& c, const String& device_name) {
   c.dash_insight_right = "";
   c.dash_day_count = 0;
   memset(c.dash_day_tokens, 0, sizeof(c.dash_day_tokens));
+  c.dash_calendar_count = 0;
+  c.dash_calendar_today = UINT16_MAX;
+  memset(c.dash_calendar, 0, sizeof(c.dash_calendar));
   memset(c.dash_avatar, 0, sizeof(c.dash_avatar));
   c.dash_avatar_present = false;
 
@@ -137,6 +140,25 @@ bool contentParse(const String& payload, CardContent& c) {
         c.dash_day_tokens[n++] = (uint8_t)t;
       }
       c.dash_day_count = n;
+    }
+
+    JsonArray calendar = dash["calendar"].as<JsonArray>();
+    if (!calendar.isNull()) {
+      size_t n = 0;
+      for (JsonVariant v : calendar) {
+        if (n >= CardContent::DASH_CALENDAR_DAYS) break;
+        int level = v.as<int>();
+        if (level < 0) level = 0;
+        if (level > 4) level = 4;
+        c.dash_calendar[n++] = (uint8_t)level;
+      }
+      c.dash_calendar_count = n;
+    }
+    if (dash["calendar_today"].is<int>()) {
+      int today = dash["calendar_today"].as<int>();
+      if (today >= 0 && today < (int)CardContent::DASH_CALENDAR_DAYS) {
+        c.dash_calendar_today = (uint16_t)today;
+      }
     }
 
     // Exactly one size is valid; anything else is left alone rather than

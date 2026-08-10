@@ -16,8 +16,10 @@ and usage over USB. No account to create, no permission prompt.
 
 Every render below is produced by the shipping firmware's actual drawing code
 (`tools/preview/build.sh`), not a mockup. Design language throughout:
-brutalist 1-bit — solid fills, hairline double-rules, FreeSans, uppercase
-micro-labels, no grayscale — with the OpenAI blossom anchoring every header.
+brutalist 1-bit — solid fills, hairline rules, FreeSans/FreeMono, uppercase
+micro-labels, and ordered one-bit dithering instead of grayscale. Usage,
+Weather, and Agenda share a contextual black status rail and use solid,
+dithered, and outlined states for current, recent, and upcoming information.
 
 ### First boot
 
@@ -42,16 +44,18 @@ drawn from the real sprite atlas with a two-band halftone pass so dark-bodied
 characters keep their features in 1-bit ink), name, handle, plan badge, today /
 lifetime / streak metrics, and a 14-day token activity chart. Fills
 automatically when the terminal is plugged into a laptop with Codex signed in.
+The previous week is lightly dithered, the current week uses a denser pattern,
+and today remains solid black.
 
 ### 2 · Weather
 
 ![Weather page](docs/screens/2-weather.png)
 
 Today's forecast: current conditions with a condition icon, morning /
-afternoon / evening cards, and a 24-hour temperature skyline with "now"
-marked solid. Icons are solid-silhouette glyphs — sun, partly, cloud, rain,
-snow, storm, fog — drawn as geometry, because stroked icons turn to noise at
-this size on e-paper.
+afternoon / evening columns, and a 24-hour temperature skyline. Past hours are
+dithered, "now" is solid, and future hours are outlined. Icons are
+solid-silhouette glyphs — sun, partly, cloud, rain, snow, storm, fog — drawn as
+geometry, because stroked icons turn to noise at this size on e-paper.
 
 ### 3 · Agenda
 
@@ -59,7 +63,9 @@ this size on e-paper.
 
 The attendee's actual day, read automatically from their local calendar on
 sync — all accounts, recurring events resolved, nothing to install. All-day
-and still-upcoming events take priority for the four rows.
+and still-upcoming events take priority for the four rows. The next event gets
+an inverse time cell; later events retain hollow timeline markers in an open,
+rule-separated schedule.
 
 **Usage · Weather · Agenda** — three pages on the first three buttons,
 numbered 1-3 (KEY1 / KEY2 / KEY3) left to right. Press and release to switch;

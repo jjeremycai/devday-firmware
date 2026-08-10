@@ -26,5 +26,15 @@ int main() {
   assert(utf8_content.dash_name.length() == 255);
   assert(utf8_content.dash_name.charAt(254) == 'a');
 
+  CardContent calendar_content;
+  contentDefaults(calendar_content, "");
+  String calendar_payload(
+      "{\"schema\":1,\"dash\":{\"calendar\":[-1,1,3,9],\"calendar_today\":2}}");
+  assert(contentParse(calendar_payload, calendar_content));
+  assert(calendar_content.dash_calendar_count == 4);
+  assert(calendar_content.dash_calendar[0] == 0);
+  assert(calendar_content.dash_calendar[3] == 4);
+  assert(calendar_content.dash_calendar_today == 2);
+
   return 0;
 }

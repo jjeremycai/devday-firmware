@@ -19,14 +19,25 @@ inline CardContent sampleContent() {
   c.dash_handle = "@permanentunderclass";
   c.dash_plan = "Pro";
   c.dash_today = "133.2M";
-  c.dash_lifetime = "48.8B";
-  c.dash_streak = "38 days";
-  c.dash_insight_left = "Most used reasoning · Extra High · 41%";
-  c.dash_insight_right = "Wed 11:04 PM";
+  c.dash_lifetime = "49B";
+  c.dash_streak = "2 days";
+  c.dash_insight_left = "PEAK DAY 2.7B | LONGEST STREAK 64D";
+  c.dash_insight_right = "Sun 2:11 PM";
   static const uint8_t days[CardContent::DASH_DAYS] = {30, 55, 40, 90, 120, 80, 70,
                                                        95, 60, 140, 110, 75, 200, 255};
   memcpy(c.dash_day_tokens, days, sizeof days);
   c.dash_day_count = CardContent::DASH_DAYS;
+  for (size_t week = 0; week < CardContent::DASH_CALENDAR_WEEKS; week++) {
+    for (size_t day = 0; day < 7; day++) {
+      const size_t i = week * 7 + day;
+      uint8_t level = 0;
+      if ((week + day * 3) % 6 != 0) level = (uint8_t)(1 + ((week * 5 + day * 2) % 4));
+      if (week < 10 && (week + day) % 3 != 0) level = 0;
+      c.dash_calendar[i] = level;
+    }
+  }
+  c.dash_calendar_count = CardContent::DASH_CALENDAR_DAYS;
+  c.dash_calendar_today = 52 * 7; // Sunday, August 9, 2026.
 
   // The bundled pet, as though it had been pushed over USB — so the preview
   // shows the real conversion rather than a synthetic stand-in.
@@ -65,6 +76,8 @@ inline CardContent sampleContent() {
   c.agenda_time[2] = "14:00"; c.agenda_title[2] = "Deep work";       c.agenda_detail[2] = "Terminal demo prep";
   c.agenda_time[3] = "16:30"; c.agenda_title[3] = "Demo";            c.agenda_detail[3] = "Hall B · 30m";
   c.agenda_count = 4;
+
+  c.header_date = "Sunday, August 9";
 
   c.refresh_after_s = 1800;
   return c;

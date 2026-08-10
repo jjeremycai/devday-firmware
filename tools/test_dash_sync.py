@@ -9,6 +9,7 @@ import json
 import plistlib
 import unittest
 import urllib.parse
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -25,7 +26,12 @@ class DashSyncTests(unittest.TestCase):
     def test_today_tokens_and_usage_payload_contract(self) -> None:
         date_key = sync.datetime.now().date().isoformat()
         usage = {
-            "summary": {"lifetimeTokens": 48_800_000_000, "currentStreakDays": 38},
+            "summary": {
+                "lifetimeTokens": 48_800_000_000,
+                "currentStreakDays": 38,
+                "peakDailyTokens": 2_700_000_000,
+                "longestStreakDays": 64,
+            },
             "dailyUsageBuckets": [
                 {"startDate": "2026-08-08", "tokens": 900},
                 {"startDate": date_key, "tokens": 133_200_000},
@@ -40,8 +46,25 @@ class DashSyncTests(unittest.TestCase):
         self.assertEqual(dash["today"], "133.2M")
         self.assertEqual(dash["lifetime"], "48.8B")
         self.assertEqual(dash["streak"], "38 days")
+        self.assertEqual(dash["insight_left"], "PEAK DAY 2.7B | LONGEST STREAK 64D")
+        self.assertNotIn("calendar", dash)
+        self.assertNotIn("calendar_today", dash)
         self.assertNotIn("peak", dash)
         self.assertNotIn("longest", dash)
+
+    def test_usage_calendar_preserves_blank_dates_and_today(self) -> None:
+        current = date(2026, 8, 9)  # Sunday, first row of the final week.
+        usage = {
+            "dailyUsageBuckets": [
+                {"startDate": "2026-08-07", "tokens": 10},
+                {"startDate": "2026-08-09", "tokens": 100},
+            ]
+        }
+        calendar, today_index = sync.calendar_from_usage(usage, current)
+        self.assertEqual(len(calendar), 371)
+        self.assertEqual(today_index, 364)
+        self.assertEqual(calendar[today_index - 1], 0)
+        self.assertGreater(calendar[today_index], 0)
 
     def test_weather_units_follow_ip_country_then_locale(self) -> None:
         self.assertEqual(sync.weather_units("US"), ("fahrenheit", "mph", "mph"))

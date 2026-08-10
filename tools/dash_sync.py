@@ -37,7 +37,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -56,6 +56,9 @@ CONTENT_MAX_BYTES = 12000
 AGENDA_MAX = 4
 AUTO_SYNC_LABEL = "com.openai.devday-dash-sync"
 AUTO_SYNC_SERVICE = "devday-dash-sync.service"
+# The year-grid experiment is intentionally parked. Keep its local-only
+# derivation available for a later design pass, but do not add it to payloads.
+INCLUDE_USAGE_CALENDAR = False
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +349,59 @@ def days_from_usage(usage: Dict[str, Any], count: int = 14) -> List[int]:
     return [max(0, min(255, int(round(v / peak * 255)))) for v in logged]
 
 
+def calendar_from_usage(
+    usage: Dict[str, Any], today: Optional[date] = None, weeks: int = 53
+) -> Tuple[List[int], int]:
+    """Return a Sunday-first, Git-style year grid and today's cell index.
+
+    The local app-server omits days without usage. Fill those dates with zero
+    so the display is a real calendar rather than a compressed activity list.
+    Non-zero days are divided into four activity bands using local quartiles.
+    """
+    current = today or datetime.now().date()
+    sunday_offset = (current.weekday() + 1) % 7
+    current_week = current - timedelta(days=sunday_offset)
+    start = current_week - timedelta(weeks=weeks - 1)
+    count = weeks * 7
+
+    by_date: Dict[date, int] = {}
+    for bucket in usage.get("dailyUsageBuckets") or []:
+        raw_date = bucket.get("startDate") or bucket.get("start_date")
+        if not raw_date:
+            continue
+        try:
+            bucket_date = date.fromisoformat(str(raw_date)[:10])
+        except ValueError:
+            continue
+        by_date[bucket_date] = max(
+            0, int(bucket.get("tokens") or bucket.get("totalTokens") or 0)
+        )
+
+    raw = [by_date.get(start + timedelta(days=i), 0) for i in range(count)]
+    positive = sorted(value for value in raw if value > 0)
+    if not positive:
+        return [0] * count, (current - start).days
+
+    def percentile(fraction: float) -> int:
+        index = min(len(positive) - 1, int((len(positive) - 1) * fraction))
+        return positive[index]
+
+    thresholds = (percentile(0.25), percentile(0.50), percentile(0.75))
+    levels: List[int] = []
+    for value in raw:
+        if value <= 0:
+            levels.append(0)
+        elif value <= thresholds[0]:
+            levels.append(1)
+        elif value <= thresholds[1]:
+            levels.append(2)
+        elif value <= thresholds[2]:
+            levels.append(3)
+        else:
+            levels.append(4)
+    return levels, (current - start).days
+
+
 def resolve_location(
     lat: Optional[float], lon: Optional[float]
 ) -> Tuple[float, float, str, str]:
@@ -530,6 +586,13 @@ def build_payload(
     handle = f"@{username}" if username and not str(username).startswith("@") else str(username)
     name = profile.get("display_name") or "Codex"
     streak = summary.get("currentStreakDays")
+    peak_day = summary.get("peakDailyTokens")
+    longest_streak = summary.get("longestStreakDays")
+    insight_parts = []
+    if peak_day is not None:
+        insight_parts.append(f"PEAK DAY {format_tokens(peak_day)}")
+    if longest_streak is not None:
+        insight_parts.append(f"LONGEST STREAK {longest_streak}D")
     payload = {
         "schema": 1,
         "refresh_after_s": 1800,
@@ -540,7 +603,7 @@ def build_payload(
             "today": format_tokens(today_tokens_from_usage(usage)),
             "lifetime": format_tokens(summary.get("lifetimeTokens")),
             "streak": f"{streak} days" if streak is not None else "",
-            "insight_left": "Codex · local sync",
+            "insight_left": " | ".join(insight_parts),
             "insight_right": datetime.now().strftime("%a %-I:%M %p"),
             "days": days_from_usage(usage),
             "avatar_hex": avatar_hex,
@@ -549,6 +612,10 @@ def build_payload(
         # weather is skipped (--offline / --no-weather).
         "date": datetime.now().strftime("%A, %B %-d"),
     }
+    if INCLUDE_USAGE_CALENDAR:
+        calendar, calendar_today = calendar_from_usage(usage)
+        payload["dash"]["calendar"] = calendar
+        payload["dash"]["calendar_today"] = calendar_today
     if weather:
         payload["weather"] = weather
     if agenda:

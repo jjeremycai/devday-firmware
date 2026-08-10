@@ -99,8 +99,8 @@ Caches the payload in LittleFS and renders immediately.
         "today": "133.2M",
         "lifetime": "48.8B",
         "streak": "38 days",
-        "insight_left": "Most used reasoning · Extra High · 41%",
-        "insight_right": "Wed 11:04 PM",
+        "insight_left": "PEAK DAY 2.7B | LONGEST STREAK 64D",
+        "insight_right": "Sun 2:11 PM",
         "days": [40, 55, 90, 120, 80, 70, 95],
         "avatar_hex": "<2496 hex chars for a 96×104 1-bit MSB bitmap>"
       }
@@ -182,8 +182,8 @@ Response schema:
     "today": "133.2M",
     "lifetime": "48.8B",
     "streak": "38 days",
-    "insight_left": "Most used reasoning · Extra High · 41%",
-    "insight_right": "Wed 11:04 PM",
+    "insight_left": "PEAK DAY 2.7B | LONGEST STREAK 64D",
+    "insight_right": "Sun 2:11 PM",
     "days": [40, 55, 90, 120, 80, 70, 95],
     "avatar_hex": "<96×104 1-bit MSB-first row-major, hex-encoded>"
   },
@@ -197,6 +197,8 @@ Response schema:
   "date": "Thursday, August 6"
 }
 ```
+
+`dash.days` contains up to 14 relative bar heights (0–255).
 
 All fields optional except `schema`. `refresh_after_s` is clamped to
 300–86400 seconds. Rendered text fields are truncated to 256 bytes on a UTF-8
