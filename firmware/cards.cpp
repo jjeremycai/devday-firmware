@@ -1088,6 +1088,73 @@ static void drawPet(const CardContent& c, int16_t x0, int16_t y0,
 #endif
 }
 
+// Solid fill of the pet's shape, leaving transparent margins untouched so a
+// backdrop shows through around the character. Enclosed holes — the face
+// screen, gaps between arms and body — are filled too, so the backdrop never
+// shows through the character itself. A pixel is hole-filled when ink exists
+// on all four sides of it; openings to the outside (between the legs, above
+// the head) stay open.
+static void drawPetSilhouette(const CardContent& c, int16_t x0, int16_t y0,
+                              int16_t draw_w, int16_t draw_h,
+                              uint16_t color = TFT_BLACK) {
+#ifdef EPAPER_ENABLE
+  static uint8_t ink[CardContent::PET_H][CardContent::PET_W];
+  static uint8_t left[CardContent::PET_H][CardContent::PET_W];
+  static uint8_t right[CardContent::PET_H][CardContent::PET_W];
+  static uint8_t top[CardContent::PET_H][CardContent::PET_W];
+  static uint8_t bot[CardContent::PET_H][CardContent::PET_W];
+  for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
+    for (int16_t x = 0; x < (int16_t)CardContent::PET_W; x++) {
+      bool on = false;
+      if (c.dash_avatar_present) {
+        on = packedBit(c.dash_avatar, CardContent::PET_W, x, y);
+      } else {
+        const size_t bit = (size_t)y * CardContent::PET_W + (size_t)x;
+        on = (pgm_read_byte(&PET_ASSET_BITMAP[bit / 8]) &
+              (0x80 >> (bit % 8))) != 0;
+      }
+      ink[y][x] = on;
+    }
+  }
+  for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
+    uint8_t run = 0;
+    for (int16_t x = 0; x < (int16_t)CardContent::PET_W; x++) {
+      left[y][x] = run;
+      run |= ink[y][x];
+    }
+    run = 0;
+    for (int16_t x = (int16_t)CardContent::PET_W - 1; x >= 0; x--) {
+      right[y][x] = run;
+      run |= ink[y][x];
+    }
+  }
+  for (int16_t x = 0; x < (int16_t)CardContent::PET_W; x++) {
+    uint8_t run = 0;
+    for (int16_t y = 0; y < (int16_t)CardContent::PET_H; y++) {
+      top[y][x] = run;
+      run |= ink[y][x];
+    }
+    run = 0;
+    for (int16_t y = (int16_t)CardContent::PET_H - 1; y >= 0; y--) {
+      bot[y][x] = run;
+      run |= ink[y][x];
+    }
+  }
+  for (int16_t dy = 0; dy < draw_h; dy++) {
+    const int16_t sy = (int16_t)((int32_t)dy * CardContent::PET_H / draw_h);
+    for (int16_t dx = 0; dx < draw_w; dx++) {
+      const int16_t sx = (int16_t)((int32_t)dx * CardContent::PET_W / draw_w);
+      if (ink[sy][sx] ||
+          (left[sy][sx] && right[sy][sx] && top[sy][sx] && bot[sy][sx])) {
+        epaper.drawPixel(x0 + dx, y0 + dy, color);
+      }
+    }
+  }
+#else
+  (void)c; (void)x0; (void)y0; (void)draw_w; (void)draw_h; (void)color;
+#endif
+}
+
 static void drawMetric(int16_t x, int16_t y, int16_t max_w,
                        const String& value, const char* label) {
 #ifdef EPAPER_ENABLE
@@ -1132,6 +1199,9 @@ static void drawDayChart(const CardContent& c, int16_t x, int16_t y,
     if (c.dash_day_tokens[i] > 0 && bh < 3) bh = 3;
     int16_t bx = x + (int16_t)i * (bar_w + gap);
     int16_t by = base_y - bh;
+    // Knock the perspective floor out of each bar so the foreground reads
+    // solid against the backdrop.
+    epaper.fillRect(bx - 1, by - 1, bar_w + 2, bh + 1, TFT_BLACK);
     if (i + 1 == n) {
       epaper.fillRect(bx, by, bar_w, bh, color); // today: solid
     } else {
@@ -1196,16 +1266,20 @@ static void drawDashMetric(int16_t center_x, const String& value, const char* la
 // Keep the whole atlas cell inside the partial-refresh window. A custom frame
 // is allowed to use its top row; relying on the bundled pet's transparent
 // margin would let those pixels escape the /dev/user frame and never refresh.
-static constexpr int16_t DASH_PET_Y = 60;
-static constexpr int16_t DASH_PET_H = 165;
+static constexpr int16_t DASH_PET_H = 130;
+// Anchored to the bottom of the /dev/user band, feet in the ground band.
+static constexpr int16_t DASH_PET_Y = 225 - DASH_PET_H;
 // Preserve the 96:104 atlas-cell ratio. The previous 200x185 rectangle made
 // every pet about 17% too wide because drawPet scales each axis independently.
 static constexpr int16_t DASH_PET_W =
     (DASH_PET_H * CardContent::PET_W + CardContent::PET_H / 2) /
     CardContent::PET_H;
+// The profile band splits into equal halves: scene + pet left, identity right.
+static constexpr int16_t DASH_HALF_X =
+    (DASH_THIRD_EDGES[0] + DASH_THIRD_EDGES[3]) / 2;
 static constexpr int16_t DASH_PET_X =
     DASH_THIRD_EDGES[0] +
-    (DASH_THIRD_EDGES[1] - DASH_THIRD_EDGES[0] - DASH_PET_W) / 2;
+    (DASH_HALF_X - DASH_THIRD_EDGES[0] - DASH_PET_W) / 2;
 
 static void drawDarkLegend(const String& raw, int16_t x, int16_t y) {
 #ifdef EPAPER_ENABLE
@@ -1272,7 +1346,7 @@ static void drawDarkFooter(const CardContent& c) {
     longest_streak = legacyDashStat(c.dash_insight_left, "LONGEST STREAK");
   }
 
-  drawDashedHLine(14, 404, 772, TFT_WHITE);
+  epaper.drawFastHLine(0, 404, W, TFT_WHITE);
   for (uint8_t i = 1; i < 3; i++) {
     drawDashedVLine(DASH_THIRD_EDGES[i], 410, 24, TFT_WHITE);
   }
@@ -1282,6 +1356,166 @@ static void drawDarkFooter(const CardContent& c) {
                      "LONGEST STREAK", longest_streak);
   drawDarkFooterStat(DASH_THIRD_EDGES[2], DASH_THIRD_EDGES[3],
                      "7D TOTAL", c.dash_seven_day_total);
+#endif
+}
+
+static void plotClipped(int16_t x, int16_t y, int16_t rx, int16_t ry,
+                        int16_t rw, int16_t rh, uint16_t color) {
+#ifdef EPAPER_ENABLE
+  if (x < rx || x >= rx + rw || y < ry || y >= ry + rh) return;
+  epaper.drawPixel(x, y, color);
+#else
+  (void)x; (void)y; (void)rx; (void)ry; (void)rw; (void)rh; (void)color;
+#endif
+}
+
+static void drawLineClipped(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                            int16_t rx, int16_t ry, int16_t rw, int16_t rh,
+                            uint16_t color, int16_t dot_period = 0) {
+#ifdef EPAPER_ENABLE
+  const int16_t dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+  const int16_t dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+  int16_t err = dx + dy;
+  int16_t step = 0;
+  for (;;) {
+    if (dot_period == 0 || (step % dot_period) == 0) {
+      plotClipped(x0, y0, rx, ry, rw, rh, color);
+    }
+    if (x0 == x1 && y0 == y1) break;
+    const int16_t e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+    step++;
+  }
+#else
+  (void)x0; (void)y0; (void)x1; (void)y1; (void)rx; (void)ry; (void)rw;
+  (void)rh; (void)color; (void)dot_period;
+#endif
+}
+
+// Synthwave backdrop for the /dev/user left half: ordered-dither moon,
+// stars, speed dashes, twin mountain ridges and a ground band. Geometry is
+// absolute so renderDashPetFrame can repaint it under the animated pet and
+// reproduce the full-page render pixel for pixel; the clip rect only gates
+// which pixels land.
+static void drawPetScene(const CardContent& c, int16_t rx, int16_t ry,
+                         int16_t rw, int16_t rh) {
+#ifdef EPAPER_ENABLE
+  const uint16_t color = TFT_WHITE;
+  static const uint8_t kBayer8[64] = {
+      0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26,
+      12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
+      3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25,
+      15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21};
+  const int16_t mcx = 190, mcy = 122, mr = 78;
+  const int16_t ground_y = 208;
+  const int16_t scene_x1 = DASH_HALF_X - 1;
+  for (int16_t y = mcy - mr; y <= mcy + mr && y <= ground_y - 3; y++) {
+    for (int16_t x = mcx - mr; x <= mcx + mr; x++) {
+      const int16_t dx = x - mcx, dy = y - mcy;
+      if ((int32_t)dx * dx + (int32_t)dy * dy > (int32_t)mr * mr) continue;
+      const float t = (float)(y - (mcy - mr)) / (2.0f * mr);
+      const float density = 0.72f - 0.60f * t;
+      if (kBayer8[(y & 7) * 8 + (x & 7)] / 64.0f < density) {
+        plotClipped(x, y, rx, ry, rw, rh, color);
+      }
+    }
+  }
+
+  static const int16_t kStar[10][3] = {{24, 58, 1}, {48, 84, 0}, {350, 60, 1},
+                                       {332, 92, 0}, {16, 120, 0}, {372, 132, 0},
+                                       {60, 50, 0}, {300, 48, 0}, {380, 76, 1},
+                                       {330, 100, 0}};
+  for (const auto& s : kStar) {
+    if (s[2]) {
+      plotClipped(s[0], s[1], rx, ry, rw, rh, color);
+      plotClipped(s[0] - 1, s[1], rx, ry, rw, rh, color);
+      plotClipped(s[0] + 1, s[1], rx, ry, rw, rh, color);
+      plotClipped(s[0], s[1] - 1, rx, ry, rw, rh, color);
+      plotClipped(s[0], s[1] + 1, rx, ry, rw, rh, color);
+    } else {
+      plotClipped(s[0], s[1], rx, ry, rw, rh, color);
+    }
+  }
+
+  static const int16_t kDash[12][3] = {
+      {10, 170, 16}, {14, 184, 10}, {10, 198, 20}, {356, 166, 18},
+      {368, 182, 12}, {352, 198, 16}, {310, 176, 10}, {384, 190, 12},
+      {150, 158, 12}, {96, 178, 14}, {262, 158, 12}, {296, 190, 14}};
+  for (const auto& d : kDash) {
+    for (int16_t i = 0; i < d[2]; i++) {
+      plotClipped(d[0] + i, d[1], rx, ry, rw, rh, color);
+    }
+  }
+
+  static const int16_t kRidgeL[12] = {10, 205, 28, 176, 46, 192,
+                                      66, 168, 88, 196, 110, 206};
+  static const int16_t kRidgeR[12] = {290, 206, 310, 180, 330, 193,
+                                      352, 168, 374, 192, 399, 203};
+  const int16_t* ridges[2] = {kRidgeL, kRidgeR};
+  for (const int16_t* pts : ridges) {
+    for (uint8_t i = 0; i + 3 < 12; i += 2) {
+      drawLineClipped(pts[i], pts[i + 1], pts[i + 2], pts[i + 3],
+                      rx, ry, rw, rh, color);
+    }
+    for (int16_t x = pts[0]; x <= pts[10]; x++) {
+      uint8_t seg = 0;
+      while (seg + 3 < 10 && x > pts[seg + 2]) seg += 2;
+      const int16_t x0 = pts[seg], y0 = pts[seg + 1];
+      const int16_t x1 = pts[seg + 2], y1 = pts[seg + 3];
+      const int16_t ridge_y = x1 == x0 ? y0
+                              : (int16_t)(y0 + (int32_t)(y1 - y0) * (x - x0) / (x1 - x0));
+      // Descending slopes face away from the moon and sit in shadow.
+      const bool shadow = y1 > y0;
+      for (int16_t y = ridge_y + 1; y < ground_y - 1; y++) {
+        const bool on = shadow ? ((x + y) & 1) == 0 : ((x + 2 * y) & 3) == 0;
+        if (on) plotClipped(x, y, rx, ry, rw, rh, color);
+      }
+    }
+  }
+
+  for (int16_t x = 10; x <= scene_x1; x++) {
+    plotClipped(x, ground_y, rx, ry, rw, rh, color);
+  }
+  for (int16_t k = 0; k < 5; k++) {
+    const int16_t y = ground_y + 3 + k * 4;
+    for (int16_t x = 10 + k; x <= scene_x1; x += 6) {
+      for (int16_t i = 0; i < 3; i++) {
+        plotClipped(x + i, y, rx, ry, rw, rh, color);
+      }
+    }
+  }
+
+  // Knock the backdrop out of the character's silhouette so the foreground
+  // reads solid against the scene.
+  drawPetSilhouette(c, DASH_PET_X, DASH_PET_Y, DASH_PET_W, DASH_PET_H,
+                    TFT_BLACK);
+#else
+  (void)c; (void)rx; (void)ry; (void)rw; (void)rh;
+#endif
+}
+
+// Perspective floor behind the token-activity bars: radial lines converging
+// to a vanishing point above the horizon, quadratic-spaced rows towards the
+// viewer, all clipped to the chart interior.
+static void drawPerspectiveGrid(int16_t rx, int16_t ry, int16_t rw, int16_t rh) {
+#ifdef EPAPER_ENABLE
+  const uint16_t color = TFT_WHITE;
+  const int16_t vpx = rx + rw / 2;
+  const int16_t vpy = ry - 160;
+  const int16_t y1 = ry + rh - 1;
+  for (int8_t i = 1; i <= 8; i++) {
+    const int16_t y = (int16_t)(ry + (rh - 1) * (int32_t)i * i / 64);
+    for (int16_t x = rx; x < rx + rw; x++) {
+      if ((x & 3) == 0) epaper.drawPixel(x, y, color);
+    }
+  }
+  for (int16_t xb = rx - 320; xb <= rx + rw + 320; xb += 40) {
+    const int16_t xh = (int16_t)(vpx + (int32_t)(xb - vpx) * (ry - vpy) / (y1 - vpy));
+    drawLineClipped(xh, ry, xb, y1, rx, ry, rw, rh, color, 4);
+  }
+#else
+  (void)rx; (void)ry; (void)rw; (void)rh;
 #endif
 }
 
@@ -1571,19 +1805,19 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
   epaper.fillScreen(TFT_BLACK);
   terminalHeaderDark(c, st);
 
-  // /dev/user: profile and top-line metrics share one framed command block.
-  epaper.drawRect(9, 43, 782, 271, TFT_WHITE);
+  // /dev/user: profile band, then top-line metrics between full-width rules.
   drawDarkLegend("/dev/user", 24, 37);
+  drawPetScene(c, 10, 44, DASH_HALF_X - 10, 269);
   drawPet(c, DASH_PET_X, DASH_PET_Y, DASH_PET_W, DASH_PET_H,
           false, TFT_WHITE);
-  drawDashedVLine(DASH_THIRD_EDGES[1], 49, 176, TFT_WHITE);
+  drawDashedVLine(DASH_HALF_X, 49, 176, TFT_WHITE);
 
-  const int16_t text_x = 329;
-  const int16_t name_w = 432;
+  const int16_t text_x = DASH_HALF_X + 25;
+  const int16_t name_w = DASH_THIRD_EDGES[3] - 25 - text_x;
   epaper.setTextColor(TFT_WHITE, TFT_BLACK);
   epaper.setTextDatum(TL_DATUM);
-  epaper.setFreeFont(&FreeMono24pt7b);
-  epaper.drawString(fit(c.dash_name, name_w), text_x, 69, GFXFF);
+  epaper.setFreeFont(&FreeMono18pt7b);
+  epaper.drawString(fit(c.dash_name, name_w), text_x, 78, GFXFF);
 
   epaper.setFreeFont(&FreeMono9pt7b);
   epaper.drawString(fit(c.dash_handle, name_w), text_x, 130, GFXFF);
@@ -1601,7 +1835,7 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
     epaper.drawString(plan, bx + bw / 2, by + bh / 2 + 1, GFXFF);
   }
 
-  drawDashedHLine(14, 230, 772, TFT_WHITE);
+  epaper.drawFastHLine(0, 230, W, TFT_WHITE);
   drawDashedVLine(DASH_THIRD_EDGES[1], 236, 71, TFT_WHITE);
   drawDashedVLine(DASH_THIRD_EDGES[2], 236, 71, TFT_WHITE);
   drawDarkMetric((DASH_THIRD_EDGES[0] + DASH_THIRD_EDGES[1]) / 2,
@@ -1613,9 +1847,10 @@ static void renderDash(const CardContent& c, const RenderStatus& st) {
 
   // /proc/token_activity: 14 normalized daily bars over the real three-cell
   // local summary. Previous/current week use ordered dither; today is solid.
-  epaper.drawRect(9, 322, 782, 117, TFT_WHITE);
+  epaper.drawFastHLine(0, 316, W, TFT_WHITE);
   drawDarkLegend("/proc/token_activity [14d]", 24, 316);
   epaper.setTextColor(TFT_WHITE, TFT_BLACK);
+  drawPerspectiveGrid(25, 334, 750, 61);
   drawDayChart(c, 24, 333, 752, 62, TFT_WHITE);
 
   if (st.ap_hint.length()) {
@@ -1655,6 +1890,7 @@ void renderDashPetFrame(const CardContent& c, bool alternate) {
   static constexpr int16_t partial_y = DASH_PET_Y;
   static constexpr int16_t partial_h = DASH_PET_H;
   epaper.fillRect(DASH_PET_X, partial_y, DASH_PET_W, partial_h, TFT_BLACK);
+  drawPetScene(c, DASH_PET_X, partial_y, DASH_PET_W, partial_h);
   drawPet(c, DASH_PET_X, DASH_PET_Y, DASH_PET_W, DASH_PET_H,
           alternate, TFT_WHITE);
   epaper.updataPartial(DASH_PET_X, partial_y, DASH_PET_W, partial_h);

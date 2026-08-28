@@ -8,6 +8,7 @@
 #include "TFT_eSPI.h"
 
 #include "cards.h"
+#include "pet_samples.h"
 #include "sample_content.h"
 
 int main(int argc, char** argv) {
@@ -62,6 +63,18 @@ int main(int argc, char** argv) {
     CardContent bundled = content;
     bundled.dash_avatar_present = false;
     dump("dash", bundled, st, "dash_bundled_pet");
+  }
+
+  // Varied avatar shapes: the backdrop and silhouette knockout must hold up
+  // against more than the bundled pet.
+  for (size_t i = 0; i < kPetSampleCount; i++) {
+    CardContent pet = content;
+    memcpy(pet.dash_avatar, kPetSamples[i].bits, CardContent::PET_BYTES);
+    pet.dash_avatar_present = true;
+    pet.dash_avatar_alt_present = false;
+    char name[256];
+    snprintf(name, sizeof name, "dash_pet_%s", kPetSamples[i].name);
+    dump("dash", pet, st, name);
   }
 
   // Overlong payload strings must be clipped, not run into their neighbours.
