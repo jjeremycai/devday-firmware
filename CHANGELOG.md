@@ -1,8 +1,17 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.0] - 2026-09-03
 
 ### Added
+
+- **Synthwave backdrops on the Usage page.** `/dev/user` now splits into
+  equal halves: the pet stands bottom-anchored in a 1-bit scene — Bayer-8
+  dithered moon, shadowed mountain ridges, speed dashes, stars and a ground
+  band — while `/proc/token_activity` bars sit on a dotted perspective floor.
+  The pet silhouette and each bar knock the backdrop out so foregrounds read
+  solid, and the outer section frames gave way to full-width rules.
+  `tools/preview/gen_pet_samples.py` renders the page against extra built-in
+  pets for QA.
 
 - **Dev Day 2026 terminal Usage page.** The 7.5-inch Usage screen now renders
   beneath a `[ DEV DAY 2026 ]` rail as a framed `/dev/user` and

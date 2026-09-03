@@ -18,9 +18,10 @@ Every render below is produced by the shipping firmware's actual drawing code
 (`tools/preview/build.sh`), not a mockup. Design language throughout:
 brutalist 1-bit — solid fills, dotted rules, FreeSans/FreeMono, uppercase
 micro-labels, and ordered one-bit dithering instead of grayscale. Usage,
-Weather, and Agenda share the same black command rail, framed `/path` sections,
-exact one-third grid, and page-aware physical-key tabs. Large readings use the
-regular mono face; bold mono is reserved for small labels where it stays crisp.
+Weather, and Agenda share the same black command rail, `/path` sections set
+off by full-width rules, exact one-third grid, and page-aware physical-key
+tabs. Large readings use the regular mono face; bold mono is reserved for
+small labels where it stays crisp.
 
 ### First boot
 
@@ -43,18 +44,25 @@ permanently.
 The attendee's Codex identity beneath a `[ DEV DAY 2026 ]` command rail: their
 pet (whichever one they picked in Codex), name, handle, plan badge, today /
 lifetime / streak
-metrics, and a 14-day token activity chart. The three equal `/proc` footer cells
-show peak day, longest streak, and seven-day total using only values
-available from the local Codex usage service. Previous days use ordered
-dither; today remains solid. The real sprite atlas supplies two idle frames;
-while USB power is present the firmware makes four five-second partial-window
-swaps and then rests on the primary frame, avoiding full-panel refresh churn.
-Everything fills automatically when the terminal is plugged into a laptop
-with Codex signed in.
+metrics, and a 14-day token activity chart. The `/dev/user` band splits into
+equal halves — the pet standing in a 1-bit synthwave scene (Bayer-dithered
+moon, mountain ridges, speed dashes and stars) on the left, identity on the
+right — and the chart's bars sit on a dotted perspective floor. The pet's
+silhouette and each bar knock the backdrop out so foregrounds read solid.
+The three equal `/proc` footer cells show peak day, longest streak, and
+seven-day total using only values available from the local Codex usage
+service. Previous days use ordered dither; today remains solid. The real
+sprite atlas supplies two idle frames; while USB power is present the
+firmware makes four five-second partial-window swaps and then rests on the
+primary frame, avoiding full-panel refresh churn. Everything fills
+automatically when the terminal is plugged into a laptop with Codex signed
+in.
 
 The 96x104 pet cell is enlarged without changing its aspect ratio, so imported
 frames stay crisp and proportionate instead of being stretched to fill the
-profile column.
+profile column. `tools/preview/build.sh` also renders the page against a few
+extra built-in pets (`dash_pet_dewey`, `dash_pet_fireball`, …) so backdrop and
+knockout changes can be checked against varied silhouettes.
 
 ### 2 · Weather
 
