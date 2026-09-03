@@ -237,6 +237,20 @@
   committed, and included unconditionally, so the branch could never compile
   in.
 
+### Fixed
+
+- **Line test resets every unit before packing.** `docs/LINE_TEST.md` gains a
+  final section: `factory_reset` is the last serial command sent to a unit,
+  verified on screen. Without it the sample dash payload pushed in step 1 and
+  the config written in step 5 shipped to the attendee, and the boot counter
+  was past 1 so the first-boot splash never appeared.
+- `tools/build.sh` no longer aborts under stock macOS bash 3.2 (`set -u`
+  treated the empty `DISPLAY_FLAGS` array as unbound for the default ee04
+  build) and its header no longer points at a `docs/DEPENDENCIES.md` that
+  does not exist.
+- The setup portal pre-selects Usage as the startup card, matching the
+  firmware default.
+
 ## [1.0.0-rc1] - 2026-08-05
 
 Factory release candidate for the Seeed August 11 manufacturing start.

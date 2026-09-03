@@ -1,7 +1,9 @@
 # Seeed Line-Test Checklist
 
 Run per unit after flashing `devday-terminal-factory-1.0.0.bin`. Record the
-unit eFuse MAC from `factory.check.serial`.
+unit eFuse MAC from `factory.check.serial`. Section 8 must be the last thing
+done to every unit: the earlier steps leave sample content and a boot count on
+the device.
 
 ## 1. Flash & verify
 
@@ -91,3 +93,21 @@ Press-and-release; hold length must not change the result.
 - [ ] Empty Usage, Weather, and Agenda pages centre the prompt and cursor as one
       unit; the dome face is symmetric and clears the tabs, and disappears when
       setup AP credentials occupy the lower band
+
+## 8. Reset before packing (every unit, last step)
+
+Steps 1 and 5 leave test state on the unit: the sample dash payload is cached
+in LittleFS and the boot counter is past 1, so without this step the attendee
+boots into the sample Usage page instead of the first-boot splash.
+
+The splash shows only on boot number 1 after a reset, and opening the USB
+serial port can itself reboot the device (the host pulses DTR on open). So
+`factory_reset` must be the **last** serial command sent to the unit, and the
+result is verified on the screen, not over USB.
+
+- [ ] Send `factory_reset` over USB (or hold **D1+D4** at boot), then close
+      the serial port; the unit reboots on its own
+- [ ] Screen shows the Build Kit splash (recipe QR, `OpenAI DevDay [2026]`,
+      the half-circle face), not a name or usage numbers
+- [ ] Unplug. Do not open the serial port, press a key, or push a payload
+      after this step; any of those consumes the first boot

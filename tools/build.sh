@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Compile the factory firmware with the pinned toolchain.
 #
-# Pinned dependencies (see docs/DEPENDENCIES.md):
+# Pinned dependencies (see the Toolchain table in README.md; the packaged
+# release records them in dependency-manifest.txt):
 #   Arduino CLI 1.5.1 · Arduino-ESP32 3.3.8 · board esp32:esp32:XIAO_ESP32S3_Plus
 #   Seeed_GFX 3.1.0 · ArduinoJson 7.4.3
 set -euo pipefail
@@ -38,7 +39,7 @@ cp -f "$ROOT/partitions.csv" "$SKETCH/partitions.csv"
   --fqbn esp32:esp32:XIAO_ESP32S3_Plus \
   --build-path "$BUILD_DIR" \
   --warnings default \
-  "${DISPLAY_FLAGS[@]}" \
+  ${DISPLAY_FLAGS[@]+"${DISPLAY_FLAGS[@]}"} \
   "$SKETCH"
 
 echo
