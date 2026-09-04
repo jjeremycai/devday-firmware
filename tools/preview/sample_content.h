@@ -93,8 +93,6 @@ inline RenderStatus sampleStatus() {
   RenderStatus st;
   st.device_name = "devday-terminal";
   st.fw_hash = "0e12366abcde";
-  st.battery_v = 4.11f;
-  st.battery_pct = 96;
   st.wifi_connected = true;
   st.connection = "Wi-Fi OfficeNet · 192.168.1.20";
   return st;

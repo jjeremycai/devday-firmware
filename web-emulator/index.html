@@ -155,7 +155,6 @@
     <div class="status-grid hidden" id="status-grid">
       <div><b>Firmware</b><span id="s-fw">—</span></div>
       <div><b>Name</b><span id="s-name">—</span></div>
-      <div><b>Battery</b><span id="s-batt">—</span></div>
       <div><b>Connection</b><span id="s-conn">—</span></div>
       <div><b>Card</b><span id="s-card">—</span></div>
       <div><b>Last push</b><span id="s-push">—</span></div>
@@ -874,7 +873,6 @@ async function refreshStatus() {
     $("status-grid").classList.remove("hidden");
     $("s-fw").textContent = s.fw;
     $("s-name").textContent = s.name;
-    $("s-batt").textContent = `${s.battery_v.toFixed(2)} V (${s.battery_pct}%)`;
     $("s-conn").textContent = s.connection;
     $("s-card").textContent = s.card;
     if (!$("c-name").value) {

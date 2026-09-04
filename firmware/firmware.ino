@@ -10,14 +10,12 @@
 #include <esp_ota_ops.h>
 #include <esp_sleep.h>
 
-#include "battery.h"
 #include "buttons.h"
 #include "cards.h"
 #include "config.h"
 #include "content.h"
 #include "driver.h"
 #include "net.h"
-#include "ota.h"
 #include "portal.h"
 #include "protocol.h"
 #include "storage.h"
@@ -74,8 +72,6 @@ static void armDashPetAnimation() {
 static void refreshStatus() {
   st.device_name = cfg.device_name;
   st.fw_hash = ESP.getSketchMD5().substring(0, 12);
-  st.battery_v = batteryReadVoltage();
-  st.battery_pct = batteryPercent(st.battery_v);
   st.wifi_connected = netConnected();
   if (portalActive()) {
     st.connection = "Setup portal: http://" + portalIp();
@@ -95,8 +91,6 @@ static void hookStatus(JsonObject data) {
   data["content_url"] = cfg.content_url;
   data["refresh_minutes"] = cfg.refresh_minutes;
   data["card"] = current_card;
-  data["battery_v"] = st.battery_v;
-  data["battery_pct"] = st.battery_pct;
   data["connection"] = st.connection;
   data["usb"] = protocolUsbActive();
   // Raw SOF check vs the latched view that actually gates sleep. If these ever
@@ -263,9 +257,7 @@ static void hookFactoryCheck(JsonObject data) {
   data["fw_md5"] = ESP.getSketchMD5();
   data["partition"] = running ? running->label : "?";
   data["sketch_size"] = ESP.getSketchSize();
-  data["free_ota_space"] = ESP.getFreeSketchSpace();
   data["display_combo"] = BOARD_SCREEN_COMBO;
-  data["battery_mv"] = (uint32_t)(st.battery_v * 1000);
   data["boots"] = boots;
   data["littlefs_total"] = LittleFS.totalBytes();
   data["littlefs_used"] = LittleFS.usedBytes();
@@ -344,7 +336,6 @@ void setup() {
   cfg = configLoad();
   boots = storageNextBootCount();
 
-  batteryBegin();
   buttonsBegin();
 
   contentDefaults(content, cfg.device_name);
@@ -359,10 +350,6 @@ void setup() {
   refreshStatus();
   renderCard(current_card, content, st); // one full refresh; useful screen first
   armDashPetAnimation();
-
-#if CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
-  esp_ota_mark_app_valid_cancel_rollback();
-#endif
 
   ProtoHooks ph{hookStatus, hookConfigWrite, hookCardPreview, hookContentPush, hookApStart,
                 hookFactoryCheck, hookReboot, hookFactoryReset};

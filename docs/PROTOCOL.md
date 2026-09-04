@@ -42,7 +42,7 @@ Live device state.
 ```
 
 `data`: `fw`, `fw_hash` (sketch MD5), `name`, `startup_card`, `wifi_ssid`,
-`content_url`, `refresh_minutes`, `card`, `battery_v`, `battery_pct`,
+`content_url`, `refresh_minutes`, `card`,
 `connection`, `usb`, `usb_plugged`, `usb_seen_s_ago`, `uptime_s`, `boots`,
 `ap` (`active`, plus `ssid`, `ip`, `remaining_s` while the portal is up).
 
@@ -147,8 +147,8 @@ Credentials are also rendered on the terminal screen.
 Seeed line-test verification payload.
 
 `data`: `serial` (eFuse MAC), `chip`, `chip_rev`, `flash_mb`, `fw`, `fw_md5`,
-`partition`, `sketch_size`, `free_ota_space`, `display_combo` (502),
-`battery_mv`, `boots`, `littlefs_total`, `littlefs_used`, `uptime_s`.
+`partition`, `sketch_size`, `display_combo` (502),
+`boots`, `littlefs_total`, `littlefs_used`, `uptime_s`.
 
 ### `reboot`
 

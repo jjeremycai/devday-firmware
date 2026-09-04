@@ -148,18 +148,6 @@ static void pageTabs(const char* current) {
 #endif
 }
 
-// Battery gauge: outline + nub, fill level = charge percent.
-static void drawBatteryIcon(int16_t x, int16_t y, uint8_t pct,
-                            uint16_t color = TFT_BLACK) {
-#ifdef EPAPER_ENABLE
-  epaper.drawRect(x, y, 18, 11, color);
-  epaper.fillRect(x + 19, y + 3, 2, 5, color); // nub
-  if (pct > 100) pct = 100;
-  int16_t fill = (int16_t)((uint16_t)pct * 14 / 100);
-  if (fill > 0) epaper.fillRect(x + 2, y + 2, fill, 7, color);
-#endif
-}
-
 // Compact 1-bit Wi-Fi mark. Connected uses stepped arcs; disconnected keeps
 // the same silhouette with a separated slash, so state is visible without
 // relying on grey or a text label.
@@ -331,19 +319,14 @@ static void drawWeatherIcon(int16_t x, int16_t y, int16_t s, const String& cond,
 
 static void header(const CardContent& c, const RenderStatus& st) {
 #ifdef EPAPER_ENABLE
-  // Blossom at left; date, Wi-Fi state, battery gauge and percentage at right.
+  // Blossom at left; date and Wi-Fi state at right.
   drawBlossomIcon(MARGIN, 8);
   epaper.setFreeFont(&FreeSans9pt7b);
-  const String battery_pct = String(st.battery_pct) + "%";
-  const int16_t battery_pct_w = epaper.textWidth(battery_pct, GFXFF);
-  const int16_t battery_x = W - MARGIN - battery_pct_w - 4 - 21;
-  const int16_t wifi_x = battery_x - 22;
+  const int16_t wifi_x = W - MARGIN - 16; // glyph is 16 px wide
   epaper.setTextDatum(TR_DATUM);
   if (c.header_date.length()) epaper.drawString(c.header_date, wifi_x - 4, 12, GFXFF);
-  // Both icons and the percentage share the 9pt text midline.
+  // The icon shares the 9pt text midline.
   drawWifiIcon(wifi_x, 13, st.wifi_connected);
-  drawBatteryIcon(battery_x, 13, st.battery_pct);
-  epaper.drawString(battery_pct, W - MARGIN, 12, GFXFF);
   // brutalist hairline + 1px double-rule for density
   epaper.drawFastHLine(MARGIN, 42, W - 2 * MARGIN, TFT_BLACK);
   epaper.drawFastHLine(MARGIN, 44, W - 2 * MARGIN, TFT_BLACK);
@@ -432,15 +415,9 @@ static void terminalHeader(const char* page, const CardContent& c,
   title.toUpperCase();
   epaper.drawString(title, 18, 6, GFXFF);
 
-  const String battery_pct = String(st.battery_pct) + "%";
-  const int16_t pct_right = W - 14;
-  const int16_t pct_w = epaper.textWidth(battery_pct, GFXFF);
-  const int16_t battery_x = pct_right - pct_w - 5 - 21;
-  const int16_t wifi_x = battery_x - 26;
+  const int16_t wifi_x = W - 14 - 16; // glyph is 16 px wide
   drawWifiIcon(wifi_x, 8, st.wifi_connected, TFT_WHITE, TFT_BLACK);
-  drawBatteryIcon(battery_x, 8, st.battery_pct, TFT_WHITE);
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(battery_pct, pct_right, 6, GFXFF);
 
   const String sync = compactLastSync(c.dash_insight_right);
   const int16_t sync_right = wifi_x - 12;
@@ -462,15 +439,9 @@ static void terminalHeaderDark(const CardContent& c, const RenderStatus& st) {
   epaper.setTextDatum(TL_DATUM);
   epaper.drawString("[ DEV DAY 2026 ]", 14, 6, GFXFF);
 
-  const String battery_pct = String(st.battery_pct) + "%";
-  const int16_t pct_right = W - 12;
-  const int16_t pct_w = epaper.textWidth(battery_pct, GFXFF);
-  const int16_t battery_x = pct_right - pct_w - 5 - 21;
-  const int16_t wifi_x = battery_x - 26;
+  const int16_t wifi_x = W - 12 - 16; // glyph is 16 px wide
   drawWifiIcon(wifi_x, 8, st.wifi_connected, TFT_WHITE, TFT_BLACK);
-  drawBatteryIcon(battery_x, 8, st.battery_pct, TFT_WHITE);
   epaper.setTextDatum(TR_DATUM);
-  epaper.drawString(battery_pct, pct_right, 6, GFXFF);
 
   const String sync = compactLastSync(c.dash_insight_right);
   const int16_t sync_right = wifi_x - 12;
@@ -663,16 +634,15 @@ static void renderBuild(const CardContent& c, const RenderStatus& st) {
   drawDarkLegend("/dev/hardware", 24, 197);
   drawDashedVLine(DASH_THIRD_EDGES[1], 210, 193, TFT_WHITE);
 
-  String labels[4] = {"FIRMWARE", "BATTERY", "DISPLAY", "LINK"};
-  String values[4] = {
+  String labels[3] = {"FIRMWARE", "DISPLAY", "LINK"};
+  String values[3] = {
     String(FW_NAME " v" FW_VERSION " (") + st.fw_hash + ")",
-    String(st.battery_v, 2) + " V (" + String(st.battery_pct) + "%)",
     "UC8179 800x480  //  COMBO 502",
     st.connection,
   };
   const int16_t rows_top = 216;
-  const int16_t row_h = 47;
-  for (uint8_t i = 0; i < 4; i++) {
+  const int16_t row_h = 62;
+  for (uint8_t i = 0; i < 3; i++) {
     const int16_t row_y = rows_top + (int16_t)i * row_h;
     if (i > 0) drawDashedHLine(15, row_y, 770, TFT_WHITE);
     epaper.setFreeFont(&FreeMonoBold9pt7b);

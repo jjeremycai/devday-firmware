@@ -1,5 +1,5 @@
 # Dev Day Terminal - 16 MB flash layout
-# factory ships the RC; ota_0/ota_1 receive portal app-only updates.
+# factory ships the RC; ota_0/ota_1 are reserved and unused (no OTA path).
 # Name,     Type, SubType,  Offset,    Size,      Flags
 nvs,        data, nvs,      0x9000,    0x5000,
 otadata,    data, ota,      0xe000,    0x2000,

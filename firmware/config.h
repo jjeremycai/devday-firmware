@@ -20,11 +20,6 @@ static constexpr int PIN_BUTTON_D1 = D1; // GPIO2 - page 1 (Usage)
 static constexpr int PIN_BUTTON_D2 = D2; // GPIO3 - page 2 (Weather)
 static constexpr int PIN_BUTTON_D3 = D3; // GPIO4 - page 3 (Agenda); shared with display BUSY
 static constexpr int PIN_BUTTON_D4 = D4; // GPIO5 - Agenda; with D1, factory reset
-static constexpr int PIN_BATTERY_ADC = 1; // GPIO1 (D0) - BAT_ADC
-static constexpr int PIN_ADC_EN = 6;      // GPIO6 (D5) - ADC_EN divider enable
-
-// Seeed calibration starting point for the battery divider.
-static constexpr float BATTERY_CALIBRATION = 0.968f;
 
 // ---------------------------------------------------------------------------
 // Timing / limits

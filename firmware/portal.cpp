@@ -4,11 +4,9 @@
 #include <WiFi.h>
 
 #include "config.h"
-#include "ota.h"
 
 static WebServer server(80);
 static PortalHooks hooks_;
-static OtaSession ota_;
 static bool active_ = false;
 static bool routes_registered_ = false;
 static uint32_t started_ms_ = 0;
@@ -39,16 +37,11 @@ section{border-top:1px solid #ddd;margin-top:2rem;padding-top:1rem}
 <label>Refresh (minutes)</label><input name="refresh_minutes" type="number" min="5" value="30">
 <button type="submit">Save configuration</button>
 </form>
-<section>
-<h2>Firmware update</h2>
-<form id="upd"><input name="bin" type="file" accept=".bin" required>
-<button type="submit">Upload update</button></form>
-</section>
 <div id="msg"></div>
 <script>
 const msg = (t) => document.getElementById('msg').textContent = t;
 fetch('/api/status').then(r=>r.json()).then(s=>{
-  document.getElementById('dev').textContent = s.fw + ' · ' + s.name + ' · battery ' + s.battery_v + 'V';
+  document.getElementById('dev').textContent = s.fw + ' · ' + s.name + ' · ' + s.connection;
   const f = document.getElementById('cfg');
   f.device_name.value = s.name; f.startup_card.value = s.startup_card;
   f.wifi_ssid.value = s.wifi_ssid; f.content_url.value = s.content_url;
@@ -64,13 +57,6 @@ document.getElementById('cfg').onsubmit = async (e) => {
   else if (f.wifi_password.value) body.wifi_password = f.wifi_password.value;
   const r = await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
   msg(r.ok ? 'Saved. Reconnect the terminal to your Wi-Fi to apply.' : 'Save failed: ' + await r.text());
-};
-document.getElementById('upd').onsubmit = async (e) => {
-  e.preventDefault();
-  const file = e.target.bin.files[0];
-  msg('Uploading ' + file.size + ' bytes...');
-  const r = await fetch('/update', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
-  msg(r.ok ? 'Update flashed. Rebooting... ' + await r.text() : 'Update rejected: ' + await r.text());
 };
 </script></body></html>)HTML";
 
@@ -102,64 +88,11 @@ static void handleConfig() {
   }
 }
 
-static bool update_ok_ = false;
-static String update_err_;
-static bool update_failed_ = false;
-
-static void handleUpdateDone() {
-  if (update_ok_) {
-    server.send(200, "text/plain", "ok sha256=" + ota_.imageSha256());
-    delay(300);
-    hooks_.request_reboot();
-  } else {
-    ota_.abort();
-    server.send(400, "text/plain", update_err_.length() ? update_err_ : "failed");
-  }
-}
-
-// The page POSTs the raw .bin as application/octet-stream, so WebServer routes
-// the body through the *raw* path, not the multipart upload path — the payload
-// arrives in server.raw() and server.upload() is not populated at all. Content
-// length comes from clientContentLength(); header("Content-Length") is always
-// empty because WebServer consumes that header before building the header map.
-static void handleUpdateRaw() {
-  HTTPRaw& raw = server.raw();
-  if (raw.status == RAW_START) {
-    update_ok_ = false;
-    update_failed_ = false;
-    update_err_ = "";
-    if (!ota_.begin(server.clientContentLength(), update_err_)) {
-      update_failed_ = true;
-      raw.status = RAW_ABORTED;
-    }
-  } else if (raw.status == RAW_WRITE) {
-    if (update_failed_) {
-      raw.status = RAW_ABORTED;
-    } else if (!ota_.write(raw.buf, raw.currentSize, update_err_)) {
-      update_failed_ = true;
-      raw.status = RAW_ABORTED;
-    }
-  } else if (raw.status == RAW_END) {
-    if (update_failed_) {
-      update_ok_ = false;
-      ota_.abort();
-    } else {
-      update_ok_ = ota_.finish(update_err_);
-      update_failed_ = !update_ok_;
-    }
-  } else if (raw.status == RAW_ABORTED) {
-    update_failed_ = true;
-    ota_.abort();
-    if (update_err_.length() == 0) update_err_ = "aborted";
-  }
-}
-
 static void registerRoutes() {
   if (routes_registered_) return;
   server.on("/", HTTP_GET, handleIndex);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/config", HTTP_POST, handleConfig);
-  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateRaw);
   routes_registered_ = true;
 }
 

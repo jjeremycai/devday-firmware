@@ -237,6 +237,16 @@
   committed, and included unconditionally, so the branch could never compile
   in.
 
+### Removed
+
+- **Battery monitoring and OTA.** The battery ADC, header gauge and
+  percentage, `battery_v`/`battery_pct`/`battery_mv` protocol fields, the
+  portal `POST /update` route with its `OtaSession`, and the packaged
+  `update` image are gone. USB flashing is the only firmware path; the
+  `ota_0`/`ota_1` partitions stay in the table as reserved space so the flash
+  map Seeed already has is unchanged. Deep sleep and wake behaviour are
+  untouched.
+
 ### Fixed
 
 - **Line test resets every unit before packing.** `docs/LINE_TEST.md` gains a

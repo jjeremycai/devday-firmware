@@ -91,7 +91,7 @@ view instead of looking like an incomplete table.
 ![Build diagnostics](docs/screens/4-build.png)
 
 **Build Diagnostics** is the factory and service view. It reports the live
-firmware hash, battery, display controller, and connection beneath
+firmware hash, display controller, and connection beneath
 `/sys/firmware` and `/dev/hardware`. It is not in the 1–3 button rotation; it
 appears when requested over USB with `card.preview`, or when explicitly saved
 as the startup card in the setup portal or `config.write`.
@@ -150,7 +150,7 @@ flash.
 
 ```
 firmware/                   Arduino sketch (the whole firmware)
-partitions.csv              16 MB map: factory + ota_0/ota_1 (3 MB each) + LittleFS
+partitions.csv              16 MB map: factory + two reserved 3 MB slots + LittleFS
 web-emulator/               assembly & setup site (Web Serial + AP fallback)
 web-emulator/emulator.html  browser emulator: real cards.cpp/buttons.cpp via WASM
 tools/                      build.sh, package_release.sh, generators
@@ -355,17 +355,14 @@ redirect page fails schema validation and the screen just never updates.
   Fetched and pushed payloads merge section by section, so a document that
   omits a section keeps the one already there.
 - Config in `Preferences`; last-good payload cached in LittleFS.
-- Battery on GPIO1 with the GPIO6 divider enabled only while measuring,
-  read through the eFuse-calibrated `analogReadMilliVolts` and mapped to
-  percent with a LiPo discharge curve (0.968 divider calibration to start).
 - On battery: renders, disconnects Wi-Fi, deep-sleeps; wakes on D1/D2/D4
   (shows that page) or the refresh timer. Stays awake during an active USB
   setup session and while the portal runs.
 - The SoftAP portal starts from USB (`ap.start`, used by the companion site)
   with generated on-screen credentials; it stops after 5 minutes.
 - Hold **D1+D4** at boot (or `factory_reset`) to clear configuration.
-- App-only updates via the portal (image-header validated, SHA-256 reported
-  back for checksum comparison); raw USB flashing stays unrestricted.
+- No OTA or portal update path; raw USB flashing is the only way to change
+  the firmware and stays unrestricted.
 
 ## Interfaces
 
@@ -378,7 +375,5 @@ redirect page fails schema validation and the screen just never updates.
 
 - Useful screen ≤8 s from cold boot without Wi-Fi.
 - Config survives 20 power cycles.
-- Correct battery/buttons/display behavior on all three samples.
-- Valid portal update succeeds; corrupted/truncated images fail.
-- Interrupted update boots the previous application.
+- Correct buttons/display behavior on all three samples.
 - USB bootloader recovery can always overwrite the factory image.

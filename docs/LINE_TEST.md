@@ -22,7 +22,7 @@ the device.
       [2026]`, `Dev Day Terminal`, and the black half-circle face with plus eyes
 - [ ] Any key leaves the splash and opens its mapped page
 - [ ] After a power cycle, the default page is Usage; without a dash payload it
-      shows the `No usage yet` setup instruction and battery percentage
+      shows the `No usage yet` setup instruction
 - [ ] Full refresh is clean: no ghosting, no torn regions, borders aligned
 - [ ] Screen persists after power removal (e-ink image retention)
 
@@ -60,7 +60,7 @@ Press-and-release; hold length must not change the result.
 - [ ] Battery polarity correct, connector fully seated
 - [ ] No display artifacts on all three pages after one full refresh each
 - [ ] Header Wi-Fi mark shows clean arcs while connected and a slash while
-      disconnected; the battery percentage and gauge remain aligned
+      disconnected
 - [ ] Usage metrics, agenda times, weather telemetry, Build diagnostics, and
       the Yours URL use crisp monospace type; columns and mixed-font baselines
       remain aligned with no clipping on long values

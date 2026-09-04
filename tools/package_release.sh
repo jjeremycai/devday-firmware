@@ -3,7 +3,6 @@
 #
 # Produces in release/:
 #   devday-terminal-factory-VERSION.bin    merged image for address 0x0
-#   devday-terminal-update-VERSION.bin     app-only image for the portal
 #   devday-terminal-recovery-VERSION.bin   raw app image (0x10000)
 #   SHA256SUMS.txt, build-info.json, dependency-manifest.txt, flash_command.txt
 set -euo pipefail
@@ -24,7 +23,6 @@ BOOT_APP0="$(python3 -c 'import json,pathlib,sys; folders=json.load(open(sys.arg
   "$BUILD/build.options.json")"
 
 FACTORY="$OUT/devday-terminal-factory-$VERSION.bin"
-UPDATE="$OUT/devday-terminal-update-$VERSION.bin"
 RECOVERY="$OUT/devday-terminal-recovery-$VERSION.bin"
 ARCHIVE="$OUT/archive"
 mkdir -p "$ARCHIVE"
@@ -34,7 +32,6 @@ done
 
 cp "$MERGED" "$FACTORY"
 cp "$APP" "$RECOVERY"
-cp "$APP" "$UPDATE"
 cp "$BOOTLOADER" "$PARTITIONS" "$BOOT_APP0" "$OUT/"
 
 GIT_REV="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
@@ -45,7 +42,6 @@ fi
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 ( cd "$OUT" && shasum -a 256 "devday-terminal-factory-$VERSION.bin" \
-  "devday-terminal-update-$VERSION.bin" \
   "devday-terminal-recovery-$VERSION.bin" \
   "$(basename "$BOOTLOADER")" \
   "$(basename "$PARTITIONS")" \
@@ -62,9 +58,8 @@ cat > "$OUT/build-info.json" <<EOF
   "display_board": "$DISPLAY_BOARD",
   "app_size": $(stat -f%z "$APP"),
   "factory_size": $(stat -f%z "$FACTORY"),
-  "update_size": $(stat -f%z "$UPDATE"),
   "factory_sha256": "$(shasum -a 256 "$FACTORY" | cut -d' ' -f1)",
-  "update_sha256": "$(shasum -a 256 "$UPDATE" | cut -d' ' -f1)"
+  "recovery_sha256": "$(shasum -a 256 "$RECOVERY" | cut -d' ' -f1)"
 }
 EOF
 
@@ -76,7 +71,7 @@ Display board          $DISPLAY_BOARD
 Seeed_GFX              GitHub release V3.1.0 (Seeed-Studio/Seeed_GFX, internal version 2.0.3)
 ArduinoJson            7.4.3
 CA bundle              curl.se Mozilla CA store (regenerate: tools/gen_ca_bundle.sh)
-Partition table        partitions.csv (16 MB: factory + ota_0/ota_1 3 MB each + LittleFS)
+Partition table        partitions.csv (16 MB: factory + two reserved 3 MB slots + LittleFS)
 Boot app initializer   boot_app0.bin (flashed at 0xe000)
 EOF
 
@@ -100,8 +95,8 @@ esptool.py --chip esp32s3 --port PORT --baud 921600 write_flash \\
 #   0x9000    nvs             (0x5000)
 #   0xe000    otadata         (0x2000)  <- initialized by boot_app0.bin
 #   0x10000   factory app     (3 MB)  <- ships the RC
-#   0x310000  ota_0           (3 MB)  <- portal updates
-#   0x610000  ota_1           (3 MB)  <- portal updates
+#   0x310000  ota_0           (3 MB)  <- reserved, unused (no OTA in this firmware)
+#   0x610000  ota_1           (3 MB)  <- reserved, unused
 #   0x912000  nvs_keys        (0x1000)
 #   0x920000  littlefs        (6.9 MB) <- content cache
 EOF
