@@ -1,7 +1,7 @@
 # Seeed Line-Test Checklist
 
 Run per unit after flashing `devday-terminal-factory-1.0.0.bin`. Record the
-unit eFuse MAC from `factory.check.serial`. Section 8 must be the last thing
+unit eFuse MAC from `factory.check.serial`. Section 6 must be the last thing
 done to every unit: the earlier steps leave sample content and a boot count on
 the device.
 
@@ -48,32 +48,12 @@ Press-and-release; hold length must not change the result.
 - [ ] Hold **D1+D4** at boot → configuration cleared (next `status` shows
       defaults, and `boots` restarts at 1 so the splash returns)
 
-## 4. Battery
-
-- [ ] Battery connected: `factory.check.battery_mv` reads 3300–4300 (within
-      ±5% of a multimeter; 0.968 calibration is the starting point). The
-      reading comes from the eFuse-calibrated `analogReadMilliVolts`, so a
-      unit that is off by more than a few percent points at the divider, not
-      at the calibration constant.
-- [ ] USB-only, no battery: unit still boots and renders (do not reject on
-      low/odd battery reading without a pack attached)
-
-## 5. Persistence
+## 4. Persistence
 
 - [ ] Write config over USB (`config.write`), power-cycle **20×**, confirm
       `status` still returns the written values each time
 
-## 6. Portal update / recovery (one unit per batch minimum)
-
-- [ ] Valid app-only update via portal `POST /update` succeeds; unit reboots
-      into the new app (`partition` becomes `ota_0`/`ota_1`) and the reported
-      SHA-256 matches the uploaded file
-- [ ] Oversized, corrupted, or truncated binaries preserve the useful rejection
-      reason (`bad_length`, `bad_image`, or `truncated`, not `not_started`)
-- [ ] Kill power mid-update → unit boots the previous application
-- [ ] USB bootloader recovery: hold BOOT, reflash recovery image, unit boots
-
-## 7. Visual inspection (assembled samples)
+## 5. Visual inspection (assembled samples)
 
 - [ ] FPC seated metal-side-up, latch closed, no crease in the ribbon
 - [ ] Jumper at `24Pin–GND`
@@ -94,9 +74,9 @@ Press-and-release; hold length must not change the result.
       unit; the dome face is symmetric and clears the tabs, and disappears when
       setup AP credentials occupy the lower band
 
-## 8. Reset before packing (every unit, last step)
+## 6. Reset before packing (every unit, last step)
 
-Steps 1 and 5 leave test state on the unit: the sample dash payload is cached
+Steps 1 and 4 leave test state on the unit: the sample dash payload is cached
 in LittleFS and the boot counter is past 1, so without this step the attendee
 boots into the sample Usage page instead of the first-boot splash.
 
