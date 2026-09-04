@@ -173,7 +173,8 @@ function initEmu() {
     btn.addEventListener("touchend", (e) => { e.preventDefault(); release(pin); }, { passive: false });
   }
 
-  const keyPin = { "1": 2, "2": 3, "3": 4, "4": 5 };
+  // KEY1/KEY2/KEY3 GPIOs on the EE04 board (XIAO D1/D2/D4).
+  const keyPin = { "1": 2, "2": 3, "3": 5 };
   document.addEventListener("keydown", (e) => {
     const pin = keyPin[e.key];
     if (pin && !e.repeat) press(pin);

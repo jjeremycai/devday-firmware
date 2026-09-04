@@ -103,12 +103,12 @@ exact Codex prompt, and a scan-tested hardware-recipe QR beneath
 `/dev/terminal`. It has the same two entry paths as Build Diagnostics and is
 never shown automatically on factory first boot.
 
-**Usage · Weather · Agenda** — three pages on the first three buttons,
-numbered 1-3 (KEY1 / KEY2 / KEY3) left to right. Press and release to switch;
-hold length doesn't matter. KEY3 (D3) shares GPIO4 with the display BUSY line,
-so it doesn't wake the device from sleep and is ignored for ~1.2 s after each
-refresh. The board's fourth key (D4) also shows Agenda, and D1+D4 held at boot
-is the factory reset combo.
+**Usage · Weather · Agenda** — three pages on the three user keys of the EE04
+display board, KEY1 / KEY2 / KEY3 (XIAO D1 / D2 / D4). Press and release to
+switch; hold length doesn't matter. The fourth switch in the row is RESET: it
+resets the XIAO, which reboots into the configured startup card. GPIO4 (D3) is
+the panel BUSY line, not a key. KEY1+KEY3 held at boot is the factory reset
+combo.
 
 - **1 → Usage** — your Codex pet, profile, token chart, and verified local
   usage stats in a kernel-terminal layout (pushed over USB by the local sync
@@ -201,7 +201,7 @@ tools/preview/build_wasm.sh   # rebuilds web-emulator/emu/ (needs emscripten)
 Both compile the real `cards.cpp` (the WASM build also the real `buttons.cpp`)
 against stub headers, so what you see is what the device draws. Serve the
 browser emulator with any static server, e.g.
-`cd web-emulator && python3 -m http.server` → `/emulator.html`. Buttons 1-4
+`cd web-emulator && python3 -m http.server` → `/emulator.html`. Buttons 1-3
 (click or keys) drive the actual debounce logic; paste a
 `dash_sync.py --json` payload to preview real content.
 
@@ -355,12 +355,12 @@ redirect page fails schema validation and the screen just never updates.
   Fetched and pushed payloads merge section by section, so a document that
   omits a section keeps the one already there.
 - Config in `Preferences`; last-good payload cached in LittleFS.
-- On battery: renders, disconnects Wi-Fi, deep-sleeps; wakes on D1/D2/D4
+- On battery: renders, disconnects Wi-Fi, deep-sleeps; wakes on KEY1/KEY2/KEY3
   (shows that page) or the refresh timer. Stays awake during an active USB
   setup session and while the portal runs.
 - The SoftAP portal starts from USB (`ap.start`, used by the companion site)
   with generated on-screen credentials; it stops after 5 minutes.
-- Hold **D1+D4** at boot (or `factory_reset`) to clear configuration.
+- Hold **KEY1+KEY3** (D1+D4) at boot (or `factory_reset`) to clear configuration.
 - No OTA or portal update path; raw USB flashing is the only way to change
   the firmware and stays unrestricted.
 

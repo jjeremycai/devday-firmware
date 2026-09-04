@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.1-rc1] - 2026-09-04
+
+### Fixed
+
+- **Three keys, not four.** The EE04 display board has KEY1/KEY2/KEY3 on
+  GPIO2/3/5 (XIAO D1/D2/D4) plus a hardware RESET; GPIO4 (D3) is the panel
+  BUSY line. The firmware polled GPIO4 as a fourth page key, with a pull-up
+  and a post-refresh suppression window, and the README, protocol notes, line
+  test, and browser emulator described "3 (D3)" and "4 (D4)" keys. Button
+  handling now covers the three real keys, the emulator's third button drives
+  GPIO5, and the line test names keys by silkscreen and describes RESET
+  (which reboots into the startup card) so it is not mistaken for a page key.
+
 ## [1.0.0] - 2026-09-03
 
 ### Added

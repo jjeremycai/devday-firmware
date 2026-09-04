@@ -51,10 +51,8 @@ extern "C" int emu_pin(int pin, int down, uint32_t ms) {
     g_card = "dash";
   } else if (ev == ButtonEvent::B2) {
     g_card = "weather";
-  } else if (ev == ButtonEvent::B3) {
-    g_card = "agenda";
   } else {
-    g_card = "agenda"; // KEY4 shares the agenda page
+    g_card = "agenda"; // B3: KEY3
   }
   renderCard(g_card, g_content, g_status);
   return (int)ev;

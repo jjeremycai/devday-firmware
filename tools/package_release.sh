@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="1.0.0"
+VERSION="1.0.1-rc1"
 BUILD="$ROOT/release/build"
 OUT="$ROOT/release"
 DISPLAY_BOARD="${DISPLAY_BOARD:-ee04}"

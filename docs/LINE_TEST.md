@@ -1,20 +1,20 @@
 # Seeed Line-Test Checklist
 
-Run per unit after flashing `devday-terminal-factory-1.0.0.bin`. Record the
+Run per unit after flashing `devday-terminal-factory-1.0.1-rc1.bin`. Record the
 unit eFuse MAC from `factory.check.serial`. Section 6 must be the last thing
 done to every unit: the earlier steps leave sample content and a boot count on
 the device.
 
 ## 1. Flash & verify
 
-- [ ] `write_flash 0x0 devday-terminal-factory-1.0.0.bin` completes without error
+- [ ] `write_flash 0x0 devday-terminal-factory-1.0.1-rc1.bin` completes without error
 - [ ] File SHA-256 matches `release/SHA256SUMS.txt`
-- [ ] Serial `factory.check` returns `fw = "devday-terminal 1.0.0"`,
+- [ ] Serial `factory.check` returns `fw = "devday-terminal 1.0.1-rc1"`,
       `display_combo = 502`, `flash_mb = 16`, `partition = "factory"`,
       `sketch_size` matches `build-info.json.app_size`
 - [ ] `tools/push.py --show dash web-emulator/sample-dash.json` succeeds and
       the Usage page renders. This catches an obsolete image without
-      `content.push`, even when its version string still says `1.0.0`.
+      `content.push`, whatever its version string says.
 
 ## 2. Cold boot (no Wi-Fi configured)
 
@@ -28,14 +28,18 @@ the device.
 
 ## 3. Buttons
 
-Press-and-release; hold length must not change the result.
+Press-and-release; hold length must not change the result. The EE04 board
+has three user keys and one RESET switch in a row: go by the silkscreen, not
+the position. KEY3 is XIAO pin D4 (there is no key on D3; that GPIO is the
+panel BUSY line). Let the panel finish refreshing before the next press: a
+press made during a refresh is not sampled.
 
-- [ ] **1 (D1)** → Usage card (empty state until a dash payload has been pushed)
-- [ ] **2 (D2)** → Weather card (forecast once a payload has been pushed,
+- [ ] **KEY1 (D1)** → Usage card (empty state until a dash payload has been pushed)
+- [ ] **KEY2 (D2)** → Weather card (forecast once a payload has been pushed,
       otherwise the "No forecast" empty state)
-- [ ] **3 (D3)** → Agenda card; no false triggers during or right after a
-      screen refresh (shared BUSY line)
-- [ ] **4 (D4)** → Agenda card (same page as key 3; there are only three pages)
+- [ ] **KEY3 (D4)** → Agenda card
+- [ ] **RESET** → unit reboots into the configured startup card (Usage unless
+      `config.write` changed it); `status` shows `boots` up by one
 - [ ] `card.preview` `"build"` over USB → Build card (`READY` diagnostics)
 - [ ] `card.preview` `"yours"` over USB → QR card; scan once per batch to
       confirm it resolves
@@ -45,7 +49,7 @@ Press-and-release; hold length must not change the result.
       password, and `192.168.4.1` — check on **all five non-splash pages**, the
       credentials must be visible whichever page is showing
 - [ ] AP stops by itself within 5 minutes and the expired credentials disappear
-- [ ] Hold **D1+D4** at boot → configuration cleared (next `status` shows
+- [ ] Hold **KEY1+KEY3** (D1+D4) at boot → configuration cleared (next `status` shows
       defaults, and `boots` restarts at 1 so the splash returns)
 
 ## 4. Persistence
@@ -85,7 +89,7 @@ serial port can itself reboot the device (the host pulses DTR on open). So
 `factory_reset` must be the **last** serial command sent to the unit, and the
 result is verified on the screen, not over USB.
 
-- [ ] Send `factory_reset` over USB (or hold **D1+D4** at boot), then close
+- [ ] Send `factory_reset` over USB (or hold **KEY1+KEY3** at boot), then close
       the serial port; the unit reboots on its own
 - [ ] Screen shows the Build Kit splash (recipe QR, `OpenAI DevDay [2026]`,
       the half-circle face), not a name or usage numbers

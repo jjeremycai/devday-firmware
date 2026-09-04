@@ -279,9 +279,8 @@ static void goToSleep() {
   netDisconnect();
   portalStop();
 
-  // Hold button pins high through deep sleep so EXT1 ANY_LOW can fire.
-  // D3 stays out of the wake mask: it shares GPIO4 with display BUSY, which
-  // can idle low and would wake the device instantly.
+  // Hold the three key pins high through deep sleep so EXT1 ANY_LOW can fire.
+  // GPIO4 (D3) is the panel BUSY line, never a key, so it stays out of the mask.
   const int wake_pins[] = {PIN_BUTTON_D1, PIN_BUTTON_D2, PIN_BUTTON_D4};
   for (int pin : wake_pins) {
     rtc_gpio_pullup_en((gpio_num_t)pin);
@@ -323,7 +322,7 @@ void setup() {
   // it is a no-op until Preferences is open and the filesystem is mounted.
   storageBegin();
 
-  // Hold D1+D4 at boot to clear configuration.
+  // Hold KEY1+KEY3 (D1+D4) at boot to clear configuration.
   if (buttonsResetComboHeld()) {
     uint32_t t0 = millis();
     while (millis() - t0 < BOOT_COMBO_MS) {
@@ -390,10 +389,8 @@ void loop() {
       current_card = "dash";
     } else if (ev == ButtonEvent::B2) {
       current_card = "weather";
-    } else if (ev == ButtonEvent::B3) {
-      current_card = "agenda";
     } else {
-      current_card = "agenda"; // B4: four keys, three pages
+      current_card = "agenda"; // B3: KEY3
     }
     refreshStatus();
     renderCard(current_card, content, st);

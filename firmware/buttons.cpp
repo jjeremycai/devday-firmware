@@ -2,17 +2,14 @@
 
 #include "config.h"
 
-static constexpr uint8_t NUM_BUTTONS = 4;
-static const int kPins[NUM_BUTTONS] = {PIN_BUTTON_D1, PIN_BUTTON_D2, PIN_BUTTON_D3, PIN_BUTTON_D4};
-static const ButtonEvent kEvent[NUM_BUTTONS] = {ButtonEvent::B1, ButtonEvent::B2, ButtonEvent::B3,
-                                                ButtonEvent::B4};
-// Index of the D3 button, which may share its pin with display BUSY.
-static constexpr uint8_t D3_INDEX = 2;
-static constexpr uint32_t D3_SUPPRESS_MS = 1200; // shorten: UC8179 full refresh ~900ms, keep margin
+// EE04 wiring: each key has its own 10K pull-up and 100nF debounce cap and
+// reads LOW while pressed.
+static constexpr uint8_t NUM_BUTTONS = 3;
+static const int kPins[NUM_BUTTONS] = {PIN_BUTTON_D1, PIN_BUTTON_D2, PIN_BUTTON_D4};
+static const ButtonEvent kEvent[NUM_BUTTONS] = {ButtonEvent::B1, ButtonEvent::B2, ButtonEvent::B3};
 
-static uint32_t pressedAt[NUM_BUTTONS] = {0, 0, 0, 0};
-static bool wasDown[NUM_BUTTONS] = {false, false, false, false};
-static uint32_t d3_ignore_until = 0;
+static uint32_t pressedAt[NUM_BUTTONS] = {0, 0, 0};
+static bool wasDown[NUM_BUTTONS] = {false, false, false};
 static ButtonEvent pending = ButtonEvent::NONE;
 
 void buttonsBegin() {
@@ -21,16 +18,13 @@ void buttonsBegin() {
   }
 }
 
-void buttonsNoteDisplayUpdate() { d3_ignore_until = millis() + D3_SUPPRESS_MS; }
-
+// A full e-paper refresh blocks inside renderCard() (the driver spins on the
+// panel BUSY line), so a press that starts and ends during a refresh is never
+// sampled. Presses are level-sampled here, not latched by an ISR.
 ButtonEvent buttonsPoll() {
   uint32_t now = millis();
   for (uint8_t i = 0; i < NUM_BUTTONS; i++) {
     bool down = digitalRead(kPins[i]) == LOW;
-    if (i == D3_INDEX && now < d3_ignore_until) {
-      wasDown[i] = down; // track state, never fire, while BUSY may be toggling
-      continue;
-    }
     if (down && !wasDown[i]) {
       pressedAt[i] = now;
     } else if (!down && wasDown[i]) {

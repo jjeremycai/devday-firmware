@@ -16,7 +16,7 @@ Flash the merged image at `0x0`:
 ```sh
 esptool.py --chip esp32s3 --port PORT --baud 921600 write_flash \
   --flash_mode dio --flash_freq 80m --flash_size 16MB \
-  0x0 devday-terminal-factory-1.0.0.bin
+  0x0 devday-terminal-factory-1.0.1-rc1.bin
 ```
 
 Then verify every shipped binary against `release/SHA256SUMS.txt` and run
@@ -53,8 +53,8 @@ The ESP32-S3 USB-Serial-JTAG bootloader cannot be bricked by a bad app:
 2. Reflash the recovery image at `0x10000` or the full factory image at `0x0`:
 
 ```sh
-esptool.py --chip esp32s3 --port PORT write_flash 0x10000 devday-terminal-recovery-1.0.0.bin
+esptool.py --chip esp32s3 --port PORT write_flash 0x10000 devday-terminal-recovery-1.0.1-rc1.bin
 ```
 
-3. If configuration is suspect, hold **D1+D4** at boot to factory-reset, or
+3. If configuration is suspect, hold **KEY1+KEY3** (D1+D4) at boot to factory-reset, or
    send `factory_reset` over USB.

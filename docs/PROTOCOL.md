@@ -226,9 +226,9 @@ boundary before they reach the display. Unknown `build.state` values are
 ignored (keep last known). `date` (or `header_date`) sets the date shown in
 every card header; without it the agenda date is used, then the weather date.
 
-Page buttons, release-triggered: **1** Usage (empty state until a dash payload
-arrives), **2** Weather, **3** Agenda. The board's fourth key also shows
-Agenda. Unknown sections are ignored rather than rejected.
+Page keys, release-triggered: **KEY1** Usage (empty state until a dash payload
+arrives), **KEY2** Weather, **KEY3** Agenda. The board's fourth switch is
+RESET, not a page key. Unknown sections are ignored rather than rejected.
 
 An optional `weather` object powers the Weather page:
 

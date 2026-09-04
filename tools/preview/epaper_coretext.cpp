@@ -196,7 +196,3 @@ void epaperDumpPgm(const char* path) {
   for (size_t i = 0; i < sizeof g_fb; i++) fputc(g_fb[i] >= 128 ? 255 : 0, f);
   fclose(f);
 }
-
-// cards.cpp calls this after each display update; native preview has no
-// real button loop, so the stub lives here (WASM build uses firmware's).
-void buttonsNoteDisplayUpdate() {}
