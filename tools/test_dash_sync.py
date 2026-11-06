@@ -166,6 +166,22 @@ class DashSyncTests(unittest.TestCase):
         self.assertEqual(calendar[today_index - 1], 0)
         self.assertGreater(calendar[today_index], 0)
 
+    def test_celsius_flag_reaches_forecast_and_auto_sync(self) -> None:
+        args = SimpleNamespace(
+            offline=False, no_weather=False, no_avatar=True, no_pet=True,
+            pet=None, lat=41.88, lon=-87.63, ics=None, no_calendar=True, port=None,
+            celsius=True,
+        )
+        with patch.object(sync, "fetch_codex_usage", return_value=({}, {}, None)), \
+             patch.object(sync, "fetch_codex_profile", return_value={}), \
+             patch.object(sync, "fetch_weather", return_value=("12°", "", "Chicago", {"now_temp": "12°"})) as fetch:
+            payload = asyncio.run(sync.collect_payload(args))
+        fetch.assert_called_once_with(41.88, -87.63, celsius=True)
+        self.assertEqual(payload["weather"]["now_temp"], "12°")
+        self.assertIn("--celsius", sync.auto_sync_command(args, "A1B2C3D4E5F6"))
+        args.celsius = False
+        self.assertNotIn("--celsius", sync.auto_sync_command(args, "A1B2C3D4E5F6"))
+
     def test_weather_units_follow_ip_country_then_locale(self) -> None:
         self.assertEqual(sync.weather_units("US"), ("fahrenheit", "mph", "mph"))
         self.assertEqual(sync.weather_units("DE"), ("celsius", "kmh", "km/h"))
@@ -190,21 +206,28 @@ class DashSyncTests(unittest.TestCase):
             observed_url = url
             return forecast
 
-        with patch.object(sync, "resolve_location", return_value=(52.52, 13.41, "Berlin, BE", "DE")), patch.object(
-            sync, "http_json", side_effect=fake_http_json
+        for country, celsius, temperature_unit, wind_unit, wind_label in (
+            ("DE", False, "celsius", "kmh", "km/h"),
+            ("US", False, "fahrenheit", "mph", "mph"),
+            ("US", True, "celsius", "mph", "mph"),
         ):
-            temp, detail, location, weather = sync.fetch_weather(None, None)
+            with self.subTest(country=country, celsius=celsius), \
+                 patch.object(sync, "resolve_location", return_value=(52.52, 13.41, "Test location", country)), \
+                 patch.object(sync, "http_json", side_effect=fake_http_json):
+                temp, detail, location, weather = sync.fetch_weather(None, None, celsius=celsius)
 
-        query = urllib.parse.parse_qs(urllib.parse.urlparse(observed_url).query)
-        self.assertEqual(query["temperature_unit"], ["celsius"])
-        self.assertEqual(query["wind_speed_unit"], ["kmh"])
-        self.assertEqual(temp, "12\u00b0")
-        self.assertEqual(detail, "Overcast \u00b7 H20\u00b0 L7\u00b0")
-        self.assertEqual(location, "Berlin, BE")
-        self.assertEqual(weather["date"], "Tuesday, February 3")
-        self.assertEqual(weather["hour_now"], 19)
-        self.assertEqual(weather["segments"][0]["wind"], "E 5 km/h")
-        self.assertEqual(len(weather["hours"]), 24)
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(observed_url).query)
+            self.assertEqual(query["temperature_unit"], [temperature_unit])
+            self.assertEqual(query["wind_speed_unit"], [wind_unit])
+            self.assertEqual(temp, "12°")
+            self.assertEqual(detail, "Overcast · H20° L7°")
+            self.assertEqual(location, "Test location")
+            self.assertEqual(weather["now_hilo"], "H20° L7°")
+            self.assertEqual(weather["segments"][0]["temp"], "8°")
+            self.assertEqual(weather["date"], "Tuesday, February 3")
+            self.assertEqual(weather["hour_now"], 19)
+            self.assertEqual(weather["segments"][0]["wind"], f"E 5 {wind_label}")
+            self.assertEqual(len(weather["hours"]), 24)
 
     def test_serial_request_requires_matching_success_response(self) -> None:
         writes: list[str] = []
