@@ -230,6 +230,7 @@ For one-off syncs and diagnostics:
 tools/dash_sync.py                  # one-shot (Codex + weather via IP geolocation)
 tools/dash_sync.py --offline --json # no Wi-Fi preview — local usage only
 tools/dash_sync.py --watch          # re-push whenever you plug in USB
+tools/dash_sync.py --celsius        # temperatures in Celsius
 tools/dash_sync.py --lat 39.74 --lon -104.99   # pin weather coords
 tools/dash_sync.py --no-weather     # Codex only
 tools/dash_sync.py --offline        # no Wi-Fi: local usage only (no weather)
@@ -241,7 +242,10 @@ tools/dash_sync.py --no-pet         # profile photo instead of a pet
 airplanes or first boot. Otherwise the sync reuses `~/.codex/auth.json` already
 on disk for the optional name, handle, and photo. Weather comes from
 Open-Meteo after IP geolocation (or `--lat`/`--lon` / `DASH_LAT`+`DASH_LON`),
-and selects imperial or metric units from the IP country or host locale. No pip
+and selects imperial or metric units from the IP country or host locale.
+`--celsius` overrides the temperature unit for the current, high/low, and
+forecast temperatures; wind units still follow the location. Use
+`--install --celsius` to keep this preference in automatic sync. No pip
 dependencies are needed.
 
 The portrait is your Codex pet. It follows `tui.pet` — whichever pet you picked

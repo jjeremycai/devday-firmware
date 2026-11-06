@@ -18,6 +18,7 @@ Examples:
   tools/dash_sync.py --port /dev/cu.usbmodem1101
   tools/dash_sync.py --json           # print payload only (no USB)
   tools/dash_sync.py --no-weather     # Codex only, no forecast
+  tools/dash_sync.py --celsius        # temperatures in Celsius, wherever you are
   tools/dash_sync.py --offline        # no Wi-Fi: local usage only (monogram, no avatar/weather)
 """
 
@@ -544,11 +545,13 @@ def _compass(deg: float) -> str:
 
 
 def fetch_weather(
-    lat: Optional[float], lon: Optional[float]
+    lat: Optional[float], lon: Optional[float], *, celsius: bool = False
 ) -> Tuple[str, str, str, Dict[str, Any]]:
     """Return (temp, detail, location_label, weather_section)."""
     la, lo, label, country = resolve_location(lat, lon)
     temperature_unit, wind_speed_unit, wind_label = weather_units(country)
+    if celsius:
+        temperature_unit = "celsius"
     qs = urllib.parse.urlencode(
         {
             "latitude": la,
@@ -1003,7 +1006,9 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
     else:
         print("→ weather…", file=sys.stderr)
         try:
-            weather_temp, weather_detail, where, weather = fetch_weather(args.lat, args.lon)
+            weather_temp, weather_detail, where, weather = fetch_weather(
+                args.lat, args.lon, celsius=bool(getattr(args, "celsius", False))
+            )
             print(f"  {where}: {weather_temp} {weather_detail}", file=sys.stderr)
         except Exception as exc:
             weather_temp, weather_detail, weather = "—", "weather unavailable", None
@@ -1142,6 +1147,8 @@ def auto_sync_command(args: argparse.Namespace, terminal_serial: str) -> List[st
         command.extend(["--ics", args.ics])
     if getattr(args, "no_calendar", False):
         command.append("--no-calendar")
+    if getattr(args, "celsius", False):
+        command.append("--celsius")
     if args.offline:
         command.append("--offline")
     if args.no_weather:
@@ -1264,6 +1271,7 @@ def main() -> int:
     ap.add_argument("--push-existing", action="store_true", help="with --watch, also sync ports already connected")
     ap.add_argument("--json", action="store_true", help="print payload JSON only")
     ap.add_argument("--offline", action="store_true", help="no Wi-Fi: skip profile/avatar/weather, local usage only")
+    ap.add_argument("--celsius", action="store_true", help="show weather temperatures in Celsius (default: local units)")
     ap.add_argument("--no-weather", action="store_true", help="skip Open-Meteo")
     ap.add_argument("--no-avatar", action="store_true")
     ap.add_argument(
