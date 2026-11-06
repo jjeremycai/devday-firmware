@@ -28,6 +28,10 @@ int main(int argc, char** argv) {
   displayBegin();
   for (const char* p : {"dash", "weather", "agenda", "build", "yours", "splash"}) {
     dump(p, content, st, p);
+    content.invert = true;
+    const std::string inverted_name = std::string(p) + "_inverted";
+    dump(p, content, st, inverted_name.c_str());
+    content.invert = false;
   }
 
   // Exercise the real two-frame path, not just its parser. The alternate must
@@ -44,6 +48,20 @@ int main(int argc, char** argv) {
     epaperDumpPgm(path);
     printf("wrote %s\n", path);
   }
+
+  // Partial refreshes must use the same palette as the full frame.
+  content.invert = true;
+  dump("dash", content, st, "dash_inverted");
+  renderDashPetFrame(content, true);
+  {
+    char path[256];
+    snprintf(path, sizeof path, "%s/dash_pet_alt_inverted.pgm", out_dir);
+    epaperDumpPgm(path);
+    renderDashPetFrame(content, false);
+    snprintf(path, sizeof path, "%s/dash_pet_rest_inverted.pgm", out_dir);
+    epaperDumpPgm(path);
+  }
+  content.invert = false;
 
   // Every empty page shares the prompt treatment; render all three asks.
   {

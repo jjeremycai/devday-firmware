@@ -38,6 +38,7 @@ static String contentText(JsonVariantConst value) {
 
 void contentDefaults(CardContent& c, const String& device_name) {
   (void)device_name;
+  c.invert = false;
   c.build_state = "ready";
   c.build_title = "Factory firmware " FW_VERSION;
   c.build_detail = "Flashed at the Seeed line. Connect over USB and make it yours.";
@@ -101,6 +102,8 @@ bool contentParse(const String& payload, CardContent& c) {
   DeserializationError err = deserializeJson(doc, payload);
   if (err) return false;
   if (doc["schema"].as<int>() != CONTENT_SCHEMA_VERSION) return false;
+
+  if (doc["invert"].is<bool>()) c.invert = doc["invert"].as<bool>();
 
   if (doc["refresh_after_s"].is<uint32_t>()) {
     uint32_t r = doc["refresh_after_s"].as<uint32_t>();

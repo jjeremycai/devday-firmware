@@ -1033,9 +1033,11 @@ async def collect_payload(args: argparse.Namespace) -> Dict[str, Any]:
             n = len(agenda["events"])
             print(f"  {n} event{'' if n == 1 else 's'} today", file=sys.stderr)
 
-    return build_payload(
+    payload = build_payload(
         account, usage, profile, avatar_hex, weather, agenda, avatar_alt_hex
     )
+    payload["invert"] = bool(getattr(args, "invert", False))
+    return payload
 
 
 def resolve_port(explicit: Optional[str]) -> str:
@@ -1142,6 +1144,8 @@ def auto_sync_command(args: argparse.Namespace, terminal_serial: str) -> List[st
         command.extend(["--ics", args.ics])
     if getattr(args, "no_calendar", False):
         command.append("--no-calendar")
+    if getattr(args, "invert", False):
+        command.append("--invert")
     if args.offline:
         command.append("--offline")
     if args.no_weather:
@@ -1264,6 +1268,7 @@ def main() -> int:
     ap.add_argument("--push-existing", action="store_true", help="with --watch, also sync ports already connected")
     ap.add_argument("--json", action="store_true", help="print payload JSON only")
     ap.add_argument("--offline", action="store_true", help="no Wi-Fi: skip profile/avatar/weather, local usage only")
+    ap.add_argument("--invert", action="store_true", help="swap black and white on every screen")
     ap.add_argument("--no-weather", action="store_true", help="skip Open-Meteo")
     ap.add_argument("--no-avatar", action="store_true")
     ap.add_argument(

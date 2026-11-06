@@ -10,6 +10,16 @@ int main() {
   assert(content.agenda_count == 0);
   assert(content.header_date.length() == 0);
 
+  assert(!content.invert);
+  assert(contentParse("{\"schema\":1,\"invert\":true}", content));
+  assert(content.invert);
+  assert(contentParse("{\"schema\":1,\"agenda\":{}}", content));
+  assert(content.invert); // partial updates preserve the current palette
+  assert(contentParse("{\"schema\":1,\"invert\":\"false\"}", content));
+  assert(content.invert); // malformed values are ignored
+  assert(contentParse("{\"schema\":1,\"invert\":false}", content));
+  assert(!content.invert);
+
   std::string long_detail(300, 'x');
   String payload((std::string("{\"schema\":1,\"refresh_after_s\":999999,\"build\":{\"detail\":\"") +
                   long_detail + "\"}}")
