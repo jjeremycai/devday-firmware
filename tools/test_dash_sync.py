@@ -23,6 +23,19 @@ SPEC.loader.exec_module(sync)
 
 
 class DashSyncTests(unittest.TestCase):
+    def test_inversion_is_global_payload_state_and_survives_install(self) -> None:
+        args = SimpleNamespace(
+            offline=True, no_weather=True, no_avatar=True, no_pet=True,
+            pet=None, lat=None, lon=None, ics=None, no_calendar=True, port=None,
+        )
+        with patch.object(sync, "fetch_codex_usage", return_value=({}, {}, None)):
+            for inverted in (False, True):
+                args.invert = inverted
+                payload = asyncio.run(sync.collect_payload(args))
+                self.assertIs(payload["invert"], inverted)
+                command = sync.auto_sync_command(args, "A1B2C3D4E5F6")
+                self.assertEqual("--invert" in command, inverted)
+
     def test_today_tokens_and_usage_payload_contract(self) -> None:
         date_key = sync.datetime.now().date().isoformat()
         usage = {

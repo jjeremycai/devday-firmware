@@ -58,6 +58,25 @@ if cmp -s "$OUT/dash.pgm" "$OUT/dash_pet_alt.pgm"; then
 fi
 cmp "$OUT/dash.pgm" "$OUT/dash_pet_rest.pgm"
 
+# CoreText rasterizes light and dark glyph edges differently. Require at
+# least 99% complementary pixels; layout and solid shapes must not change.
+python3 - "$OUT" <<'PYTEST'
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+for name in ("dash", "weather", "agenda", "build", "yours", "splash",
+             "dash_pet_alt", "dash_pet_rest"):
+    normal = (out / f"{name}.pgm").read_bytes().split(b"\n", 3)[3]
+    inverted = (out / f"{name}_inverted.pgm").read_bytes().split(b"\n", 3)[3]
+    assert len(normal) == len(inverted) == 800 * 480
+    differences = sum(a + b != 255 for a, b in zip(normal, inverted))
+    assert differences < len(normal) / 100, (name, differences)
+assert (out / "dash_inverted.pgm").read_bytes() == (out / "dash_pet_rest_inverted.pgm").read_bytes()
+assert (out / "dash_inverted.pgm").read_bytes() != (out / "dash_pet_alt_inverted.pgm").read_bytes()
+print("all cards and partial refreshes pass inversion checks")
+PYTEST
+
 for f in "$OUT"/*.pgm; do
   sips -s format png "$f" --out "${f%.pgm}.png" >/dev/null
 done

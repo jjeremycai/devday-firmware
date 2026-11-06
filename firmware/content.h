@@ -6,6 +6,8 @@
 // malformed payloads fall back to these defaults so the device always has
 // something useful to show.
 struct CardContent {
+  bool invert = false; // swap black and white on every card
+
   // Build card
   String build_state;   // ready|running|passed|failed|unknown
   String build_title;

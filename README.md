@@ -230,12 +230,19 @@ For one-off syncs and diagnostics:
 tools/dash_sync.py                  # one-shot (Codex + weather via IP geolocation)
 tools/dash_sync.py --offline --json # no Wi-Fi preview — local usage only
 tools/dash_sync.py --watch          # re-push whenever you plug in USB
+tools/dash_sync.py --invert         # swap black and white on every screen
 tools/dash_sync.py --lat 39.74 --lon -104.99   # pin weather coords
 tools/dash_sync.py --no-weather     # Codex only
 tools/dash_sync.py --offline        # no Wi-Fi: local usage only (no weather)
 tools/dash_sync.py --pet dewey      # a specific pet
 tools/dash_sync.py --no-pet         # profile photo instead of a pet
 ```
+
+`--invert` applies to every screen, including partial pet refreshes. It is
+stored with the content, so it survives a restart. Run sync without `--invert`
+to restore the original colors. Use `--install --invert` to keep inversion in
+automatic sync. This option requires firmware that supports the `invert`
+content field; older firmware ignores it.
 
 `--offline` uses `codex app-server` local usage only (no network), good for
 airplanes or first boot. Otherwise the sync reuses `~/.codex/auth.json` already

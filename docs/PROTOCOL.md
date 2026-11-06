@@ -170,11 +170,17 @@ card in place. A successful response is merged into live content and the
 LittleFS cache by top-level section, so omitting a section preserves it across
 power cycles. Send an explicit empty section when it should be cleared.
 
+The optional top-level `invert` boolean swaps black and white on every card,
+including partial pet refreshes. It defaults to `false`; omitting it preserves
+the current value, and an explicit `false` restores normal colors. It is cached
+with the content. Older firmware ignores the field.
+
 Response schema:
 
 ```json
 {
   "schema": 1,
+  "invert": false,
   "refresh_after_s": 1800,
   "build": {
     "state": "ready|running|passed|failed|unknown",
